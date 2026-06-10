@@ -2,6 +2,7 @@ name: cuentaria
 
 packages:
   - apps/*
+  - packages/*
   - packages/*/*
   - workers/*
 

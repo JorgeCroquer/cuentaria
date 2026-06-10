@@ -9,6 +9,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_riverpod: ^3.3.2
+  go_router: ^17.0.0
+  messaging:
+    path: ../../packages/messaging
 
 dev_dependencies:
   flutter_test:
