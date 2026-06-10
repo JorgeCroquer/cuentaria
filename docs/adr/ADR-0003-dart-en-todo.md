@@ -1,28 +1,15 @@
-# ADR-0003 — Dart en todo el sistema, incluidos los workers de integración
+# ADR-0003 — Dart everywhere, including integration workers
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-Un solo lenguaje: **Dart** para el core de dominio (forzado por ADR-0001, corre en el cliente
-Flutter) **y** para los workers de integración. Los workers se compilan **AOT** a binario
-nativo y se despliegan como **contenedor scale-to-zero** (Cloud Run / Fly.io).
+A single language: **Dart** for the domain core (forced by ADR-0001, runs in the Flutter client) **and** for the integration workers. Workers are compiled **AOT** to native binaries and deployed as **scale-to-zero containers** (Cloud Run / Fly.io).
 
-**Por qué:** los workers son *I/O-bound* (esperan a Binance/BCV/explorers), así que rendimiento
-y memoria entre Dart y Node son irrelevantes a esta escala. Lo que pesa es la **coherencia de
-un solo lenguaje** y poder **reusar los modelos del core** sin re-modelar tipos. Dart AOT da
-arranque rápido y memoria baja, y corre como función efímera de primera clase (custom runtime
-en AWS Lambda, o contenedor en Cloud Run/Fly).
+**Why:** workers are *I/O-bound* (waiting for Binance/BCV/explorers), so performance and memory differences between Dart and Node are irrelevant at this scale. What matters is the **coherence of a single language** and being able to **reuse core models** without re-modeling types. Dart AOT provides fast startup and low memory, and runs as a first-class ephemeral function (custom runtime on AWS Lambda, or container on Cloud Run/Fly).
 
-**Alternativas rechazadas:**
+**Rejected alternatives:**
 
-- **TypeScript en edge functions (Supabase/Cloudflare):** menor fricción al free tier y
-  ecosistema serverless más maduro (SDKs JS para toda API, más ejemplos, más data para
-  agentes). Rechazada por introducir un segundo lenguaje y obligar a re-modelar tipos fuera del
-  core. Costo asumido al elegir Dart: a veces no hay SDK oficial en Dart (Binance/PayPal) y se
-  llama el REST crudo; y se arma el contenedor en vez de pegar una función gestionada.
+- **TypeScript in edge functions (Supabase/Cloudflare):** less friction to the free tier and a more mature serverless ecosystem (JS SDKs for every API, more examples, more data for agents). Rejected for introducing a second language and forcing type re-modeling outside the core. Cost assumed by choosing Dart: sometimes there is no official Dart SDK (Binance/PayPal) and raw REST is called; and a container is built instead of pasting a managed function.
 
-**Reversibilidad:** baja-riesgo. Un fetcher individual puede moverse a TS más adelante sin
-tocar el dominio (los workers son tontos: fetch → normaliza → anexa hecho observado).
+**Reversibility:** low-risk. An individual fetcher can be moved to TS later without touching the domain (workers are dumb: fetch → normalize → append observed fact).
 
-**Implicación de hosting (alimenta ADR-0004):** el "backend" se reduce a contenedor(es) Dart
-scale-to-zero + Supabase Postgres. **No hay servidor web de aplicación → Vercel queda sin rol
-de cómputo**; a lo sumo hospeda el build estático de Flutter Web.
+**Hosting implication (feeds ADR-0004):** the "backend" is reduced to Dart scale-to-zero container(s) + Supabase Postgres. **There is no application web server → Vercel has no compute role**; at most it hosts the Flutter Web static build.

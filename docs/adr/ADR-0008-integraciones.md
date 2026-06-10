@@ -1,24 +1,13 @@
-# ADR-0008 — Integraciones: lo observado propone conciliación, nunca escribe al ledger
+# ADR-0008 — Integrations: observed facts propose reconciliation, never write to the ledger
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-**Patrón:** cada Proveedor tiene un adaptador de sync **opcional** detrás de un puerto
-(polimórfico, principio 5). Los workers son tontos (ADR-0003/0004) y todo lo externo entra como
-**hecho observado** (ADR-0002).
+**Pattern:** each Provider has an **optional** sync adapter behind a port (polymorphic, principle 5). Workers are dumb (ADR-0003/0004) and everything external enters as an **observed fact** (ADR-0002).
 
-**Interacción con el ledger (decisión clave):** cuando un saldo observado (p. ej. Funding de
-Binance) difiere del saldo del ledger, el worker **nunca escribe al ledger**. Anexa el hecho;
-el cliente muestra el **diff** y ofrece una **conciliación de un toque** que postea el evento
-Conciliación/Ajuste (Cuenta + Sobre "Ajustes", auto-balanceada). El usuario confirma.
+**Interaction with the ledger (key decision):** when an observed balance (e.g. Binance Funding) differs from the ledger balance, the worker **never writes to the ledger**. It appends the fact; the client shows the **diff** and offers a **one-touch reconciliation** that posts the Reconciliation/Adjustment event (Account + "Adjustments" Envelope, self-balanced). The user confirms.
 
-**Por qué:** respeta *cliente-autoritativo* (ADR-0001), *conciliación como ritual* (principio
-8) y *automatización honesta: menos acciones, no cero* (principio 6). Evita ajustes erróneos
-por lecturas parciales/temporales de la API.
+**Why:** respects *client-authoritative* (ADR-0001), *reconciliation as ritual* (principle 8) and *honest automation: fewer actions, not zero* (principio 6). Avoids erroneous adjustments due to partial/temporary API reads.
 
-**Secretos:** claves API **solo-lectura** (Binance read sin permisos de retiro, token
-Splitwise, OAuth PayPal) en **GitHub Actions encrypted secrets**, nunca en el cliente.
+**Secrets:** **read-only** API keys (Binance read without withdrawal permissions, Splitwise token, PayPal OAuth) in **GitHub Actions encrypted secrets**, never in the client.
 
-**Alcance MVP de integraciones (roadmap, no arquitectura):** (1) Binance read + Tasas primero;
-(2) on-chain/Ledger (direcciones públicas + explorers + precios) y Splitwise (saldo neto por
-persona → ajuste a cuenta por cobrar/pagar) después; (3) PayPal manual por ahora (API parcial).
-Splitwise y PayPal con callback OAuth podrían motivar adoptar Cloud Run (diferido en ADR-0004).
+**MVP Scope for integrations (roadmap, not architecture):** (1) Binance read + Rates first; (2) on-chain/Ledger (public addresses + explorers + prices) and Splitwise (net balance per person → adjustment to receivable/payable account) next; (3) PayPal manual for now (partial API). Splitwise and PayPal with OAuth callback could motivate adopting Cloud Run (deferred in ADR-0004).

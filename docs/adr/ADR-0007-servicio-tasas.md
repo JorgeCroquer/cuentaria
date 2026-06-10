@@ -1,27 +1,15 @@
-# ADR-0007 — Servicio de Tasas: Binance P2P canónico, multi-fuente, ingesta vía agregador
+# ADR-0007 — Rates Service: canonical Binance P2P, multi-source, ingestion via aggregator
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-**Tasa paralela canónica = Binance P2P** (mediana del libro), guardando los **dos lados**
-(vender ~745 / cambiar ~760) — es donde el usuario transacciona, la más veraz para su costo
-real. **BCV oficial** como serie aparte para el diferencial. Se **guardan varias fuentes en
-paralelo** (BCV, Binance vender/cambiar, banca) como serie **append-only** (hecho observado,
-ADR-0002).
+**Canonical parallel rate = Binance P2P** (median of the book), saving **both sides** (sell ~745 / buy ~760) — it's where the user transacts, the most truthful for their real cost. **Official BCV** as a separate series for the differential. **Several sources are saved in parallel** (BCV, Binance sell/buy, banking) as an **append-only** series (observed fact, ADR-0002).
 
-**Camino de ingesta:** **agregador primario** (ej. Cotizave: BCV + paralelo + USDT/VES
-multi-exchange en un JSON normalizado, sin scraper propio) con **endpoint P2P de Binance
-directo como fallback y cross-check**. Si ambos fallan, se arrastra el último valor conocido
-con bandera de "obsoleto".
+**Ingestion path:** **primary aggregator** (e.g. Cotizave: BCV + parallel + USDT/VES multi-exchange in a normalized JSON, without custom scraper) with **direct Binance P2P endpoint as fallback and cross-check**. If both fail, the last known value is carried over with a "stale" flag.
 
-**Frecuencia:** worker en GitHub Actions 2–3×/día (ADR-0004); cada corrida anexa una
-observación.
+**Frequency:** GitHub Actions worker 2–3×/day (ADR-0004); each run appends an observation.
 
-**Por qué:** el costo real por transacción usa la tasa **ejecutada** que el usuario ingresa; el
-servicio de Tasas alimenta el **overlay de valoración, el diferencial y los reportes**, que
-toleran lag. Por eso se prioriza bajo mantenimiento (agregador) sobre máxima frescura.
+**Why:** the real cost per transaction uses the **executed** rate that the user inputs; the Rates service feeds the **valuation overlay, the differential and reports**, which tolerate lag. Therefore, low maintenance (aggregator) is prioritized over maximum freshness.
 
-**Reversibilidad:** alta. El camino de ingesta es un adaptador detrás de un puerto; cambiar de
-agregador o pasar a Binance-directo no toca el dominio.
+**Reversibility:** high. The ingestion path is an adapter behind a port; changing aggregator or moving to direct Binance does not touch the domain.
 
-**Contexto VE (2026-06-09):** USDT en Binance P2P ≈ 767 VES; es el indicador de referencia de
-facto del país.
+**VE Context (2026-06-09):** USDT on Binance P2P ≈ 767 VES; it is the de facto benchmark indicator of the country.

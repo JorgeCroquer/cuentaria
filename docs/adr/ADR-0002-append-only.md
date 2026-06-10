@@ -1,29 +1,16 @@
-# ADR-0002 — Append-only en todo el sistema, con dos arquetipos de evento
+# ADR-0002 — Append-only across the system, with two event archetypes
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-Todo el almacenamiento es **append-only** (auditoría y *time-travel* uniformes), pero se
-distinguen **dos arquetipos**:
+All storage is **append-only** (uniform audit and *time-travel*), but **two archetypes** are distinguished:
 
-1. **Evento de dominio (command-sourced):** Contabilidad/Cash, Deudas y Distribución usan
-   **event sourcing de verdad** — agregado, comando, validación de invariantes y proyecciones.
-   El ledger es un log de eventos inmutables; la *Conciliación/Ajuste* es un evento de reverso,
-   no una edición.
-2. **Hecho externo observado (log de ingesta, sin agregado):** Tasas, precios de mercado y
-   saldos on-chain (Binance/Ledger) se anexan como observaciones inmutables que alimentan
-   proyecciones, **sin** comando ni invariante.
+1. **Domain event (command-sourced):** Accounting/Cash, Debts and Distribution use **true event sourcing** — aggregate, command, invariant validation and projections. The ledger is a log of immutable events; *Reconciliation/Adjustment* is a reversal event, not an edit.
+2. **Observed external fact (ingestion log, no aggregate):** Rates, market prices and on-chain balances (Binance/Ledger) are appended as immutable observations that feed projections, **without** command or invariant.
 
-**Por qué:** la contabilidad es naturalmente append-only (se revierte, no se borra), lo que da
-auditoría, time-travel (reporte "patrimonio en el tiempo") y P&L no realizada como proyección,
-y vuelve **trivial el merge multi-dispositivo** (dos logs se fusionan por orden de eventos).
-Pero montarle agregado/comando a datos que solo se *observan* (tasas, precios) sería ceremonia
-sin retorno.
+**Why:** accounting is naturally append-only (it is reversed, not deleted), which provides auditability, time-travel (report "patrimony over time") and unrealized P&L as a projection, and makes **multi-device merge trivial** (two logs merge by event order). However, adding aggregate/command ceremony to data that is only *observed* (rates, prices) would be overhead with no return.
 
-**Primitiva de sync:** push/pull del log de eventos hacia Supabase Postgres; merge por orden de
-eventos. La **config mutable** (metadatos de Sobres, settings) usa *last-write-wins* por fila.
+**Sync primitive:** push/pull of the event log to Supabase Postgres; merge by event order. **Mutable config** (Envelope metadata, settings) uses *last-write-wins* per row.
 
-**Read models / proyecciones:** saldo por Cuenta, saldo por Sobre, flujo de caja por
-fuente/cliente, progreso de Sobres vs. meta — todos recomputables desde el log.
+**Read models / projections:** balance by Account, balance by Envelope, cash flow by source/client, Envelope progress vs. target — all recomputable from the log.
 
-**Consecuencia:** se asume el costo de mantener proyecciones y de versionar el esquema de
-eventos.
+**Consequence:** we assume the cost of maintaining projections and versioning the event schema.

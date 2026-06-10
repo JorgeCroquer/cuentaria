@@ -1,54 +1,28 @@
-# ADR-0006 — Ledger Cuenta × Sobre
+# ADR-0006 — Account × Envelope Ledger
 
-Dos dimensiones independientes, transacción auto-balanceada, costo real + valoración overlay.
+Two independent dimensions, self-balancing transaction, real cost + valuation overlay.
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-**Modelo estructural.** Dos dimensiones **independientes** (no una matriz conjunta
-`celda[Cuenta][Sobre]`). Se proyectan dos vectores marginales: saldo por **Cuenta** y saldo por
-**Sobre**, que comparten un gran total. No se rastrea qué porción de una cuenta pertenece a cada
-sobre (un sobre puede vivir repartido en varias cuentas; el invariante es solo sobre los
-totales).
+**Structural model.** Two **independent** dimensions (not a joint `cell[Account][Envelope]` matrix). Two marginal vectors are projected: balance by **Account** and balance by **Envelope**, which share a grand total. We do not track what portion of an account belongs to which envelope (an envelope can live distributed across several accounts; the invariant is only on the totals).
 
-**Regla de oro — transacción auto-balanceada.** Cada transacción (evento de dominio) debe
-cumplir por sí sola:
-`Σ postings.usd[dimensión Cuenta] == Σ postings.usd[dimensión Sobre]`.
-El dominio **rechaza** transacciones que no la cumplan. Como cada transacción preserva el
-invariante por separado, **cualquier orden de fusión de transacciones lo preserva por
-inducción** → merge multi-dispositivo offline seguro por construcción. Esta es la pieza que
-hace que event sourcing + offline + invariante encajen.
+**Golden rule — self-balancing transaction.** Every transaction (domain event) must fulfill by itself:
+`Σ postings.usd[Account dimension] == Σ postings.usd[Envelope dimension]`.
+The domain **rejects** transactions that do not fulfill this. Because each transaction preserves the invariant separately, **any merge order of transactions preserves it by induction** → offline multi-device merge is safe by construction. This is the piece that makes event sourcing + offline + invariant fit together.
 
-Efecto por tipo: Ingreso (+X,+X) · Gasto (−X,−X) · Transferencia (−X+X en Cuentas, 0 en Sobres)
-· Distribución (0 en Cuentas, mueve entre Sobres) · Conversión P2P/FX (−X USD Cuenta, +X USD
-Cuenta-Bs valorada; 0 en Sobres) · Conciliación y realización (δ en Cuenta y δ en un Sobre tipo
-"Ajustes").
+Effect by type: Income (+X,+X) · Expense (−X,−X) · Transfer (−X+X in Accounts, 0 in Envelopes) · Distribution (0 in Accounts, moves between Envelopes) · P2P/FX Conversion (−X USD Account, +X USD valued-Bs Account; 0 in Envelopes) · Reconciliation and realization (δ in Account and δ in an "Adjustments" type Envelope).
 
-**Forma del evento.** Transacción = evento inmutable con `tipo`, metadatos (`occurred_at`,
-`recorded_at`, `device_id`, `source`, `schema_version`) y `postings[]`. Cada posting:
-`(dimensión: Cuenta|Sobre, target_id, amount_native, currency, amount_usd, rate_ref?)`.
+**Event shape.** Transaction = immutable event with `type`, metadata (`occurred_at`, `recorded_at`, `device_id`, `source`, `schema_version`) and `postings[]`. Each posting:
+`(dimension: Account|Envelope, target_id, amount_native, currency, amount_usd, rate_ref?)`.
 
-**Costo real congelado.** `amount_usd` se **snapshotea** al momento de la transacción (lo que
-realmente entró/salió) y no se recalcula. `rate_ref` apunta al hecho de tasa usado, para el
-campo opcional de diferencial BCV.
+**Frozen real cost.** `amount_usd` is **snapshotted** at the time of the transaction (what actually entered/left) and is not recalculated. `rate_ref` points to the rate fact used, for the optional BCV differential field.
 
-**Valoración a mercado = overlay de solo-lectura.** El ledger se mantiene a **costo real**; el
-invariante se cumple a costo base. El **valor actual** y la **P&L no realizada** se calculan al
-vuelo en Patrimonio/Portafolio (`cantidad × tasa/precio actual` de la serie de Tasas), **sin
-postear** transacciones. Solo al **realizar** (Bs→USD a nueva tasa, venta de cripto, gasto de
-Bs) se postea la transacción real que materializa la diferencia. Patrimonio neto mostrado =
-saldos del ledger + overlay; la diferencia ES la P&L no realizada.
+**Market valuation = read-only overlay.** The ledger is kept at **real cost**; the invariant is fulfilled at base cost. The **current value** and the **unrealized P&L** are calculated on the fly in Patrimony/Portfolio (`quantity × current rate/price` from the Rates series), **without posting** transactions. Only when **realizing** (Bs→USD at new rate, crypto sale, spending Bs) is the real transaction posted that materializes the difference. Shown net patrimony = ledger balances + overlay; the difference IS the unrealized P&L.
 
-**Alternativa rechazada:** eventos de valoración posteados periódicamente — inflan el log y
-mezclan no-realizado con movimientos reales.
+**Rejected alternative:** periodically posted valuation events — they inflate the log and mix unrealized with real movements.
 
-**Etiqueta fuente/cliente.** Las transacciones de Ingreso llevan `source` (cliente) como
-dimensión → habilita la proyección de flujo de caja por cliente.
+**Source/client tag.** Income transactions carry `source` (client) as a dimension → enables the cash flow projection by client.
 
-**Preparación Portafolio Nivel 2.** Los postings/holdings capturan `instrument_id`, `quantity`
-y los eventos de adquisición append-only desde el MVP, aunque Nivel 1 solo use valoración
-actual. Así Nivel 2 (PNL/cost basis por lote) se computa después sin reescritura, donde haya
-datos.
+**Level 2 Portfolio preparation.** Postings/holdings capture `instrument_id`, `quantity` and append-only acquisition events from the MVP, even if Level 1 only uses current valuation. This way Level 2 (PNL/cost basis per lot) is computed later without rewriting, wherever data exists.
 
-**Proyecciones (read models) derivadas del log:** saldo por Cuenta · saldo por Sobre ·
-patrimonio en el tiempo · flujo de caja por fuente/cliente · gasto por sobre/categoría ·
-progreso de Sobres vs meta · balance de deuda por persona · diferencial cambiario capturado.
+**Projections (read models) derived from the log:** balance by Account · balance by Envelope · patrimony over time · cash flow by source/client · expense by envelope/category · Envelope progress vs target · debt balance per person · captured exchange differential.

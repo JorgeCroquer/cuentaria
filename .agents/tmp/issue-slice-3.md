@@ -1,0 +1,28 @@
+## Parent
+
+[QUEN-930](https://cohetedigital.atlassian.net/browse/QUEN-930) — [PRD] Limpieza de imágenes huérfanas en S3
+
+## What to build
+
+Infrastructure changes in Terraform to support the S3 image cleanup system: lifecycle rule for the trash prefix, EventBridge schedule for the cleanup Lambda, and IAM permissions.
+
+Three changes:
+
+1. **S3 Lifecycle Rule**: Add an `aws_s3_bucket_lifecycle_configuration` resource for the images bucket with a rule that expires objects under the `_trash/` prefix after 30 days. This enables the soft-delete pattern where orphaned images are moved to `_trash/` and automatically purged after the retention window.
+
+2. **EventBridge Schedule Rule**: Create a scheduled rule that triggers the cleanup Lambda handler on a configurable cadence. Default expression: `rate(7 days)`. The schedule expression should be parameterized via a Terraform variable (`cleanup_schedule_expression`) so it can be adjusted without code changes.
+
+3. **IAM Permissions**: Extend the Lambda execution role to include `s3:ListBucket`, `s3:CopyObject`, and `s3:DeleteObject` permissions on the images bucket. These are required for the sweep to list objects, move them to `_trash/` (copy + delete), and for the lifecycle rule to work.
+
+## Acceptance criteria
+
+- [ ] S3 lifecycle configuration resource exists for the images bucket with a rule targeting prefix `_trash/` and `expiration.days = 30`
+- [ ] EventBridge schedule rule exists with a configurable `schedule_expression` variable (default: `rate(7 days)`)
+- [ ] The schedule rule targets the cleanup Lambda handler
+- [ ] Lambda IAM role includes `s3:ListBucket`, `s3:CopyObject`, `s3:DeleteObject` for the images bucket
+- [ ] `terraform plan` shows no errors and the expected new resources
+- [ ] The `cleanup_schedule_expression` variable is documented in the module's variables
+
+## Blocked by
+
+None — can start immediately.

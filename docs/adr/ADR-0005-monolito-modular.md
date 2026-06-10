@@ -1,39 +1,25 @@
-# ADR-0005 — Monolito modular: estructura, integración entre módulos y mapa de contextos
+# ADR-0005 — Modular monolith: structure, integration between modules, and context map
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-**Estructura.** Monorepo **Melos**, un paquete Dart por bounded context. Cada paquete es
-internamente hexagonal: `domain/` (agregados, eventos, value objects, puertos), `application/`
-(handlers de comando/query), `infrastructure/` (adaptadores: Drift, Supabase, APIs externas).
-Un paquete **`shared_kernel`** con solo value objects puros compartidos (`Money`,
-`CurrencyCode`, `AccountId`, `EnvelopeId`, `EventId`, marcas de tiempo) — sin comportamiento de
-ningún contexto.
+**Structure.** **Melos** monorepo, one Dart package per bounded context. Each package is internally hexagonal: `domain/` (aggregates, events, value objects, ports), `application/` (command/query handlers), `infrastructure/` (adapters: Drift, Supabase, external APIs).
+A **`shared_kernel`** package with only pure shared value objects (`Money`, `CurrencyCode`, `AccountId`, `EnvelopeId`, `EventId`, timestamps) — no behavior from any context.
 
-**Integración entre módulos.** Solo dos vías: **eventos de dominio publicados** y una **API de
-aplicación delgada** (comandos/queries). Prohibido importar el `domain/` de otro contexto; se
-referencian **por ID**. Los eventos usan un **`EventBus` en proceso con despacho síncrono**: el
-contrato ya tiene forma de mensaje, pero sin consistencia eventual dentro del cliente de un
-solo usuario. **Partir a microservicios = sustituir el bus en-proceso por uno de red, sin tocar
-contratos.** Enforcement de fronteras con límites de paquete + reglas de lint de imports.
+**Integration between modules.** Only two ways: **published domain events** and a **thin application API** (commands/queries). Importing another context's `domain/` is forbidden; they are referenced **by ID**. Events use an **in-process `EventBus` with synchronous dispatch**: the contract already has a message shape, but without eventual consistency inside a single-user client. **Splitting into microservices = swapping the in-process bus for a network one, without touching contracts.** Boundary enforcement with package limits + lint rules for imports.
 
-**Alternativas de integración rechazadas:**
+**Rejected integration alternatives:**
 
-- *Bus asíncrono en proceso:* introduce consistencia eventual y reintentos que el cliente no
-  necesita aún.
-- *Llamadas síncronas directas entre app-services:* más simple hoy pero acopla por llamada y
-  exige reescribir integraciones al partir.
+- *In-process async bus:* introduces eventual consistency and retries that the client doesn't need yet.
+- *Direct synchronous calls between app-services:* simpler today but couples by call and requires rewriting integrations when splitting.
 
-**Mapa de contextos (MVP).**
+**Context Map (MVP).**
 
-| Contexto | Rol | Posee agregados |
+| Context | Role | Owns aggregates |
 |----------|-----|-----------------|
-| **Contabilidad / Cash** | Núcleo write: agregados **Cuenta** (tipos: líquida, por cobrar/pagar, activo-diferido) y **Sobre**, log de eventos, todos los tipos de transacción (incl. Conciliación y P2P/FX) | Sí |
-| **Tasas** | Transversal: hechos observados (BCV, paralelo) + serie temporal; publica `RateObserved` y un read-model de serie consultable por puerto | No (hechos observados, ADR-0002) |
-| **Portafolio** | Write propio: holdings, valoración Nivel 1, ingresos pasivos; datos listos para Nivel 2 (PNL/cost basis) | Sí |
-| **Patrimonio** | **Proyección de solo-lectura**: "dónde está el dinero" y patrimonio neto en USD sobre Cuentas + Tasas + holdings. Orquesta el ritual de conciliación emitiendo comandos a Contabilidad | No |
-| **Deudas** | **Proyección de solo-lectura**: balance por persona sobre cuentas por cobrar/pagar de Contabilidad. Saldos netos de Splitwise se importan como ajustes a esas cuentas | No (MVP) |
+| **Accounting / Cash** | Write core: **Account** aggregates (types: liquid, receivable/payable, deferred-asset) and **Envelope**, event log, all transaction types (incl. Reconciliation and P2P/FX) | Yes |
+| **Rates** | Transversal: observed facts (BCV, parallel) + time series; publishes `RateObserved` and a queryable read-model series via port | No (observed facts, ADR-0002) |
+| **Portfolio** | Own write: holdings, Level 1 valuation, passive income; data ready for Level 2 (PNL/cost basis) | Yes |
+| **Patrimony** | **Read-only projection**: "where the money is" and net worth in USD over Accounts + Rates + holdings. Orchestrates the reconciliation ritual by emitting commands to Accounting | No |
+| **Debts** | **Read-only projection**: balance per person on Accounting's receivable/payable accounts. Splitwise net balances are imported as adjustments to those accounts | No (MVP) |
 
-**Por qué Patrimonio y Deudas como proyección:** evita duplicar el concepto de saldo (causa
-raíz del "no cuadra" original) → **una sola fuente de verdad de saldo: el ledger**. No rompe el
-objetivo de microservicios: Deudas puede **promoverse** a contexto write el día que se
-construya el splitting nativo que reemplace Splitwise (diferido).
+**Why Patrimony and Debts as projection:** avoids duplicating the balance concept (root cause of the original "doesn't match" issue) → **a single source of truth for balance: the ledger**. Doesn't break the microservices goal: Debts can be **promoted** to a write context the day native splitting is built to replace Splitwise (deferred).

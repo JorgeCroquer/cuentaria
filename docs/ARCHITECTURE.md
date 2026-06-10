@@ -1,116 +1,95 @@
-# Cuentaria — Arquitectura de la Solución
+# Cuentaria — Solution Architecture
 
-> Vista consolidada de la arquitectura. Ata las decisiones de `docs/adr/` al modelo de
-> dominio. El vocabulario está en [`docs/CONTEXT.md`](CONTEXT.md).
+> Consolidated view of the architecture. Ties `docs/adr/` decisions to the domain model. Vocabulary is in [`docs/CONTEXT.md`](CONTEXT.md).
 
-## 1. Resumen ejecutivo
+## 1. Executive Summary
 
-Cuentaria es una app **cliente-autoritativa, offline-first**, construida con **Flutter**
-(Android, Web, Windows/macOS/Linux) y un **core de dominio en Dart puro** (hexagonal · DDD ·
-CQRS · event sourcing). Es un **monolito modular** cuyos bounded contexts son paquetes Dart con
-fronteras explícitas, **listo para izar módulos a microservicios** sin reescritura. La
-infraestructura busca ser **casi gratis**: Supabase free como sync/backup, GitHub Actions como
-cron de los workers, Cloudflare Pages para la web. Los datos viajan **cifrados
-extremo-a-extremo**; el usuario es dueño de su información y puede exportarla sin lock-in.
+Cuentaria is a **client-authoritative, offline-first** app built with **Flutter** (Android, Web, Windows/macOS/Linux) and a **pure Dart domain core** (hexagonal · DDD · CQRS · event sourcing). It is a **modular monolith** whose bounded contexts are Dart packages with explicit boundaries, **ready to hoist modules to microservices** without rewriting. Infrastructure aims to be **almost free**: Supabase free for sync/backup, GitHub Actions as workers cron, Cloudflare Pages for web. Data travels **end-to-end encrypted**; the user owns their info and can export it without lock-in.
 
-Decisión raíz: el dominio **no** vive en un servidor ni en Supabase-as-backend; vive en el
-cliente. El "backend" se reduce a almacenamiento de sync (blobs opacos) + fetchers programados.
-Esto hace el offline natural, el costo mínimo, y el E2EE casi gratis.
+Root decision: the domain **does not** live on a server or in Supabase-as-backend; it lives on the client. The "backend" is reduced to sync storage (opaque blobs) + scheduled fetchers. This makes offline natural, cost minimal, and E2EE almost free.
 
-## 2. Diagrama de componentes
+## 2. Component Diagram
 
 ```mermaid
 flowchart TD
-    subgraph Cliente["Cliente Flutter (autoritativo, offline-first)"]
-        UI["UI Flutter (Android · Web · Desktop)"]
-        subgraph Core["Core de dominio (Dart puro, hexagonal)"]
-            CTB["Contabilidad/Cash (Cuenta · Sobre · ledger)"]
-            POR["Portafolio"]
-            TAS["Tasas (lectura)"]
-            PAT["Patrimonio (proyección)"]
-            DEU["Deudas (proyección)"]
-            BUS["EventBus en proceso (síncrono)"]
+    subgraph Client["Flutter Client (authoritative, offline-first)"]
+        UI["Flutter UI (Android · Web · Desktop)"]
+        subgraph Core["Domain Core (Pure Dart, hexagonal)"]
+            CTB["Accounting/Cash (Account · Envelope · ledger)"]
+            POR["Portfolio"]
+            TAS["Rates (read)"]
+            PAT["Patrimony (projection)"]
+            DEU["Debts (projection)"]
+            BUS["In-process EventBus (synchronous)"]
         end
-        LOCAL["SQLite/Drift cifrada (SQLCipher) — fuente de verdad"]
-        ENC["Cifrado por sobre (DEK envuelta por passphrase)"]
+        LOCAL["Encrypted SQLite/Drift (SQLCipher) — source of truth"]
+        ENC["Envelope encryption (DEK wrapped by passphrase)"]
     end
 
-    subgraph Nube["Infra casi-gratis (sin lógica de dominio)"]
-        SUPA["Supabase free — Postgres: log de eventos cifrado + Auth"]
-        GHA["GitHub Actions (cron) — Workers Dart AOT"]
-        CFP["Cloudflare Pages (Flutter Web estático)"]
+    subgraph Cloud["Almost-free Infra (no domain logic)"]
+        SUPA["Supabase free — Postgres: encrypted event log + Auth"]
+        GHA["GitHub Actions (cron) — Dart AOT Workers"]
+        CFP["Cloudflare Pages (Static Flutter Web)"]
     end
 
-    subgraph Ext["Fuentes externas"]
-        AGG["Agregador de tasas (Cotizave) + Binance P2P"]
+    subgraph Ext["External Sources"]
+        AGG["Rates Aggregator (Cotizave) + Binance P2P"]
         BIN["Binance API (read)"]
-        CHAIN["On-chain / Ledger (explorers + precios)"]
+        CHAIN["On-chain / Ledger (explorers + prices)"]
         SPLIT["Splitwise"]
     end
 
     UI --> Core
     Core --> LOCAL
     LOCAL <--> ENC
-    ENC <-->|sync push/pull blobs E2EE| SUPA
-    GHA -->|anexa hechos observados| SUPA
+    ENC <-->|sync push/pull E2EE blobs| SUPA
+    GHA -->|appends observed facts| SUPA
     AGG --> GHA
     BIN --> GHA
     CHAIN --> GHA
     SPLIT --> GHA
-    CFP -.sirve.-> UI
+    CFP -.serves.-> UI
 ```
 
-## 3. Capas hexagonales (dentro de cada contexto)
+## 3. Hexagonal Layers (inside each context)
 
-`domain/` (agregados, eventos, value objects, **puertos**) → `application/` (handlers de
-comando/query) → `infrastructure/` (adaptadores: Drift, Supabase, APIs). El dominio no conoce a
-Supabase ni a Flutter; son adaptadores detrás de puertos. Inversión de dependencias estricta.
+`domain/` (aggregates, events, value objects, **ports**) → `application/` (command/query handlers) → `infrastructure/` (adapters: Drift, Supabase, APIs). The domain does not know Supabase or Flutter; they are adapters behind ports. Strict dependency inversion.
 
-## 4. Mapa de módulos (bounded contexts)
+## 4. Modules Map (bounded contexts)
 
-| Contexto | Rol | Agregados |
+| Context | Role | Aggregates |
 |----------|-----|-----------|
-| **Contabilidad / Cash** | Núcleo write: Cuenta, Sobre, log de eventos, todos los tipos de transacción | Sí |
-| **Tasas** | Transversal: serie de hechos observados (BCV, paralelo); read-model por puerto | No |
-| **Portafolio** | Holdings, valoración N1, ingresos pasivos; datos listos para N2 | Sí |
-| **Patrimonio** | Proyección de solo-lectura: "dónde está el dinero" + patrimonio neto | No |
-| **Deudas** | Proyección de solo-lectura: balance por persona sobre cuentas por cobrar/pagar | No |
+| **Accounting / Cash** | Write core: Account, Envelope, event log, all transaction types | Yes |
+| **Rates** | Transversal: series of observed facts (BCV, parallel); read-model per port | No |
+| **Portfolio** | Holdings, L1 valuation, passive income; data ready for L2 | Yes |
+| **Patrimony** | Read-only projection: "where the money is" + net worth | No |
+| **Debts** | Read-only projection: balance per person on receivable/payable accounts | No |
 
-Comunicación entre módulos: **solo** eventos de dominio (EventBus síncrono en proceso) + API de
-aplicación; referencias **por ID**; prohibido importar el `domain/` ajeno. Partir a
-microservicios = cambiar el bus en-proceso por uno de red.
+Communication between modules: **only** domain events (synchronous in-process EventBus) + application API; references **by ID**; forbidden to import another's `domain/`. Splitting into microservices = changing the in-process bus for a network one.
 
-## 5. Flujos clave
+## 5. Key Flows
 
-**Captura offline → sync.** El usuario registra una transacción → el agregado valida
-invariantes (incluida la regla auto-balanceada `Σ usd[Cuenta] == Σ usd[Sobre]`) → emite eventos
-→ se persisten en la SQLite local cifrada → al haber red, se cifran por sobre y se hacen push a
-Supabase. Multi-dispositivo: pull + merge por orden de eventos (seguro porque cada transacción
-preserva el invariante).
+**Offline capture → sync.** User records a transaction → aggregate validates invariants (including auto-balanced rule `Σ usd[Account] == Σ usd[Envelope]`) → emits events → persisted in local encrypted SQLite → when network is available, envelope-encrypted and pushed to Supabase. Multi-device: pull + merge by event order (safe because each transaction preserves the invariant).
 
-**Tasas.** Worker en GitHub Actions (2–3×/día) consulta el agregador (fallback Binance directo)
-→ anexa observaciones a la serie en Supabase → el cliente las baja → alimentan el **overlay de
-valoración** y reportes de diferencial. El ledger permanece a **costo real**.
+**Rates.** Worker on GitHub Actions (2–3×/day) queries aggregator (Binance direct fallback) → appends observations to series in Supabase → client pulls them → feed the **valuation overlay** and differential reports. The ledger remains at **real cost**.
 
-**Conciliación.** Saldo real (declarado o vía API) vs ledger; dentro de tolerancia configurable
-= un toque; fuera = revisión. El ajuste lleva el ledger al real con un evento auto-balanceado
-(Cuenta + Sobre "Ajustes").
+**Reconciliation.** Real balance (declared or via API) vs ledger; within configurable tolerance = one touch; outside = review. Adjustment brings ledger to real with a self-balanced event (Account + "Adjustments" Envelope).
 
-## 6. Stack tecnológico
+## 6. Tech Stack
 
-| Capa | Elección | Nota |
+| Layer | Choice | Note |
 |------|----------|------|
-| Cliente / UI | **Flutter** (Android, Web, Windows/macOS/Linux) | iOS más adelante |
-| Lenguaje | **Dart** en todo (core + workers) | Un solo lenguaje |
-| Store local | **SQLite / Drift + SQLCipher** | Fuente de verdad, cifrada |
-| Sync / backup / Auth | **Supabase free** (Postgres + Auth + RLS) | Solo almacena blobs E2EE; sin lógica |
-| Workers | **Dart AOT** en **GitHub Actions** (cron) | Cloud Run scale-to-zero diferido |
-| Web hosting | **Cloudflare Pages** | Estático |
-| Cifrado | **E2EE por sobre** (DEK + passphrase + código de recuperación) | Argon2id; `cryptography`/`sodium` |
-| Tasas | **Agregador (Cotizave)** + Binance P2P fallback | Serie append-only |
-| ~~Vercel · Clerk~~ | **Descartados** | No se ganan su lugar (ADR-0004 / ADR-0009) |
+| Client / UI | **Flutter** (Android, Web, Windows/macOS/Linux) | iOS later |
+| Language | **Dart** everywhere (core + workers) | Single language |
+| Local store | **SQLite / Drift + SQLCipher** | Source of truth, encrypted |
+| Sync/backup/Auth | **Supabase free** (Postgres + Auth + RLS) | Only stores E2EE blobs; no logic |
+| Workers | **Dart AOT** on **GitHub Actions** (cron) | Deferred scale-to-zero Cloud Run |
+| Web hosting | **Cloudflare Pages** | Static |
+| Encryption | **Envelope E2EE** (DEK + passphrase + recovery code) | Argon2id; `cryptography`/`sodium` |
+| Rates | **Aggregator (Cotizave)** + Binance P2P fallback | Append-only series |
+| ~~Vercel · Clerk~~ | **Discarded** | Don't earn their place (ADR-0004 / ADR-0009) |
 
-## 7. Estructura del monorepo (objetivo F1)
+## 7. Monorepo Structure (F1 goal)
 
 ```
 cuentaria/
@@ -119,54 +98,54 @@ cuentaria/
 ├── apps/
 │   └── cuentaria_app/           # Flutter (Android · Web · Desktop)
 ├── packages/
-│   ├── shared_kernel/           # value objects puros (Money, Tasa, IDs)
-│   ├── event_bus/               # EventBus en proceso
+│   ├── shared_kernel/           # pure value objects (Money, Rate, IDs)
+│   ├── event_bus/               # In-process EventBus
 │   ├── contabilidad/            # C1 — domain/application/infrastructure
 │   ├── tasas/                   # S1
 │   ├── portafolio/              # S4
-│   ├── patrimonio/              # S2 (proyección)
-│   └── deudas/                  # S3 (proyección)
-├── workers/                     # Dart AOT (ingesta tasas, integraciones I1)
+│   ├── patrimonio/              # S2 (projection)
+│   └── deudas/                  # S3 (projection)
+├── workers/                     # Dart AOT (rates ingestion, I1 integrations)
 ├── docs/
 │   ├── CONTEXT.md
 │   ├── ARCHITECTURE.md
 │   └── adr/
-├── CLAUDE.md
+├── AGENTS.md
 └── README.md
 ```
 
-## 8. Índice de decisiones (ADRs)
+## 8. Decision Index (ADRs)
 
-Ver [`docs/adr/`](adr/README.md). Resumen en una línea cada una:
+See [`docs/adr/`](adr/README.md). One-line summary for each:
 
-- **ADR-0001** — Dominio cliente-autoritativo, offline-first.
-- **ADR-0002** — Append-only en todo; dos arquetipos de evento (dominio vs hecho observado).
-- **ADR-0003** — Dart en todo, incluidos los workers (AOT, scale-to-zero).
-- **ADR-0004** — Hosting casi-gratis: Supabase free + GitHub Actions + Cloudflare Pages; Vercel fuera.
-- **ADR-0005** — Monolito modular: estructura, integración por eventos, mapa de contextos.
-- **ADR-0006** — Ledger Cuenta × Sobre: dimensiones independientes, transacción auto-balanceada, costo real + valoración overlay.
-- **ADR-0007** — Servicio de Tasas: Binance P2P canónico, multi-fuente, ingesta vía agregador.
-- **ADR-0008** — Integraciones: lo observado propone conciliación, nunca escribe al ledger.
-- **ADR-0009** — Seguridad: E2EE por sobre, Supabase Auth, cifrado local, export sin lock-in.
-- **ADR-0010** — Modelo unificado de metas/aportes de Sobres.
-- **ADR-0011** — Conciliación operativa: la tolerancia configurable gobierna la fricción.
+- **ADR-0001** — Client-authoritative, offline-first domain.
+- **ADR-0002** — Append-only everywhere; two event archetypes (domain vs observed fact).
+- **ADR-0003** — Dart everywhere, including workers (AOT, scale-to-zero).
+- **ADR-0004** — Almost-free hosting: Supabase free + GitHub Actions + Cloudflare Pages; Vercel out.
+- **ADR-0005** — Modular monolith: structure, event integration, context map.
+- **ADR-0006** — Account × Envelope Ledger: independent dimensions, self-balancing transaction, real cost + valuation overlay.
+- **ADR-0007** — Rates Service: canonical Binance P2P, multi-source, aggregator ingestion.
+- **ADR-0008** — Integrations: observed facts propose reconciliation, never write to the ledger.
+- **ADR-0009** — Security: Envelope E2EE, Supabase Auth, local encryption, export without lock-in.
+- **ADR-0010** — Unified model for Envelope targets/contributions.
+- **ADR-0011** — Operational reconciliation: configurable tolerance governs friction.
 
-## 9. Las 9 reglas del modelo (cómo se materializan)
+## 9. The 9 Model Rules (how they materialize)
 
-1. Dos dimensiones: **Cuenta** (dónde) × **Sobre** (para qué); siempre concilian → ADR-0006.
-2. Moneda base **USD**, multi-moneda; Bs transaccional → ADR-0006.
-3. El dinero **nunca sale del sistema**, solo se mueve → invariante en cada transacción.
-4. **Costo real** como verdad; valor BCV opcional → snapshot USD + overlay (ADR-0006).
-5. **Proveedores polimórficos**; sync es capacidad opcional → ADR-0008.
-6. **Automatización honesta**: menos acciones, no cero → ADR-0008/0011.
-7. **Distribuir = mover etiquetas**, automático e instantáneo → ADR-0010.
-8. **Conciliación** como ritual recurrente → ADR-0011.
-9. **Datos propios**, exportables, sin lock-in → ADR-0009 (export NDJSON).
+1. Two dimensions: **Account** (where) × **Envelope** (what for); always reconcile → ADR-0006.
+2. Base currency **USD**, multi-currency; transactional VES → ADR-0006.
+3. Money **never leaves the system**, only moves → invariant in each transaction.
+4. **Real cost** as truth; optional BCV value → USD snapshot + overlay (ADR-0006).
+5. **Polymorphic providers**; sync is an optional capability → ADR-0008.
+6. **Honest automation**: fewer actions, not zero → ADR-0008/0011.
+7. **Distributing = moving tags**, automatic and instant → ADR-0010.
+8. **Reconciliation** as a recurring ritual → ADR-0011.
+9. **Own data**, exportable, no lock-in → ADR-0009 (NDJSON export).
 
-## 10. Abierto / diferido
+## 10. Open / Deferred
 
-- **UX de captura rápida (U1):** quick-add, plantillas, atajos, flujo P2P — sesión de producto.
-- **Plantillas de distribución con nombre** ("mes normal", "mes flaco", "bono").
-- **Portafolio Nivel 2** (PNL/cost basis por lote) — datos ya preparados.
-- **Activos + depreciación**; **splitting nativo** (reemplazo de Splitwise) → promovería Deudas a contexto write.
-- **Cloud Run** si aparece necesidad on-demand (callback OAuth PayPal, "refrescar ya").
+- **Fast capture UX (U1):** quick-add, templates, shortcuts, P2P flow — product session.
+- **Named distribution templates** ("normal month", "lean month", "bonus").
+- **Level 2 Portfolio** (PNL/cost basis per lot) — data already prepared.
+- **Assets + depreciation**; **native splitting** (Splitwise replacement) → would promote Debts to write context.
+- **Cloud Run** if on-demand need arises (PayPal OAuth callback, "refresh now").

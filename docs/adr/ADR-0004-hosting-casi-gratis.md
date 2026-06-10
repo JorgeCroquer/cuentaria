@@ -1,34 +1,20 @@
-# ADR-0004 — Topología de hosting "casi gratis"
+# ADR-0004 — "Almost free" hosting topology
 
 (Supabase free + GitHub Actions + Cloudflare Pages)
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-El "backend" del MVP es:
+The MVP "backend" is:
 
-- **DB + sync/backup:** **Supabase free** (500 MB Postgres, RLS atado al único usuario). El
-  cliente Flutter sincroniza **directo** vía SDK Dart; no hay servidor de aplicación en medio.
-  El free tier pausa el proyecto tras **7 días sin actividad** — mitigado por el uso diario y
-  por el worker de tasas que actúa de *keep-alive*.
-- **Workers de integración:** **GitHub Actions scheduled workflows** corren el binario Dart AOT
-  en horario, escriben a Supabase y se apagan. ~Gratis (2000 min/mes en repo privado); un fetch
-  de tasas/saldos un par de veces al día no roza ese techo y tolera los retrasos de 5–30 min
-  del cron de GitHub.
-- **Flutter Web estático:** **Cloudflare Pages** (free).
+- **DB + sync/backup:** **Supabase free** (500 MB Postgres, RLS tied to the single user). The Flutter client syncs **directly** via Dart SDK; there is no application server in the middle. The free tier pauses the project after **7 days of inactivity** — mitigated by daily use and the rates worker acting as a *keep-alive*.
+- **Integration workers:** **GitHub Actions scheduled workflows** run the Dart AOT binary on a schedule, write to Supabase, and spin down. ~Free (2000 mins/month in private repo); a rates/balances fetch a couple of times a day doesn't come close to that ceiling and tolerates the 5–30 min delays of GitHub's cron.
+- **Static Flutter Web:** **Cloudflare Pages** (free).
 
-**Por qué:** como el cliente sincroniza directo a Supabase, los workers solo necesitan ser
-**fetchers programados** → no hace falta hospedar ningún contenedor siempre-disponible. GitHub
-Actions da cron + ejecución del binario Dart con cero infra propia.
+**Why:** because the client syncs directly to Supabase, workers only need to be **scheduled fetchers** → there's no need to host any always-available container. GitHub Actions provides cron + Dart binary execution with zero proprietary infra.
 
-**Alternativas rechazadas / diferidas:**
+**Rejected / deferred alternatives:**
 
-- **Cloud Run scale-to-zero desde el día 1:** capaz de HTTP on-demand (refrescar tasa,
-  callbacks OAuth), pero exige cuenta GCP con tarjeta y más setup. **Diferida**: se adopta solo
-  cuando aparezca una necesidad on-demand real (p. ej. callback OAuth de PayPal). El contenedor
-  Dart de ADR-0003 sigue válido; cambia solo quién lo dispara.
-- **Vercel:** **eliminado del diseño** — no hay cómputo de aplicación que hospedar; Cloudflare
-  Pages cubre el estático.
+- **Cloud Run scale-to-zero from day 1:** capable of HTTP on-demand (refresh rate, OAuth callbacks), but demands a GCP account with a card and more setup. **Deferred**: will be adopted only when a real on-demand need arises (e.g. PayPal OAuth callback). The Dart container from ADR-0003 remains valid; only what triggers it changes.
+- **Vercel:** **eliminated from the design** — there's no application compute to host; Cloudflare Pages covers the static site.
 
-**Consecuencia / límite a vigilar:** 500 MB de Postgres y la pausa por inactividad son los
-topes a monitorear; migrar a Supabase Pro o a otro Postgres es directo si se exceden (el
-dominio no depende de Supabase, es un adaptador — ADR-0001).
+**Consequence / limits to watch:** 500 MB of Postgres and the inactivity pause are the ceilings to monitor; migrating to Supabase Pro or another Postgres is straightforward if exceeded (the domain doesn't depend on Supabase, it's an adapter — ADR-0001).

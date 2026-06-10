@@ -1,27 +1,16 @@
-# ADR-0011 — Conciliación operativa: la tolerancia configurable gobierna la fricción
+# ADR-0011 — Operational reconciliation: configurable tolerance governs friction
 
-**Estado:** aceptada (2026-06-09)
+**Status:** accepted (2026-06-09)
 
-**"Conciliado":** una Cuenta está conciliada en T si su saldo de ledger == saldo real dentro de
-una **tolerancia**. El saldo real lo **propone la integración** en cuentas con API (ADR-0008) o
-lo **declara el usuario** en bancos VE/efectivo.
+**"Reconciled":** an Account is reconciled at T if its ledger balance == real balance within a **tolerance**. The real balance is **proposed by integration** in accounts with API (ADR-0008) or **declared by the user** in VE banks/cash.
 
-**Comportamiento:** conciliar **siempre lleva el ledger al saldo real** vía evento
-Conciliación/Ajuste (Cuenta + Sobre "Ajustes", auto-balanceado, ADR-0006), absorbiendo el
-buffer del hábito de redondeo conservador. La **tolerancia gobierna la fricción, no si se
-ajusta**:
+**Behavior:** reconciling **always brings the ledger to the real balance** via Reconciliation/Adjustment event (Account + "Adjustments" Envelope, self-balanced, ADR-0006), absorbing the buffer from conservative rounding habits. **Tolerance governs friction, not whether it adjusts**:
 
-- diferencia **dentro de tolerancia** → conciliación de un toque / auto-aceptada;
-- diferencia **fuera de tolerancia** → se **avisa para revisar** antes (quizá faltó registrar
-  un movimiento real en vez de absorberlo).
+- difference **within tolerance** → one-touch / auto-accepted reconciliation;
+- difference **outside tolerance** → **prompts for review** first (perhaps a real movement was missed instead of absorbing it).
 
-**Tolerancia configurable:** por Cuenta, con un **default global sobreescribible** por cada
-Cuenta (ej. Bs: redondeo al entero / umbral pequeño; USD: ~$0.50).
+**Configurable tolerance:** per Account, with a **global default overridable** by each Account (e.g. Bs: round to integer / small threshold; USD: ~$0.50).
 
-**Ritmo y recordatorios:** **cadencia por Cuenta** (semanal para uso intenso como BdV; mensual
-para frío/poco uso) + on-demand; cada Cuenta lleva `última conciliación`. Recordatorio
-**suave**: badge/lista de "cuentas por conciliar" según cadencia y fecha de última
-conciliación; notificación opcional, sin acoso (la disciplina es el riesgo).
+**Rhythm and reminders:** **cadence per Account** (weekly for heavy use like BdV; monthly for cold/low use) + on-demand; each Account tracks `last_reconciled`. **Gentle** reminder: badge/list of "accounts to reconcile" based on cadence and last reconciliation date; optional notification, no nagging (discipline is the risk).
 
-**Por qué:** alinea con *automatización honesta: menos acciones, no cero* (principio 6) y
-*conciliación como ritual* (principio 8), sin imponer fricción sobre el redondeo cotidiano.
+**Why:** aligns with *honest automation: fewer actions, not zero* (principle 6) and *reconciliation as ritual* (principle 8), without imposing friction on daily rounding.
