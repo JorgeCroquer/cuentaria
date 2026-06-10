@@ -1,79 +1,71 @@
 # Cuentaria
 
-App de uso **personal** para centralizar finanzas y contabilidad, adaptada a la realidad
-venezolana multi-tasa. Separa el *dónde* está el dinero (**Cuentas** reales) del *para qué* es
-(**Sobres**), valora todo en **USD**, automatiza donde hay API y hace el resto rápido a mano.
+**Personal** use app to centralize finances and accounting, adapted to the multi-rate Venezuelan reality. It separates *where* the money is (real **Accounts**) from *what it is for* (**Envelopes**), values everything in **USD**, automates where there is an API, and makes the rest quick to do by hand.
 
-> **Idea en una frase:** un sistema integral que separe el *dónde* (Cuentas) del *para qué*
-> (Sobres), valore todo en USD sobre una realidad multi-tasa, automatice donde haya API y haga
-> el resto rápido a mano — robusto, barato, multiplataforma y extensible.
+> **Idea in one sentence:** a comprehensive system that separates the *where* (Accounts) from the *what for* (Envelopes), values everything in USD over a multi-rate reality, automates where there is an API, and makes the rest quick to do by hand — robust, cheap, multi-platform, and extensible.
 
 ## Stack
 
-- **Flutter** (Android · Web · Windows/macOS/Linux) — cliente autoritativo, offline-first.
-- **Dart puro** en el core de dominio (hexagonal · DDD · CQRS · event sourcing) y en los workers.
-- **SQLite/Drift + SQLCipher** como fuente de verdad local cifrada.
-- **Supabase free** (Postgres + Auth) como sync/backup de blobs E2EE — sin lógica de dominio.
-- **GitHub Actions** (cron) ejecuta los workers Dart AOT de ingesta.
-- **Cloudflare Pages** sirve el build estático de Flutter Web.
+- **Flutter** (Android · Web · Windows/macOS/Linux) — client-authoritative, offline-first.
+- **Pure Dart** in the domain core (hexagonal · DDD · CQRS · event sourcing) and in the workers.
+- **SQLite/Drift + SQLCipher** as the encrypted local source of truth.
+- **Supabase free** (Postgres + Auth) as E2EE blob sync/backup — without domain logic.
+- **GitHub Actions** (cron) runs the ingestion Dart AOT workers.
+- **Cloudflare Pages** serves the static Flutter Web build.
 
-Detalle completo en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Full details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
-## Estructura del monorepo
+## Monorepo Structure
 
-Monorepo **Melos**, un paquete Dart por bounded context (hexagonal por dentro).
+**Melos** monorepo, one Dart package per bounded context (hexagonal inside).
 
 ```
-apps/cuentaria_app/      Flutter (UI, navegación, tema, design system)
+apps/cuentaria_app/      Flutter (UI, navigation, theme, design system)
 packages/
-  shared_kernel/         value objects puros (Money, CurrencyCode, AccountId…)
-  event_bus/             EventBus en proceso (síncrono)
-  contabilidad/          C1 — ledger Cuenta × Sobre (núcleo write)
-  tasas/                 S1 — serie de tasas observadas
-  portafolio/            S4 — holdings y valoración
-  patrimonio/            S2 — proyección "dónde está el dinero"
-  deudas/                S3 — proyección por persona
-workers/                 Dart AOT (ingesta de tasas, integraciones)
+  shared_kernel/         pure value objects (Money, CurrencyCode, AccountId…)
+  event_bus/             In-process EventBus (synchronous)
+  contabilidad/          C1 — Account × Envelope ledger (write core)
+  tasas/                 S1 — observed rates series
+  portafolio/            S4 — holdings and valuation
+  patrimonio/            S2 — "where the money is" projection
+  deudas/                S3 — projection per person
+workers/                 Dart AOT (rates ingestion, integrations)
 docs/                    CONTEXT.md · ARCHITECTURE.md · adr/
 ```
 
-## Las 9 reglas del modelo
+## The 9 Model Rules
 
-1. Dos dimensiones: **Cuenta** (dónde) × **Sobre** (para qué); siempre concilian.
-2. Moneda base **USD**, multi-moneda; Bs transaccional.
-3. El dinero **nunca sale del sistema**, solo se mueve.
-4. **Costo real** como verdad; valor BCV opcional.
-5. **Proveedores polimórficos**; sync es capacidad opcional.
-6. **Automatización honesta**: menos acciones, no cero.
-7. **Distribuir = mover etiquetas**, automático e instantáneo.
-8. **Conciliación** como ritual recurrente.
-9. **Datos propios**, exportables, sin lock-in.
+1. Two dimensions: **Account** (where) × **Envelope** (what for); always reconcile.
+2. Base currency **USD**, multi-currency; transactional VES.
+3. Money **never leaves the system**, only moves.
+4. **Real cost** as truth; optional BCV value.
+5. **Polymorphic providers**; sync is an optional capability.
+6. **Honest automation**: fewer actions, not zero.
+7. **Distributing = moving tags**, automatic and instant.
+8. **Reconciliation** as a recurring ritual.
+9. **Own data**, exportable, no lock-in.
 
-## Desarrollo
+## Development
 
-Entorno primario: **WSL2** (Ubuntu). El repo vive en el filesystem de Linux
-(`~/projects/cuentaria`), **no** en `/mnt/c`, para no degradar el file-watching de Flutter.
+Primary environment: **WSL2** (Ubuntu). The repo lives in the Linux filesystem (`~/projects/cuentaria`), **not** in `/mnt/c`, to avoid degrading Flutter file-watching.
 
 ```bash
-# requisitos: Flutter SDK (Linux), Dart, Melos
+# requirements: Flutter SDK (Linux), Dart, Melos
 dart pub global activate melos
-melos bootstrap          # resuelve dependencias de todos los paquetes
-melos run analyze        # análisis estático
+melos bootstrap          # resolves dependencies for all packages
+melos run analyze        # static analysis
 melos run test           # tests
 ```
 
-Targets que compilan desde WSL2: **Linux desktop · Web · Android**. El target **Windows
-desktop** se construye en el host Windows o en un runner Windows de CI (no desde WSL).
+Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL).
 
-## Planificación
+## Planning
 
-Las features (PRDs) y su orden viven en el tracker (Jira, proyecto `QUEN`) y en las notas de
-diseño. Slice MVP: **F1 Scaffold → F2 Persistencia local → C1 Ledger → C2 Distribución →
-S2 Patrimonio → U1 Captura rápida**.
+Features (PRDs) and their order live in the tracker (Jira, `QUEN` project) and in the design notes. MVP Slice: **F1 Scaffold → F2 Local persistence → C1 Ledger → C2 Distribution → S2 Patrimony → U1 Fast capture**.
 
-## Documentación
+## Documentation
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — vista consolidada. **Empezar aquí.**
-- [`docs/CONTEXT.md`](docs/CONTEXT.md) — lenguaje ubicuo de arquitectura.
-- [`docs/adr/`](docs/adr/README.md) — 11 decisiones de arquitectura con su porqué.
-- [`CLAUDE.md`](CLAUDE.md) — guía para agentes de IA que trabajen en el repo.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — consolidated view. **Start here.**
+- [`docs/CONTEXT.md`](docs/CONTEXT.md) — ubiquitous architecture language.
+- [`docs/adr/`](docs/adr/README.md) — 11 architecture decisions with their why.
+- [`AGENTS.md`](AGENTS.md) — guide for AI agents working in the repo (symlinked to `CLAUDE.md`).
