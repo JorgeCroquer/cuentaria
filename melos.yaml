@@ -1,0 +1,14 @@
+name: cuentaria
+
+packages:
+  - apps/*
+  - packages/*/*
+  - workers/*
+
+scripts:
+  analyze:
+    run: melos exec -c 1 -- "flutter analyze"
+    description: Run analyze for all packages.
+  test:
+    run: melos exec -c 1 --fail-fast --dir-exists="test" -- "flutter test"
+    description: Run test for all packages.
