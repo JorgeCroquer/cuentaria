@@ -59,6 +59,14 @@ melos run test           # tests
 
 Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL).
 
+## Deployment
+
+La versión Web de Cuentaria se despliega automáticamente a **GitHub Pages** al hacer un merge a la rama `main` mediante un workflow de GitHub Actions (`.github/workflows/deploy-web.yaml`). 
+
+Dado que se utiliza el dominio por defecto de GitHub Pages, la aplicación es accesible en `https://jorgecroquer.github.io/cuentaria/`. Por esta razón, el comando de build en el workflow inyecta `--base-href /cuentaria/` para que la navegación de `go_router` funcione correctamente.
+
+> **Nota para dominios personalizados:** Si en el futuro se configura un dominio personalizado (ej. `cuentaria.com`), el parámetro `base-href` deberá cambiarse de vuelta a `/` en el workflow de despliegue.
+
 ## Planning
 
 Features (PRDs) and their order live in the tracker (Jira, `QUEN` project) and in the design notes. MVP Slice: **F1 Scaffold → F2 Local persistence → C1 Ledger → C2 Distribution → S2 Patrimony → U1 Fast capture**.

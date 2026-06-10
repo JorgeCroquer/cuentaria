@@ -1,0 +1,57 @@
+name: Deploy Web to GitHub Pages
+
+on:
+  push:
+    branches: ["main"]
+  # Permite ejecutar este workflow manualmente
+  workflow_dispatch:
+
+# Permisos necesarios para subir a GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Permite cancelar deploys en curso si hay uno nuevo
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: melos bootstrap
+
+      - name: Build Web
+        working-directory: ./apps/cuentaria_app
+        run: flutter build web --base-href /cuentaria/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./apps/cuentaria_app/build/web
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
