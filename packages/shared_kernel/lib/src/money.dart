@@ -5,10 +5,13 @@ class Money extends Equatable {
   final BigInt amount;
   final CurrencyCode currency;
 
-  const Money({
+  Money({
     required this.amount,
     required this.currency,
   });
+
+  factory Money.zero(CurrencyCode currency) =>
+      Money(amount: BigInt.zero, currency: currency);
 
   Money add(Money other) {
     if (currency != other.currency) {
@@ -29,6 +32,8 @@ class Money extends Equatable {
       currency: currency,
     );
   }
+
+  Money negate() => Money(amount: -amount, currency: currency);
 
   @override
   List<Object?> get props => [amount, currency];

@@ -4,7 +4,7 @@ abstract class DomainId extends Equatable {
   final String value;
 
   DomainId(this.value) {
-    if (value.trim().isEmpty) {
+    if (value.isEmpty) {
       throw ArgumentError('ID value cannot be empty');
     }
   }

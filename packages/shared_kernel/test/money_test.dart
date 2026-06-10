@@ -45,5 +45,33 @@ void main() {
 
       expect(() => m1.subtract(m2), throwsArgumentError);
     });
+
+    test('negate flips sign preserving currency', () {
+      final m = Money(amount: BigInt.from(100), currency: CurrencyCode('USD'));
+      final negated = m.negate();
+
+      expect(negated.amount, equals(BigInt.from(-100)));
+      expect(negated.currency, equals(CurrencyCode('USD')));
+    });
+
+    test('negate of negate returns original', () {
+      final m = Money(amount: BigInt.from(42), currency: CurrencyCode('VES'));
+      expect(m.negate().negate(), equals(m));
+    });
+
+    test('zero creates zero-amount Money for given currency', () {
+      final zero = Money.zero(CurrencyCode('USD'));
+
+      expect(zero.amount, equals(BigInt.zero));
+      expect(zero.currency, equals(CurrencyCode('USD')));
+    });
+
+    test('zero is identity for add', () {
+      final m = Money(amount: BigInt.from(500), currency: CurrencyCode('USD'));
+      final zero = Money.zero(CurrencyCode('USD'));
+
+      expect(m.add(zero), equals(m));
+      expect(zero.add(m), equals(m));
+    });
   });
 }

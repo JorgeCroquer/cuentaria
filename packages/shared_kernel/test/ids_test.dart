@@ -32,5 +32,12 @@ void main() {
       expect(id1, isNot(equals(id3)));
       expect(() => EventId(''), throwsArgumentError);
     });
+
+    test('accepts whitespace-only IDs (caller responsibility to sanitize)', () {
+      // Contract: only truly empty strings are rejected.
+      // Whitespace is the caller's concern.
+      expect(AccountId('   ').value, equals('   '));
+      expect(EventId(' ').value, equals(' '));
+    });
   });
 }
