@@ -36,6 +36,12 @@ jobs:
       - name: Bootstrap workspace
         run: melos bootstrap
 
+      - name: Analyze code
+        run: melos run analyze
+
+      - name: Run tests
+        run: melos run test
+
       - name: Build Web
         working-directory: ./apps/cuentaria_app
         run: flutter build web --base-href /cuentaria/
