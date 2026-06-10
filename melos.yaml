@@ -1,0 +1,6 @@
+name: cuentaria
+
+packages:
+  - apps/*
+  - packages/*/*
+  - workers/*
