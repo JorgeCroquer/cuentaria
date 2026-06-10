@@ -1,8 +1,4 @@
-/// Support for doing something awesome.
-///
-/// More dartdocs go here.
+/// Core messaging interfaces for the Cuentaria composition root.
 library;
 
 export 'src/messaging_base.dart';
-
-// TODO: Export any libraries intended for clients of this package.

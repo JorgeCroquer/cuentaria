@@ -1,6 +1,6 @@
 import 'package:messaging/messaging.dart';
 
 void main() {
-  var awesome = Awesome();
-  print('awesome: ${awesome.isAwesome}');
+  var eventBus = SyncEventBus();
+  print('eventBus: $eventBus');
 }

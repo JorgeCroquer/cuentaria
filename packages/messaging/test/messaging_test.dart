@@ -2,15 +2,15 @@ import 'package:messaging/messaging.dart';
 import 'package:test/test.dart';
 
 void main() {
-  group('A group of tests', () {
-    final awesome = Awesome();
+  group('SyncEventBus', () {
+    final eventBus = SyncEventBus();
 
     setUp(() {
       // Additional setup goes here.
     });
 
-    test('First Test', () {
-      expect(awesome.isAwesome, isTrue);
+    test('exposes a stream of DomainEvents', () {
+      expect(eventBus.stream, isA<Stream<DomainEvent>>());
     });
   });
 }
