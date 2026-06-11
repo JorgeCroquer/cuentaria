@@ -27,7 +27,7 @@ class RegistrarTransaccion {
     required TransaccionMetadata metadata,
   }) async {
     _validator.validate(postings);
-    
+
     final tx = Transaccion.crear(postings: postings, metadata: metadata);
 
     final isNew = await _store.append(tx);

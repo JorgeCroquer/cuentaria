@@ -26,7 +26,7 @@ class InMemoryCatalogRepository implements CatalogRepository {
       final name = entry.value.$1;
       final id = entry.value.$2;
 
-      // Check if we already have one with this role. 
+      // Check if we already have one with this role.
       // If the map is empty initially, this isn't strictly necessary but good if seeding is ever called again.
       final hasRole = _envelopes.values.any((e) => e.role == role);
       if (!hasRole) {
@@ -57,7 +57,11 @@ class InMemoryCatalogRepository implements CatalogRepository {
     }
     final envelope = _envelopes.values.firstWhere(
       (e) => e.role == role,
-      orElse: () => throw TargetInexistente('System envelope for role $role not found'),
+      orElse:
+          () =>
+              throw TargetInexistente(
+                'System envelope for role $role not found',
+              ),
     );
     return envelope.id;
   }
@@ -86,7 +90,9 @@ class InMemoryCatalogRepository implements CatalogRepository {
   void deleteEnvelope(EnvelopeId id) {
     final envelope = _envelopes[id];
     if (envelope != null && envelope.role != EnvelopeRole.ninguno) {
-      throw SystemEnvelopeDeletion('Cannot delete system envelope ${envelope.name} (Role: ${envelope.role})');
+      throw SystemEnvelopeDeletion(
+        'Cannot delete system envelope ${envelope.name} (Role: ${envelope.role})',
+      );
     }
     _envelopes.remove(id);
   }

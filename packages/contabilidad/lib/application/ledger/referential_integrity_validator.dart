@@ -16,7 +16,9 @@ class ReferentialIntegrityValidator {
         final account = catalogRepository.getAccount(accountId);
 
         if (account == null) {
-          throw TargetInexistente('Account ${accountId.value} not found in catalog');
+          throw TargetInexistente(
+            'Account ${accountId.value} not found in catalog',
+          );
         }
 
         if (posting.currency != account.nativeCurrency) {
@@ -29,7 +31,9 @@ class ReferentialIntegrityValidator {
         final envelope = catalogRepository.getEnvelope(envelopeId);
 
         if (envelope == null) {
-          throw TargetInexistente('Envelope ${envelopeId.value} not found in catalog');
+          throw TargetInexistente(
+            'Envelope ${envelopeId.value} not found in catalog',
+          );
         }
 
         if (posting.currency != CurrencyCode('USD')) {

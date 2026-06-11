@@ -1,13 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-enum EnvelopeRole {
-  stage,
-  diferencial,
-  ajustes,
-  apertura,
-  ninguno,
-}
+enum EnvelopeRole { stage, diferencial, ajustes, apertura, ninguno }
 
 class Envelope extends Equatable {
   final EnvelopeId id;
@@ -15,6 +9,7 @@ class Envelope extends Equatable {
   final EnvelopeRole role;
   final bool isArchived;
   final DateTime updatedAt;
+  final Map<String, dynamic>? meta;
 
   const Envelope({
     required this.id,
@@ -22,6 +17,7 @@ class Envelope extends Equatable {
     required this.role,
     required this.isArchived,
     required this.updatedAt,
+    this.meta,
   });
 
   /// Merges this envelope with another using Last-Write-Wins based on [updatedAt].
@@ -39,17 +35,12 @@ class Envelope extends Equatable {
         role: role, // strictly preserves the original role
         isArchived: other.isArchived,
         updatedAt: other.updatedAt,
+        meta: other.meta,
       );
     }
     return this;
   }
 
   @override
-  List<Object?> get props => [
-        id,
-        name,
-        role,
-        isArchived,
-        updatedAt,
-      ];
+  List<Object?> get props => [id, name, role, isArchived, updatedAt, meta];
 }

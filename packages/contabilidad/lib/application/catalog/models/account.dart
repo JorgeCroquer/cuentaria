@@ -33,11 +33,11 @@ class Account extends Equatable {
 
   @override
   List<Object?> get props => [
-        id,
-        name,
-        nativeCurrency,
-        provider,
-        isArchived,
-        updatedAt,
-      ];
+    id,
+    name,
+    nativeCurrency,
+    provider,
+    isArchived,
+    updatedAt,
+  ];
 }

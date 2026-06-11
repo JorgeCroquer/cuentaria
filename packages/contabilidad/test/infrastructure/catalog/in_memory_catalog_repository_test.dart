@@ -59,7 +59,7 @@ void main() {
       // Now we rename Stage
       final stageId = repository.getSystemEnvelope(EnvelopeRole.stage);
       final stageEnv = repository.getEnvelope(stageId)!;
-      
+
       final renamedStage = Envelope(
         id: stageEnv.id,
         name: 'Renamed Stage',
@@ -67,16 +67,19 @@ void main() {
         isArchived: stageEnv.isArchived,
         updatedAt: DateTime.now().add(const Duration(days: 1)),
       );
-      
+
       repository.saveEnvelope(renamedStage);
       expect(repository.getEnvelope(stageId)?.name, 'Renamed Stage');
     });
 
     test('prevents deletion of system envelopes', () {
       final stageId = repository.getSystemEnvelope(EnvelopeRole.stage);
-      
-      expect(() => repository.deleteEnvelope(stageId), throwsA(isA<SystemEnvelopeDeletion>()));
-      
+
+      expect(
+        () => repository.deleteEnvelope(stageId),
+        throwsA(isA<SystemEnvelopeDeletion>()),
+      );
+
       // But we can delete a regular one
       final regular = Envelope(
         id: EnvelopeId('regular-1'),
@@ -86,7 +89,7 @@ void main() {
         updatedAt: DateTime(2023, 1, 1),
       );
       repository.saveEnvelope(regular);
-      
+
       expect(repository.getEnvelope(EnvelopeId('regular-1')), isNotNull);
       repository.deleteEnvelope(EnvelopeId('regular-1'));
       expect(repository.getEnvelope(EnvelopeId('regular-1')), isNull);
