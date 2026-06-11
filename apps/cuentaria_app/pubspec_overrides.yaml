@@ -1,4 +1,0 @@
-# melos_managed_dependency_overrides: messaging
-dependency_overrides:
-  messaging:
-    path: ../../packages/messaging

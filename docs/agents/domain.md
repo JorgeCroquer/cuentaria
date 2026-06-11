@@ -6,7 +6,7 @@ There is one global domain that applies to the entire repository.
 
 ## Where to look
 
-- **Domain Language:** [`CONTEXT.md`](../CONTEXT.md) in the docs directory.
+- **Domain Language:** [`CONTEXT.md`](../../CONTEXT.md) at the repo root.
 - **Architectural Decisions:** [`docs/adr/`](../adr/) at the repo root.
 
 ## Rules for reading

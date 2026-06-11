@@ -14,6 +14,10 @@ void main() {
       eventBus = SyncEventBus();
     });
 
+    tearDown(() {
+      eventBus.dispose();
+    });
+
     test('exposes a stream of DomainEvents', () {
       expect(eventBus.stream, isA<Stream<DomainEvent>>());
     });

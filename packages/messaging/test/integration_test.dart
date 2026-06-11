@@ -35,6 +35,7 @@ void main() {
   group('EventBus Seam Integration', () {
     test('publisher and subscriber communicate solely through EventBus', () {
       final eventBus = SyncEventBus();
+      addTearDown(() => eventBus.dispose());
       final publisher = DummyPublisher(eventBus);
       final subscriber = DummySubscriber(eventBus);
 

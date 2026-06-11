@@ -9,7 +9,7 @@ Personal finance app for the multi-rate Venezuelan reality. **Client-authoritati
 ## Canonical Documents (reading order)
 
 1. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — consolidated view.
-2. [`docs/CONTEXT.md`](CONTEXT.md) — **ubiquitous architecture language**. Use these exact terms in code, commits, PRDs, and issues. If you introduce or rename a concept, update CONTEXT.md in the same commit.
+2. [`docs/CONTEXT.md`](docs/CONTEXT.md) — **ubiquitous architecture language**. Use these exact terms in code, commits, PRDs, and issues. If you introduce or rename a concept, update CONTEXT.md in the same commit.
 3. [`docs/adr/`](docs/adr/README.md) — the 11 decisions with their reasoning. Before proposing something that contradicts an ADR, read it: if it really needs to change, write a **new ADR that supersedes it**, don't rewrite the old one.
 
 ## Architecture Rules that CANNOT be broken
@@ -42,7 +42,7 @@ docs/                 CONTEXT.md · ARCHITECTURE.md · adr/
 
 ## Planning (pipeline)
 
-`grill-with-docs` (granularity and PRDs list) → `to-prd` (one PRD = GitHub Issue, label `ready-for-agent`) → `to-issues` (vertical tracer bullets) → `improve-codebase-architecture` (continuous deepening informed by CONTEXT/ADRs). We prefer **few thick and deep PRDs** over many thin ones.
+`grill-with-docs` (granularity and PRDs list) → `to-prd` (one PRD = Jira parent issue `QUEN`, label `ready-for-agent`) → `to-issues` (vertical tracer bullets) → `improve-codebase-architecture` (continuous deepening informed by CONTEXT/ADRs). We prefer **few thick and deep PRDs** over many thin ones.
 
 MVP Slice (build order): **F1 → F2 → C1 → C2 → S2 → U1.**
 
