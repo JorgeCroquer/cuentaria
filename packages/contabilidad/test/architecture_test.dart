@@ -14,7 +14,7 @@ void main() {
           .toList();
 
       final violations = <String>[];
-      final importRegex = RegExp(r"import\s+['" + '"' + r"]package:([^/]+)/domain/.*");
+      final importRegex = RegExp(r'''import\s+['"]package:([^/]+)/domain/.*''');
       // The current package's name. We can read it from pubspec or just allow contabilidad
       const currentPackage = 'contabilidad';
 
@@ -35,6 +35,24 @@ void main() {
       if (violations.isNotEmpty) {
         fail('Found invalid domain imports from other bounded contexts:\n' +
             violations.join('\n'));
+      }
+    });
+
+    test('Packages should have domain/, application/, and infrastructure/ directories with dart placeholders', () {
+      final libDir = Directory('lib');
+      if (!libDir.existsSync()) fail('lib/ directory does not exist');
+
+      final expectedDirs = ['domain', 'application', 'infrastructure'];
+      for (final dir in expectedDirs) {
+        final dirDir = Directory('${libDir.path}/$dir');
+        if (!dirDir.existsSync()) {
+          fail('Directory ${dirDir.path} does not exist');
+        }
+
+        final hasDartFile = dirDir.listSync().any((e) => e is File && e.path.endsWith('.dart'));
+        if (!hasDartFile) {
+          fail('Directory ${dirDir.path} must contain at least one .dart file');
+        }
       }
     });
   });
