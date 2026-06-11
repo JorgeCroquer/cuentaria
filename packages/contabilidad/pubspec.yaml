@@ -9,8 +9,8 @@ environment:
 dependencies:
   shared_kernel:
     path: ../shared_kernel
-  messaging:
-    path: ../messaging
+  event_bus:
+    path: ../event_bus
 
 dev_dependencies:
   lints: ^5.0.0
