@@ -57,7 +57,7 @@ melos run analyze        # static analysis
 melos run test           # tests
 ```
 
-Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL).
+Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL). The **iOS** target is configured in the project but its build is deferred as it requires a Mac, and is explicitly excluded from CI.
 
 ## Deployment
 
