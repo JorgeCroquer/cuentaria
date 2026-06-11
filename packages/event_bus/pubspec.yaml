@@ -1,4 +1,4 @@
-name: messaging
+name: event_bus
 description: The messaging context containing EventBus and DomainEvent for Cuentaria.
 version: 1.0.0
 # repository: https://github.com/my_org/my_repo
