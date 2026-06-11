@@ -5,10 +5,7 @@ class Money extends Equatable {
   final BigInt amount;
   final CurrencyCode currency;
 
-  Money({
-    required this.amount,
-    required this.currency,
-  });
+  Money({required this.amount, required this.currency});
 
   factory Money.zero(CurrencyCode currency) =>
       Money(amount: BigInt.zero, currency: currency);
@@ -17,20 +14,14 @@ class Money extends Equatable {
     if (currency != other.currency) {
       throw ArgumentError('Cannot add money with different currencies');
     }
-    return Money(
-      amount: amount + other.amount,
-      currency: currency,
-    );
+    return Money(amount: amount + other.amount, currency: currency);
   }
 
   Money subtract(Money other) {
     if (currency != other.currency) {
       throw ArgumentError('Cannot subtract money with different currencies');
     }
-    return Money(
-      amount: amount - other.amount,
-      currency: currency,
-    );
+    return Money(amount: amount - other.amount, currency: currency);
   }
 
   Money negate() => Money(amount: -amount, currency: currency);

@@ -7,7 +7,7 @@ void main() {
     expect(file.existsSync(), isTrue, reason: '.metadata file should exist');
 
     final content = file.readAsStringSync();
-    
+
     // The platforms that must be configured in this project
     expect(content, contains('- platform: android'));
     expect(content, contains('- platform: web'));
