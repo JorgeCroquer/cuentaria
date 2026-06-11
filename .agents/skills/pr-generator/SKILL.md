@@ -1,6 +1,6 @@
 ---
 name: pr-generator
-description: Generate a polished Pull Request and create it on GitHub with `gh`, following Quenova's established PR format with Jira issue linkage. Use when user says "write PR", "PR description", "generate PR", "create PR", or asks for a pull request title and body.
+description: Generate a polished Pull Request and create it on GitHub with `gh`, following Cuentaria's established PR format with GitHub issue linkage. Use when user says "write PR", "PR description", "generate PR", "create PR", or asks for a pull request title and body.
 ---
 
 # PR Generator
@@ -17,7 +17,7 @@ git diff <target>...<current>
 ```
 
 - **Target branch**: Ask the user if not obvious. Common targets: `dev`, `main`, or a parent feature branch (e.g. `feat/QUEN-2434-...`).
-- **Jira issue**: Extract from branch name (e.g. `feat/QUEN-2439-...` → `QUEN-2439`). If a parent issue exists, link both.
+- **GitHub issue**: Extract from branch name (e.g. `feat/123-...` → `123`). If a parent issue exists, link both.
 
 ### 2. Analyze the diff
 
@@ -25,21 +25,21 @@ Read every changed file and classify changes: domain/business logic, infrastruct
 
 ### 3. Title
 
-Format: `[QUEN-XXXX] Type: Concise Description of What This PR Does`
+Format: `[#XXX] Type: Concise Description of What This PR Does`
 
 - **Type** follows Conventional Commits: `Feat`, `Fix`, `Refactor`, `Chore`, etc.
 - Imperative mood, Title Case after the type prefix, under 80 chars.
 - Combine multiple concerns with `&` (e.g. a feature + a bug fix).
 
 ```
-[QUEN-2435] Feat: Implement isAvailableForSale in Domain & Validate in Sales
-[QUEN-2418] Refactor: Centralize Distributed Repository Error Handling
+[#24] Feat: Implement isAvailableForSale in Domain & Validate in Sales
+[#18] Refactor: Centralize Distributed Repository Error Handling
 ```
 
 ### 4. Description
 
 ```markdown
-This PR addresses [the subtask/issue] QUEN-XXXX by [one-sentence summary of what
+This PR addresses issue #XXX by [one-sentence summary of what
 the PR accomplishes and why it matters].
 
 ## Changes Included
@@ -52,15 +52,15 @@ the PR accomplishes and why it matters].
 - `[exact test command]` — X/X passed (Y new tests).
 - Global linting successfully fixed.
 
-## Jira Issue
+## Related Issues
 
-Addresses [subtask/issue] [QUEN-XXXX](https://cohetedigital.atlassian.net/browse/QUEN-XXXX)[, child of [QUEN-YYYY](https://cohetedigital.atlassian.net/browse/QUEN-YYYY)].
+Closes #[XXX]
 ```
 
-- **Opening**: one or two sentences — the Jira issue, what the PR does, the business context. Call out any critical bug found and fixed during implementation.
+- **Opening**: one or two sentences — the issue, what the PR does, the business context. Call out any critical bug found and fixed during implementation.
 - **Changes Included**: each bullet starts with a bold category label. Focus on the architectural "why"; the reviewer sees the "what" in the diff.
 - **Testing / Validation**: exact test commands with pass counts and new-test counts; include linting status.
-- **Jira Issue**: always link the issue, and the parent too if it's a subtask.
+- **Related Issues**: always link the issue using `Closes #XXX` (or `Fixes #XXX`, `Resolves #XXX`) so GitHub auto-closes it when the PR merges. Link parent issues using "Parent: #YYY" if it's a subtask.
 
 ### 5. Create the PR
 
