@@ -17,28 +17,17 @@ A deep module (as opposed to a shallow module) is one which encapsulates a lot o
 
 Check with the user that these modules match their expectations. Check with the user which modules they want tests written for.
 
-3. Write the PRD using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Write the PRD using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label and the `prd` type label — no need for additional triage.
 
-> [!IMPORTANT] Jira CLI Required Fields
-> PRDs MUST be created as a parent issue of type `Incidencia - Mejora - Nuevo Requerimiento`.
-> The Jira CLI will reject the creation with a 400 error unless you provide the mandatory custom fields. You MUST use the following `--custom` flags when creating the PRD:
+> [!IMPORTANT] GitHub Issues
+> PRDs MUST be created as issues in the GitHub repository using the `gh` CLI.
+> Use both the `ready-for-agent` and `prd` labels.
 > ```bash
-> jira issue create --no-input -t"Incidencia - Mejora - Nuevo Requerimiento" -s"Title" -T <body-file> \
->   --custom customfield_10335='{"id":"10587"}' \
->   --custom customfield_10336='[{"accountId":"712020:f2f0a3c3-5198-47d8-9c05-69c607c690c9"}]' \
->   --custom customfield_10405='{"id":"10736"}' \
->   --custom customfield_10319='{"id":"10479"}' \
->   --custom customfield_10323='{"id":"10533"}' \
->   --custom customfield_10324='{"id":"10568"}' \
->   --custom customfield_10321='{"id":"10484"}' \
->   --custom customfield_10322='{"id":"10508"}' \
->   --custom customfield_10020='[{"id":397}]'
+> gh issue create --title "Title" --body-file <body-file> --label "ready-for-agent" --label "prd"
 > ```
-> After creating the PRD issue, you MUST move it to the DEV - PENDIENTE status:
-> `jira issue move QUEN-XXXX "DEV - PENDIENTE (STG)"`
 
-> [!WARNING] Jira CLI Hangs
-> The `jira` CLI may hang indefinitely in this environment even after the API has successfully processed the request. To prevent blocking your execution loop, you MUST execute `jira` CLI commands asynchronously (fire-and-forget). If using tools, set `WaitMsBeforeAsync` to a low value like `500`. Do not retry if the command hangs, as it will create duplicates.
+> [!TIP] Obsidian Sync
+> After publishing the PRD, recommend the user to run `/sync-obsidian` to update the vault (e.g. Map of Content).
 
 <prd-template>
 

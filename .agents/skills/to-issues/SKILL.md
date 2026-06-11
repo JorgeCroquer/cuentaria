@@ -51,15 +51,15 @@ Iterate until the user approves the breakdown.
 
 ### 5. Publish the issues to the issue tracker
 
-For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label unless instructed otherwise.
+For each approved slice, publish a new issue to the issue tracker. Use the issue body template below. These issues are considered ready for AFK agents, so publish them with the correct triage label and the `sub-issue` type label unless instructed otherwise.
 
 **IMPORTANT**: 
-1. You MUST create the issues as type `Subtarea` and link them to the PRD parent issue using the `-P` flag (`jira issue create -tSubtarea -P QUEN-XXXX ...`).
-2. After creating each `Subtarea`, you MUST immediately move it to the pending technical tasks column by running:
-   `jira issue move QUEN-YYYY "TAREAS TECNICAS - PENDIENTE"`
+1. You MUST create the issues using the `gh` CLI and link them to the PRD parent issue in the body (e.g. `Parent: #123`).
+2. Add both the `ready-for-agent` and `sub-issue` labels.
+   `gh issue create --title "Title" --body-file <body-file> --label "ready-for-agent" --label "sub-issue"`
 
-> [!WARNING] Jira CLI Hangs
-> The `jira` CLI commands often hang indefinitely in this environment. You MUST execute these commands asynchronously (fire-and-forget) to avoid blocking your execution loop. If using the `run_command` tool, set `WaitMsBeforeAsync: 500`. Do not retry if it hangs, as it will create duplicate issues.
+> [!TIP] Obsidian Sync
+> After publishing the issues, recommend the user to run `/sync-obsidian` to keep the vault updated.
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
 
