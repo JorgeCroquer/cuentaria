@@ -64,6 +64,25 @@ _Avoid_: recomputing the historical USD from the current rate.
 **Overlay Valuation / Unrealized P&L**
 Today's value computed on the fly (`quantity × current rate/price`) shown in Patrimony, without posting to the ledger. The difference with real cost is the **unrealized** P&L; it becomes **realized** only when converting/selling/spending.
 
+**Ledger Transaction (The Aggregate)**
+The only true aggregate in the ledger context. Each transaction is self-contained and self-validated. **Accounts and Envelopes are NOT aggregates**, they are just identifiers and materialized views.
+
+**Transaction Factory (Smart Constructor)**
+The application-layer constructor that enforces the specific shape of a transaction type (e.g. Income, Expense, Transfer). The domain only checks the balance invariant; the factories ensure semantic correctness.
+
+**Realization (Doctrina B)**
+The act of converting an unrealized P&L into a realized one. Occurs automatically when spending/converting a foreign currency asset. The difference between the current market rate and the historical average base cost is posted to a System Envelope (Exchange Differential).
+
+**Average Base Cost**
+The historical cost of an asset (USD / native) derived dynamically from the event log. Used to calculate the realized differential when spending.
+
+**System Envelope**
+Auto-provisioned envelopes identified by `rol` (e.g. Stage, Exchange Differential, Adjustments, Opening Balance). The system relies on their roles, not hardcoded IDs.
+
+**Reversal vs Adjustment**
+- **Reversal:** Exact negation of a previous transaction's frozen `amount_usd` to correct a mistake.
+- **Adjustment:** A conciliation entry posting a delta against the Adjustments system envelope to match reality.
+
 ## Relationships
 
 - A **Command** on an **Aggregate** produces one or more **Domain Events**.

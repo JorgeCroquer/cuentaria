@@ -1,0 +1,19 @@
+{
+  "event": "COMMENT",
+  "body": "## Antigravity Code Review — PR #13\n\n2 findings (0H 0M 2L). Worst: Low.\n\n**General Findings:**\n- **[Spec]** `Medium`: The acceptance criteria requires that the check blocks the merge if it fails (`bloquea el merge si falla`). While this PR adds the required CI workflow, blocking the merge must be manually enforced by configuring branch protection rules in the GitHub repository settings. The workflow YAML alone cannot enforce this.",
+  "comments": [
+    {
+      "path": ".github/workflows/ci.yaml",
+      "line": 11,
+      "side": "RIGHT",
+      "body": "**[Spec]** `Low`\n\nThe PRD requested the workflow to run on every PR to `main`, but this also triggers on `feat/*`. While likely useful for continuous integration on feature branches, this is technically scope creep according to the spec.\n\n> Spec: \"Workflow que corre en cada PR a `main`.\"\n\n```suggestion\n    branches: [ \"main\" ]\n```"
+    },
+    {
+      "path": ".github/workflows/ci.yaml",
+      "start_line": 22,
+      "line": 24,
+      "side": "RIGHT",
+      "body": "**[Standards]** `Low`\n\nConsider enabling caching for the Flutter setup to significantly speed up workflow execution times, which is a best practice for GitHub Actions CI.\n\n```suggestion\n        uses: subosito/flutter-action@v2\n        with:\n          channel: 'stable'\n          cache: true\n```"
+    }
+  ]
+}
