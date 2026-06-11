@@ -1,0 +1,17 @@
+name: contabilidad
+description: The cash accounting bounded context for Cuentaria.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.7.0
+
+dependencies:
+  shared_kernel:
+    path: ../shared_kernel
+  messaging:
+    path: ../messaging
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

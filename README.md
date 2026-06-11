@@ -57,7 +57,15 @@ melos run analyze        # static analysis
 melos run test           # tests
 ```
 
-Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL).
+Targets that compile from WSL2: **Linux desktop · Web · Android**. The **Windows desktop** target is built on the Windows host or a Windows CI runner (not from WSL). The **iOS** target is configured in the project but its build is deferred as it requires a Mac, and is explicitly excluded from CI.
+
+## Deployment
+
+La versión Web de Cuentaria se despliega automáticamente a **GitHub Pages** al hacer un merge a la rama `main` mediante un workflow de GitHub Actions (`.github/workflows/deploy-web.yaml`). 
+
+Dado que se utiliza el dominio por defecto de GitHub Pages, la aplicación es accesible en `https://jorgecroquer.github.io/cuentaria/`. Por esta razón, el comando de build en el workflow inyecta `--base-href /cuentaria/` para que la navegación de `go_router` funcione correctamente.
+
+> **Nota para dominios personalizados:** Si en el futuro se configura un dominio personalizado (ej. `cuentaria.com`), el parámetro `base-href` deberá cambiarse de vuelta a `/` en el workflow de despliegue.
 
 ## Deployment
 

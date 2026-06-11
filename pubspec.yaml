@@ -1,0 +1,6 @@
+name: cuentaria_workspace
+environment:
+  sdk: ^3.7.0
+
+dev_dependencies:
+  melos: ^6.3.2
