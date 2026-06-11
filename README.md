@@ -11,7 +11,7 @@
 - **SQLite/Drift + SQLCipher** as the encrypted local source of truth.
 - **Supabase free** (Postgres + Auth) as E2EE blob sync/backup — without domain logic.
 - **GitHub Actions** (cron) runs the ingestion Dart AOT workers.
-- **Cloudflare Pages** serves the static Flutter Web build.
+- **GitHub Pages** serves the static Flutter Web build.
 
 Full details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -69,7 +69,7 @@ Dado que se utiliza el dominio por defecto de GitHub Pages, la aplicación es ac
 
 ## Planning
 
-Features (PRDs) and their order live in the tracker (Jira, `QUEN` project) and in the design notes. MVP Slice: **F1 Scaffold → F2 Local persistence → C1 Ledger → C2 Distribution → S2 Patrimony → U1 Fast capture**.
+Features (PRDs) and their order live in the tracker (GitHub Issues) and in the design notes. MVP Slice: **F1 Scaffold → F2 Local persistence → C1 Ledger → C2 Distribution → S2 Patrimony → U1 Fast capture**.
 
 ## Documentation
 
