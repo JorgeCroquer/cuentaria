@@ -1,8 +1,5 @@
 import 'package:test/test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
-import 'package:contabilidad/domain/transaccion.dart';
-import 'package:contabilidad/domain/transaccion_metadata.dart';
-import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
