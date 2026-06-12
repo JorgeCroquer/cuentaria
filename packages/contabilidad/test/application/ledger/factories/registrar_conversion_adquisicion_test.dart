@@ -25,7 +25,7 @@ void main() {
       projections = InMemoryLedgerProjections();
       eventBus = SyncEventBus();
       catalog = InMemoryCatalogRepository();
-      
+
       final validator = ReferentialIntegrityValidator(catalog);
       registrar = RegistrarTransaccion(
         store: store,
@@ -33,76 +33,107 @@ void main() {
         eventBus: eventBus,
         validator: validator,
       );
-      
+
       factory = RegistrarConversionAdquisicion(
         registrar: registrar,
         catalog: catalog,
       );
     });
 
-    test('produce 2 postings balanceados heredando costo USD y guardando rateRef', () async {
-      final cuentaUsdId = AccountId('acc-usd');
+    test(
+      'produce 2 postings balanceados heredando costo USD y guardando rateRef',
+      () async {
+        final cuentaUsdId = AccountId('acc-usd');
+        final cuentaBsId = AccountId('acc-bs');
+
+        catalog.saveAccount(
+          Account(
+            id: cuentaUsdId,
+            name: 'USD Cash',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        catalog.saveAccount(
+          Account(
+            id: cuentaBsId,
+            name: 'Bs Banco',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await factory(
+          eventId: EventId('evt-conv-1'),
+          deviceId: 'dev-1',
+          cuentaOrigenUsdId: cuentaUsdId,
+          cuentaDestinoExtId: cuentaBsId,
+          montoUsd: Money(
+            amount: BigInt.from(10000),
+            currency: CurrencyCode('USD'),
+          ), // $100.00
+          montoExtRecibido: Money(
+            amount: BigInt.from(400000),
+            currency: CurrencyCode('VES'),
+          ), // 4000.00 Bs
+          rateRef: '40.00 VES/USD',
+        );
+
+        expect(store.events.length, equals(1));
+        final event = store.events.first;
+        expect(event.metadata.tipo, equals('ConversionAdquisicion'));
+
+        expect(event.postings.length, equals(2));
+
+        final postingUsd = event.postings[0];
+        expect(postingUsd.target, equals(CuentaTarget(cuentaUsdId)));
+        expect(
+          postingUsd.amountNative,
+          equals(
+            Money(amount: BigInt.from(-10000), currency: CurrencyCode('USD')),
+          ),
+        );
+        expect(postingUsd.amountUsd, equals(-10000));
+        expect(postingUsd.rateRef, isNull);
+
+        final postingBs = event.postings[1];
+        expect(postingBs.target, equals(CuentaTarget(cuentaBsId)));
+        expect(
+          postingBs.amountNative,
+          equals(
+            Money(amount: BigInt.from(400000), currency: CurrencyCode('VES')),
+          ),
+        );
+        expect(postingBs.amountUsd, equals(10000)); // hereda costo exacto
+        expect(postingBs.rateRef, equals('40.00 VES/USD'));
+      },
+    );
+
+    test('rechaza si cuenta origen no es USD', () async {
+      final cuentaEurId = AccountId('acc-eur');
       final cuentaBsId = AccountId('acc-bs');
-      
+
       catalog.saveAccount(
         Account(
-          id: cuentaUsdId,
-          name: 'USD Cash',
-          nativeCurrency: CurrencyCode('USD'),
+          id: cuentaEurId,
+          name: 'EUR',
+          nativeCurrency: CurrencyCode('EUR'),
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
-      
       catalog.saveAccount(
         Account(
           id: cuentaBsId,
-          name: 'Bs Banco',
+          name: 'Bs',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
-
-      await factory(
-        eventId: EventId('evt-conv-1'),
-        deviceId: 'dev-1',
-        cuentaOrigenUsdId: cuentaUsdId,
-        cuentaDestinoExtId: cuentaBsId,
-        montoUsd: Money(amount: BigInt.from(10000), currency: CurrencyCode('USD')), // $100.00
-        montoExtRecibido: Money(amount: BigInt.from(400000), currency: CurrencyCode('VES')), // 4000.00 Bs
-        rateRef: '40.00 VES/USD',
-      );
-
-      expect(store.events.length, equals(1));
-      final event = store.events.first;
-      expect(event.metadata.tipo, equals('ConversionAdquisicion'));
-      
-      expect(event.postings.length, equals(2));
-      
-      final postingUsd = event.postings[0];
-      expect(postingUsd.target, equals(CuentaTarget(cuentaUsdId)));
-      expect(postingUsd.amountNative, equals(Money(amount: BigInt.from(-10000), currency: CurrencyCode('USD'))));
-      expect(postingUsd.amountUsd, equals(-10000));
-      expect(postingUsd.rateRef, isNull);
-
-      final postingBs = event.postings[1];
-      expect(postingBs.target, equals(CuentaTarget(cuentaBsId)));
-      expect(postingBs.amountNative, equals(Money(amount: BigInt.from(400000), currency: CurrencyCode('VES'))));
-      expect(postingBs.amountUsd, equals(10000)); // hereda costo exacto
-      expect(postingBs.rateRef, equals('40.00 VES/USD'));
-    });
-
-    test('rechaza si cuenta origen no es USD', () async {
-      final cuentaEurId = AccountId('acc-eur');
-      final cuentaBsId = AccountId('acc-bs');
-      
-      catalog.saveAccount(Account(
-        id: cuentaEurId, name: 'EUR', nativeCurrency: CurrencyCode('EUR'), isArchived: false, updatedAt: DateTime.now()
-      ));
-      catalog.saveAccount(Account(
-        id: cuentaBsId, name: 'Bs', nativeCurrency: CurrencyCode('VES'), isArchived: false, updatedAt: DateTime.now()
-      ));
 
       await expectLater(
         () => factory(
@@ -110,8 +141,14 @@ void main() {
           deviceId: 'dev-1',
           cuentaOrigenUsdId: cuentaEurId,
           cuentaDestinoExtId: cuentaBsId,
-          montoUsd: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
-          montoExtRecibido: Money(amount: BigInt.from(4000), currency: CurrencyCode('VES')),
+          montoUsd: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          montoExtRecibido: Money(
+            amount: BigInt.from(4000),
+            currency: CurrencyCode('VES'),
+          ),
           rateRef: '40',
         ),
         throwsA(isA<OperacionSoloUSD>()),
@@ -121,13 +158,25 @@ void main() {
     test('rechaza si cuenta destino es USD', () async {
       final cuentaUsdId = AccountId('acc-usd');
       final cuentaUsd2Id = AccountId('acc-usd2');
-      
-      catalog.saveAccount(Account(
-        id: cuentaUsdId, name: 'USD 1', nativeCurrency: CurrencyCode('USD'), isArchived: false, updatedAt: DateTime.now()
-      ));
-      catalog.saveAccount(Account(
-        id: cuentaUsd2Id, name: 'USD 2', nativeCurrency: CurrencyCode('USD'), isArchived: false, updatedAt: DateTime.now()
-      ));
+
+      catalog.saveAccount(
+        Account(
+          id: cuentaUsdId,
+          name: 'USD 1',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveAccount(
+        Account(
+          id: cuentaUsd2Id,
+          name: 'USD 2',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       await expectLater(
         () => factory(
@@ -135,24 +184,48 @@ void main() {
           deviceId: 'dev-1',
           cuentaOrigenUsdId: cuentaUsdId,
           cuentaDestinoExtId: cuentaUsd2Id,
-          montoUsd: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
-          montoExtRecibido: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
+          montoUsd: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          montoExtRecibido: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
           rateRef: '1',
         ),
-        throwsA(isA<ArgumentError>().having((e) => e.message, 'msg', contains('La cuenta destino no puede ser USD'))),
+        throwsA(
+          isA<ArgumentError>().having(
+            (e) => e.message,
+            'msg',
+            contains('La cuenta destino no puede ser USD'),
+          ),
+        ),
       );
     });
 
     test('rechaza montos negativos o cero', () async {
       final cuentaUsdId = AccountId('acc-usd');
       final cuentaBsId = AccountId('acc-bs');
-      
-      catalog.saveAccount(Account(
-        id: cuentaUsdId, name: 'USD', nativeCurrency: CurrencyCode('USD'), isArchived: false, updatedAt: DateTime.now()
-      ));
-      catalog.saveAccount(Account(
-        id: cuentaBsId, name: 'Bs', nativeCurrency: CurrencyCode('VES'), isArchived: false, updatedAt: DateTime.now()
-      ));
+
+      catalog.saveAccount(
+        Account(
+          id: cuentaUsdId,
+          name: 'USD',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveAccount(
+        Account(
+          id: cuentaBsId,
+          name: 'Bs',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       // usd cero
       await expectLater(
@@ -161,8 +234,14 @@ void main() {
           deviceId: 'dev-1',
           cuentaOrigenUsdId: cuentaUsdId,
           cuentaDestinoExtId: cuentaBsId,
-          montoUsd: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
-          montoExtRecibido: Money(amount: BigInt.from(4000), currency: CurrencyCode('VES')),
+          montoUsd: Money(
+            amount: BigInt.from(0),
+            currency: CurrencyCode('USD'),
+          ),
+          montoExtRecibido: Money(
+            amount: BigInt.from(4000),
+            currency: CurrencyCode('VES'),
+          ),
           rateRef: '40',
         ),
         throwsA(isA<ArgumentError>()),
@@ -175,8 +254,14 @@ void main() {
           deviceId: 'dev-1',
           cuentaOrigenUsdId: cuentaUsdId,
           cuentaDestinoExtId: cuentaBsId,
-          montoUsd: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
-          montoExtRecibido: Money(amount: BigInt.from(0), currency: CurrencyCode('VES')),
+          montoUsd: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          montoExtRecibido: Money(
+            amount: BigInt.from(0),
+            currency: CurrencyCode('VES'),
+          ),
           rateRef: '40',
         ),
         throwsA(isA<ArgumentError>()),

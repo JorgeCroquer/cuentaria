@@ -15,8 +15,8 @@ class RegistrarIngreso {
   RegistrarIngreso({
     required RegistrarTransaccion registrar,
     required CatalogRepository catalog,
-  })  : _registrar = registrar,
-        _catalog = catalog;
+  }) : _registrar = registrar,
+       _catalog = catalog;
 
   Future<void> call({
     required EventId eventId,

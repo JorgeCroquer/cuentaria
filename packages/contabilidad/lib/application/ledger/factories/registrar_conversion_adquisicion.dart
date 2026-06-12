@@ -14,8 +14,8 @@ class RegistrarConversionAdquisicion {
   RegistrarConversionAdquisicion({
     required RegistrarTransaccion registrar,
     required CatalogRepository catalog,
-  })  : _registrar = registrar,
-        _catalog = catalog;
+  }) : _registrar = registrar,
+       _catalog = catalog;
 
   Future<void> call({
     required EventId eventId,
@@ -29,12 +29,16 @@ class RegistrarConversionAdquisicion {
   }) async {
     final origen = _catalog.getAccount(cuentaOrigenUsdId);
     if (origen == null) {
-      throw TargetInexistente('Cuenta origen no encontrada: $cuentaOrigenUsdId');
+      throw TargetInexistente(
+        'Cuenta origen no encontrada: $cuentaOrigenUsdId',
+      );
     }
 
     final destino = _catalog.getAccount(cuentaDestinoExtId);
     if (destino == null) {
-      throw TargetInexistente('Cuenta destino no encontrada: $cuentaDestinoExtId');
+      throw TargetInexistente(
+        'Cuenta destino no encontrada: $cuentaDestinoExtId',
+      );
     }
 
     if (origen.nativeCurrency != CurrencyCode('USD')) {
@@ -42,10 +46,13 @@ class RegistrarConversionAdquisicion {
     }
 
     if (destino.nativeCurrency == CurrencyCode('USD')) {
-      throw ArgumentError('La cuenta destino no puede ser USD en una adquisición de moneda extranjera.');
+      throw ArgumentError(
+        'La cuenta destino no puede ser USD en una adquisición de moneda extranjera.',
+      );
     }
 
-    if (montoUsd.amount <= BigInt.zero || montoExtRecibido.amount <= BigInt.zero) {
+    if (montoUsd.amount <= BigInt.zero ||
+        montoExtRecibido.amount <= BigInt.zero) {
       throw ArgumentError('Los montos deben ser estrictamente positivos.');
     }
 
@@ -54,7 +61,10 @@ class RegistrarConversionAdquisicion {
     final postings = [
       Posting(
         target: CuentaTarget(cuentaOrigenUsdId),
-        amountNative: Money(amount: -montoUsd.amount, currency: montoUsd.currency),
+        amountNative: Money(
+          amount: -montoUsd.amount,
+          currency: montoUsd.currency,
+        ),
         currency: montoUsd.currency,
         amountUsd: -amountUsdInt,
       ),

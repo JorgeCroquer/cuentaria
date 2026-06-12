@@ -20,8 +20,8 @@ class RegistrarDistribucion {
   RegistrarDistribucion({
     required RegistrarTransaccion registrar,
     required CatalogRepository catalog,
-  })  : _registrar = registrar,
-        _catalog = catalog;
+  }) : _registrar = registrar,
+       _catalog = catalog;
 
   Future<void> call({
     required EventId eventId,
@@ -31,21 +31,27 @@ class RegistrarDistribucion {
   }) async {
     int sum = movimientos.fold(0, (acc, m) => acc + m.amountUsd);
     if (sum != 0) {
-      throw ArgumentError('Los movimientos de distribución deben sumar 0. Suma actual: $sum');
+      throw ArgumentError(
+        'Los movimientos de distribución deben sumar 0. Suma actual: $sum',
+      );
     }
 
-    final postings = movimientos.map((m) {
-      final sobre = _catalog.getEnvelope(m.sobreId);
-      if (sobre == null) {
-        throw TargetInexistente('Sobre no encontrado: ${m.sobreId.value}');
-      }
-      return Posting(
-        target: SobreTarget(m.sobreId),
-        amountNative: Money(amount: BigInt.from(m.amountUsd), currency: CurrencyCode('USD')),
-        currency: CurrencyCode('USD'),
-        amountUsd: m.amountUsd,
-      );
-    }).toList();
+    final postings =
+        movimientos.map((m) {
+          final sobre = _catalog.getEnvelope(m.sobreId);
+          if (sobre == null) {
+            throw TargetInexistente('Sobre no encontrado: ${m.sobreId.value}');
+          }
+          return Posting(
+            target: SobreTarget(m.sobreId),
+            amountNative: Money(
+              amount: BigInt.from(m.amountUsd),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: m.amountUsd,
+          );
+        }).toList();
 
     final now = DateTime.now().toUtc();
     final metadata = TransaccionMetadata(

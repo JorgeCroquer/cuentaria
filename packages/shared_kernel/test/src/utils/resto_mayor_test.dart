@@ -7,7 +7,10 @@ void main() {
     test('reparte 100 en 3 partes iguales (mayor resto al inicio)', () {
       final weights = [1.0, 1.0, 1.0];
       final result = repartirRestoMayor(BigInt.from(100), weights);
-      expect(result, equals([BigInt.from(34), BigInt.from(33), BigInt.from(33)]));
+      expect(
+        result,
+        equals([BigInt.from(34), BigInt.from(33), BigInt.from(33)]),
+      );
     });
 
     test('reparte 10 en pesos [1, 2, 3] proporcionalmente', () {
@@ -33,7 +36,7 @@ void main() {
       final result = repartirRestoMayor(BigInt.from(10), []);
       expect(result, equals([]));
     });
-    
+
     test('maneja lista de pesos con 1 elemento', () {
       final result = repartirRestoMayor(BigInt.from(10), [0.5]);
       expect(result, equals([BigInt.from(10)]));
@@ -45,10 +48,10 @@ void main() {
         final total = BigInt.from(random.nextInt(1000000));
         final n = random.nextInt(20) + 1; // 1 to 20 weights
         final weights = List.generate(n, (_) => random.nextDouble() * 100);
-        
+
         final result = repartirRestoMayor(total, weights);
         final sum = result.fold(BigInt.zero, (sum, val) => sum + val);
-        
+
         expect(sum, equals(total));
         expect(result.length, equals(n));
       }

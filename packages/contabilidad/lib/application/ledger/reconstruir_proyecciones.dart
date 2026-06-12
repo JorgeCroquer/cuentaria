@@ -8,15 +8,15 @@ class ReconstruirProyecciones {
   ReconstruirProyecciones({
     required EventStore store,
     required LedgerProjections projections,
-  })  : _store = store,
-        _projections = projections;
+  }) : _store = store,
+       _projections = projections;
 
   Future<void> execute() async {
     _projections.limpiar();
-    
+
     // Obtenemos todos los eventos (se retornan ordenados determinísticamente)
     final eventos = await _store.consultarLog();
-    
+
     for (final event in eventos) {
       _projections.aplicar(event);
     }

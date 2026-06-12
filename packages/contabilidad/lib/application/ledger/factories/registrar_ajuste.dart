@@ -18,9 +18,9 @@ class RegistrarAjuste {
     required RegistrarTransaccion registrar,
     required LedgerProjections projections,
     required CatalogRepository catalog,
-  })  : _registrar = registrar,
-        _projections = projections,
-        _catalog = catalog;
+  }) : _registrar = registrar,
+       _projections = projections,
+       _catalog = catalog;
 
   Future<void> call({
     required EventId eventId,
@@ -35,7 +35,9 @@ class RegistrarAjuste {
     }
 
     if (saldoRealNative.currency != cuenta.nativeCurrency) {
-      throw ArgumentError('La moneda del saldo real debe coincidir con la de la cuenta.');
+      throw ArgumentError(
+        'La moneda del saldo real debe coincidir con la de la cuenta.',
+      );
     }
 
     final saldoProyectado = _projections.saldoCuenta(cuentaId);
@@ -45,7 +47,8 @@ class RegistrarAjuste {
       throw AjusteSinDiferencia();
     }
 
-    if (deltaNative > BigInt.zero && cuenta.nativeCurrency != CurrencyCode('USD')) {
+    if (deltaNative > BigInt.zero &&
+        cuenta.nativeCurrency != CurrencyCode('USD')) {
       throw AjustePositivoMonedaExtranjeraNoPermitido();
     }
 
@@ -62,13 +65,19 @@ class RegistrarAjuste {
     final postings = [
       Posting(
         target: CuentaTarget(cuentaId),
-        amountNative: Money(amount: deltaNative, currency: cuenta.nativeCurrency),
+        amountNative: Money(
+          amount: deltaNative,
+          currency: cuenta.nativeCurrency,
+        ),
         currency: cuenta.nativeCurrency,
         amountUsd: amountUsd,
       ),
       Posting(
         target: SobreTarget(ajustesId),
-        amountNative: Money(amount: BigInt.from(amountUsd), currency: CurrencyCode('USD')),
+        amountNative: Money(
+          amount: BigInt.from(amountUsd),
+          currency: CurrencyCode('USD'),
+        ),
         currency: CurrencyCode('USD'),
         amountUsd: amountUsd,
       ),

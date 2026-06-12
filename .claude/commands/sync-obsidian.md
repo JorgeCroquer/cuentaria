@@ -1,0 +1,1 @@
+../../.agents/skills/sync-obsidian/SKILL.md

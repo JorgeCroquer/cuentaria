@@ -89,14 +89,17 @@ void main() {
         ),
       ];
 
-      final txOrig = Transaccion.crear(postings: postingsOrig, metadata: metadataOrig);
+      final txOrig = Transaccion.crear(
+        postings: postingsOrig,
+        metadata: metadataOrig,
+      );
       await store.append(txOrig);
 
-      // get() 
+      // get()
       final retrieved = await store.get(EventId('evt-orig'));
       expect(retrieved, isNotNull);
       expect(retrieved?.metadata.eventId.value, equals('evt-orig'));
-      
+
       final missing = await store.get(EventId('evt-missing'));
       expect(missing, isNull);
 
@@ -113,7 +116,10 @@ void main() {
         schemaVersion: 1,
       );
 
-      final txRev = Transaccion.crear(postings: postingsOrig, metadata: metadataRev);
+      final txRev = Transaccion.crear(
+        postings: postingsOrig,
+        metadata: metadataRev,
+      );
       await store.append(txRev);
 
       // hasReversal() after reversal
@@ -123,7 +129,12 @@ void main() {
     test('consultarLog filtra por cuenta, sobre y rango de fechas', () async {
       final store = InMemoryEventStore();
 
-      Transaccion createTx(String id, DateTime occurred, String accId, String envId) {
+      Transaccion createTx(
+        String id,
+        DateTime occurred,
+        String accId,
+        String envId,
+      ) {
         return Transaccion.crear(
           metadata: TransaccionMetadata(
             eventId: EventId(id),
@@ -136,13 +147,19 @@ void main() {
           postings: [
             Posting(
               target: CuentaTarget(AccountId(accId)),
-              amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
+              amountNative: Money(
+                amount: BigInt.from(100),
+                currency: CurrencyCode('USD'),
+              ),
               currency: CurrencyCode('USD'),
               amountUsd: 100,
             ),
             Posting(
               target: SobreTarget(EnvelopeId(envId)),
-              amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
+              amountNative: Money(
+                amount: BigInt.from(100),
+                currency: CurrencyCode('USD'),
+              ),
               currency: CurrencyCode('USD'),
               amountUsd: 100,
             ),
@@ -150,18 +167,36 @@ void main() {
         );
       }
 
-      await store.append(createTx('tx1', DateTime.utc(2026, 6, 10), 'acc-1', 'env-1'));
-      await store.append(createTx('tx2', DateTime.utc(2026, 6, 11), 'acc-2', 'env-2'));
-      await store.append(createTx('tx3', DateTime.utc(2026, 6, 12), 'acc-1', 'env-2'));
-      await store.append(createTx('tx4', DateTime.utc(2026, 6, 13), 'acc-3', 'env-1'));
+      await store.append(
+        createTx('tx1', DateTime.utc(2026, 6, 10), 'acc-1', 'env-1'),
+      );
+      await store.append(
+        createTx('tx2', DateTime.utc(2026, 6, 11), 'acc-2', 'env-2'),
+      );
+      await store.append(
+        createTx('tx3', DateTime.utc(2026, 6, 12), 'acc-1', 'env-2'),
+      );
+      await store.append(
+        createTx('tx4', DateTime.utc(2026, 6, 13), 'acc-3', 'env-1'),
+      );
 
       // Filter by cuenta
-      final byCuenta = await store.consultarLog(filtros: FiltrosLog(cuenta: AccountId('acc-1')));
-      expect(byCuenta.map((e) => e.metadata.eventId.value).toList(), equals(['tx1', 'tx3']));
+      final byCuenta = await store.consultarLog(
+        filtros: FiltrosLog(cuenta: AccountId('acc-1')),
+      );
+      expect(
+        byCuenta.map((e) => e.metadata.eventId.value).toList(),
+        equals(['tx1', 'tx3']),
+      );
 
       // Filter by sobre
-      final bySobre = await store.consultarLog(filtros: FiltrosLog(sobre: EnvelopeId('env-2')));
-      expect(bySobre.map((e) => e.metadata.eventId.value).toList(), equals(['tx2', 'tx3']));
+      final bySobre = await store.consultarLog(
+        filtros: FiltrosLog(sobre: EnvelopeId('env-2')),
+      );
+      expect(
+        bySobre.map((e) => e.metadata.eventId.value).toList(),
+        equals(['tx2', 'tx3']),
+      );
 
       // Filter by date range (inclusive)
       final byDate = await store.consultarLog(
@@ -170,7 +205,10 @@ void main() {
           hasta: DomainTimestamp(DateTime.utc(2026, 6, 12)),
         ),
       );
-      expect(byDate.map((e) => e.metadata.eventId.value).toList(), equals(['tx2', 'tx3']));
+      expect(
+        byDate.map((e) => e.metadata.eventId.value).toList(),
+        equals(['tx2', 'tx3']),
+      );
 
       // Filter combined (cuenta and date)
       final combined = await store.consultarLog(
@@ -179,67 +217,93 @@ void main() {
           desde: DomainTimestamp(DateTime.utc(2026, 6, 11)),
         ),
       );
-      expect(combined.map((e) => e.metadata.eventId.value).toList(), equals(['tx3']));
+      expect(
+        combined.map((e) => e.metadata.eventId.value).toList(),
+        equals(['tx3']),
+      );
     });
 
-    test('consultarLog retorna eventos con ordenamiento determinista total', () async {
-      final store = InMemoryEventStore();
+    test(
+      'consultarLog retorna eventos con ordenamiento determinista total',
+      () async {
+        final store = InMemoryEventStore();
 
-      Transaccion createTx(String id, DateTime occurred, DateTime recorded) {
-        return Transaccion.crear(
-          metadata: TransaccionMetadata(
-            eventId: EventId(id),
-            tipo: 'Test',
-            occurredAt: DomainTimestamp(occurred),
-            recordedAt: DomainTimestamp(recorded),
-            deviceId: 'dev',
-            schemaVersion: 1,
-          ),
-          postings: [
-            Posting(
-              target: CuentaTarget(AccountId('acc-1')),
-              amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
-              currency: CurrencyCode('USD'),
-              amountUsd: 100,
+        Transaccion createTx(String id, DateTime occurred, DateTime recorded) {
+          return Transaccion.crear(
+            metadata: TransaccionMetadata(
+              eventId: EventId(id),
+              tipo: 'Test',
+              occurredAt: DomainTimestamp(occurred),
+              recordedAt: DomainTimestamp(recorded),
+              deviceId: 'dev',
+              schemaVersion: 1,
             ),
-            Posting(
-              target: SobreTarget(EnvelopeId('env-1')),
-              amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
-              currency: CurrencyCode('USD'),
-              amountUsd: 100,
-            ),
-          ],
+            postings: [
+              Posting(
+                target: CuentaTarget(AccountId('acc-1')),
+                amountNative: Money(
+                  amount: BigInt.from(100),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: 100,
+              ),
+              Posting(
+                target: SobreTarget(EnvelopeId('env-1')),
+                amountNative: Money(
+                  amount: BigInt.from(100),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: 100,
+              ),
+            ],
+          );
+        }
+
+        // We append in an arbitrary order
+        // eventId 'evt-A', occurredAt day 3, recordedAt day 3
+        await store.append(
+          createTx('evt-A', DateTime.utc(2026, 6, 3), DateTime.utc(2026, 6, 3)),
         );
-      }
 
-      // We append in an arbitrary order
-      // eventId 'evt-A', occurredAt day 3, recordedAt day 3
-      await store.append(createTx('evt-A', DateTime.utc(2026, 6, 3), DateTime.utc(2026, 6, 3)));
-      
-      // eventId 'evt-B', occurredAt day 1, recordedAt day 1
-      await store.append(createTx('evt-B', DateTime.utc(2026, 6, 1), DateTime.utc(2026, 6, 1)));
+        // eventId 'evt-B', occurredAt day 1, recordedAt day 1
+        await store.append(
+          createTx('evt-B', DateTime.utc(2026, 6, 1), DateTime.utc(2026, 6, 1)),
+        );
 
-      // eventId 'evt-C', occurredAt day 2, recordedAt day 5
-      await store.append(createTx('evt-C', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 5)));
+        // eventId 'evt-C', occurredAt day 2, recordedAt day 5
+        await store.append(
+          createTx('evt-C', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 5)),
+        );
 
-      // eventId 'evt-D', occurredAt day 2, recordedAt day 4
-      await store.append(createTx('evt-D', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 4)));
+        // eventId 'evt-D', occurredAt day 2, recordedAt day 4
+        await store.append(
+          createTx('evt-D', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 4)),
+        );
 
-      // eventId 'evt-Z', occurredAt day 2, recordedAt day 4
-      // Tie with evt-D on occurredAt and recordedAt, so eventId breaks tie (evt-D < evt-Z)
-      await store.append(createTx('evt-Z', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 4)));
+        // eventId 'evt-Z', occurredAt day 2, recordedAt day 4
+        // Tie with evt-D on occurredAt and recordedAt, so eventId breaks tie (evt-D < evt-Z)
+        await store.append(
+          createTx('evt-Z', DateTime.utc(2026, 6, 2), DateTime.utc(2026, 6, 4)),
+        );
 
-      final results = await store.consultarLog();
-      
-      // Expected order:
-      // 1. evt-B (occurred: 6/1)
-      // 2. evt-D (occurred: 6/2, recorded: 6/4, id: evt-D)
-      // 3. evt-Z (occurred: 6/2, recorded: 6/4, id: evt-Z)
-      // 4. evt-C (occurred: 6/2, recorded: 6/5)
-      // 5. evt-A (occurred: 6/3)
+        final results = await store.consultarLog();
 
-      final orderedIds = results.map((e) => e.metadata.eventId.value).toList();
-      expect(orderedIds, equals(['evt-B', 'evt-D', 'evt-Z', 'evt-C', 'evt-A']));
-    });
+        // Expected order:
+        // 1. evt-B (occurred: 6/1)
+        // 2. evt-D (occurred: 6/2, recorded: 6/4, id: evt-D)
+        // 3. evt-Z (occurred: 6/2, recorded: 6/4, id: evt-Z)
+        // 4. evt-C (occurred: 6/2, recorded: 6/5)
+        // 5. evt-A (occurred: 6/3)
+
+        final orderedIds =
+            results.map((e) => e.metadata.eventId.value).toList();
+        expect(
+          orderedIds,
+          equals(['evt-B', 'evt-D', 'evt-Z', 'evt-C', 'evt-A']),
+        );
+      },
+    );
   });
 }

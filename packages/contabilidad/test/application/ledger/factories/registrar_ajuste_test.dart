@@ -30,7 +30,7 @@ void main() {
       projections = InMemoryLedgerProjections();
       eventBus = SyncEventBus();
       catalog = InMemoryCatalogRepository();
-      
+
       final validator = ReferentialIntegrityValidator(catalog);
       registrarTransaccion = RegistrarTransaccion(
         store: store,
@@ -38,7 +38,7 @@ void main() {
         eventBus: eventBus,
         validator: validator,
       );
-      
+
       registrarAjuste = RegistrarAjuste(
         registrar: registrarTransaccion,
         projections: projections,
@@ -47,70 +47,82 @@ void main() {
     });
 
     // 5. Ajustar incrementa saldo de cuenta USD
-    test('incrementar saldo de cuenta USD postea con signo positivo en Cuenta y Ajustes', () async {
-      final cuentaId = AccountId('acc-usd');
-      final ajustesId = catalog.getSystemEnvelope(EnvelopeRole.ajustes);
+    test(
+      'incrementar saldo de cuenta USD postea con signo positivo en Cuenta y Ajustes',
+      () async {
+        final cuentaId = AccountId('acc-usd');
+        final ajustesId = catalog.getSystemEnvelope(EnvelopeRole.ajustes);
 
-      catalog.saveAccount(
-        Account(
-          id: cuentaId,
-          name: 'USD Account',
-          nativeCurrency: CurrencyCode('USD'),
-          isArchived: false,
-          updatedAt: DateTime.now(),
-        ),
-      );
+        catalog.saveAccount(
+          Account(
+            id: cuentaId,
+            name: 'USD Account',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
 
-      // Saldo inicial 0
-      expect(projections.saldoCuenta(cuentaId).usd, equals(0));
+        // Saldo inicial 0
+        expect(projections.saldoCuenta(cuentaId).usd, equals(0));
 
-      await registrarAjuste(
-        eventId: EventId('evt-ajuste-1'),
-        deviceId: 'dev-1',
-        cuentaId: cuentaId,
-        saldoRealNative: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')), // +$50.00
-      );
-
-      expect(store.events.length, equals(1));
-      final tx = store.events.first;
-      expect(tx.metadata.tipo, equals('Ajuste'));
-      
-      final pC = tx.postings.firstWhere((p) => p.target is CuentaTarget);
-      final pS = tx.postings.firstWhere((p) => p.target is SobreTarget);
-
-      expect(pC.amountNative.amount, equals(BigInt.from(5000)));
-      expect(pC.amountUsd, equals(5000));
-      expect(pS.amountNative.amount, equals(BigInt.from(5000)));
-      expect(pS.amountUsd, equals(5000));
-      expect((pS.target as SobreTarget).envelopeId, equals(ajustesId));
-
-      expect(projections.saldoCuenta(cuentaId).usd, equals(5000));
-      expect(projections.saldoUsdSobre(ajustesId), equals(5000));
-    });
-
-    // 6. Ajustar rechaza incremento de cuenta extranjera
-    test('lanza AjustePositivoMonedaExtranjeraNoPermitido si delta es positivo en cuenta no-USD', () async {
-      final cuentaId = AccountId('acc-ves');
-      catalog.saveAccount(
-        Account(
-          id: cuentaId,
-          name: 'Bs Account',
-          nativeCurrency: CurrencyCode('VES'),
-          isArchived: false,
-          updatedAt: DateTime.now(),
-        ),
-      );
-
-      await expectLater(
-        () => registrarAjuste(
-          eventId: EventId('evt-ajuste-2'),
+        await registrarAjuste(
+          eventId: EventId('evt-ajuste-1'),
           deviceId: 'dev-1',
           cuentaId: cuentaId,
-          saldoRealNative: Money(amount: BigInt.from(100), currency: CurrencyCode('VES')), // Positivo
-        ),
-        throwsA(isA<AjustePositivoMonedaExtranjeraNoPermitido>()),
-      );
-    });
+          saldoRealNative: Money(
+            amount: BigInt.from(5000),
+            currency: CurrencyCode('USD'),
+          ), // +$50.00
+        );
+
+        expect(store.events.length, equals(1));
+        final tx = store.events.first;
+        expect(tx.metadata.tipo, equals('Ajuste'));
+
+        final pC = tx.postings.firstWhere((p) => p.target is CuentaTarget);
+        final pS = tx.postings.firstWhere((p) => p.target is SobreTarget);
+
+        expect(pC.amountNative.amount, equals(BigInt.from(5000)));
+        expect(pC.amountUsd, equals(5000));
+        expect(pS.amountNative.amount, equals(BigInt.from(5000)));
+        expect(pS.amountUsd, equals(5000));
+        expect((pS.target as SobreTarget).envelopeId, equals(ajustesId));
+
+        expect(projections.saldoCuenta(cuentaId).usd, equals(5000));
+        expect(projections.saldoUsdSobre(ajustesId), equals(5000));
+      },
+    );
+
+    // 6. Ajustar rechaza incremento de cuenta extranjera
+    test(
+      'lanza AjustePositivoMonedaExtranjeraNoPermitido si delta es positivo en cuenta no-USD',
+      () async {
+        final cuentaId = AccountId('acc-ves');
+        catalog.saveAccount(
+          Account(
+            id: cuentaId,
+            name: 'Bs Account',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await expectLater(
+          () => registrarAjuste(
+            eventId: EventId('evt-ajuste-2'),
+            deviceId: 'dev-1',
+            cuentaId: cuentaId,
+            saldoRealNative: Money(
+              amount: BigInt.from(100),
+              currency: CurrencyCode('VES'),
+            ), // Positivo
+          ),
+          throwsA(isA<AjustePositivoMonedaExtranjeraNoPermitido>()),
+        );
+      },
+    );
 
     // 7. Ajustar decrementa saldo
     test('decrementar saldo usa costo base y signos negativos', () async {
@@ -140,21 +152,33 @@ void main() {
       final postingsOrig = [
         Posting(
           target: CuentaTarget(cuentaId),
-          amountNative: Money(amount: BigInt.from(1000), currency: CurrencyCode('VES')),
+          amountNative: Money(
+            amount: BigInt.from(1000),
+            currency: CurrencyCode('VES'),
+          ),
           currency: CurrencyCode('VES'),
           amountUsd: 5000, // Costo base: $50.00
         ),
         Posting(
           target: SobreTarget(catalog.getSystemEnvelope(EnvelopeRole.stage)),
-          amountNative: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')),
+          amountNative: Money(
+            amount: BigInt.from(5000),
+            currency: CurrencyCode('USD'),
+          ),
           currency: CurrencyCode('USD'),
           amountUsd: 5000,
         ),
       ];
 
-      await registrarTransaccion(postings: postingsOrig, metadata: metadataOrig);
+      await registrarTransaccion(
+        postings: postingsOrig,
+        metadata: metadataOrig,
+      );
 
-      expect(projections.saldoCuenta(cuentaId).native.amount, equals(BigInt.from(1000)));
+      expect(
+        projections.saldoCuenta(cuentaId).native.amount,
+        equals(BigInt.from(1000)),
+      );
       expect(projections.saldoCuenta(cuentaId).usd, equals(5000));
 
       // Ajuste: el saldo real es 800 VES. Delta = -200 VES.
@@ -162,11 +186,14 @@ void main() {
         eventId: EventId('evt-ajuste-3'),
         deviceId: 'dev-1',
         cuentaId: cuentaId,
-        saldoRealNative: Money(amount: BigInt.from(800), currency: CurrencyCode('VES')),
+        saldoRealNative: Money(
+          amount: BigInt.from(800),
+          currency: CurrencyCode('VES'),
+        ),
       );
 
       final tx = store.events.last;
-      
+
       final pC = tx.postings.firstWhere((p) => p.target is CuentaTarget);
       final pS = tx.postings.firstWhere((p) => p.target is SobreTarget);
 
@@ -174,11 +201,14 @@ void main() {
       // Costo base promedio: 5000 USD / 1000 VES = 5.
       // -200 VES * 5 = -1000 USD.
       expect(pC.amountUsd, equals(-1000));
-      
+
       expect(pS.amountNative.amount, equals(BigInt.from(-1000)));
       expect(pS.amountUsd, equals(-1000));
 
-      expect(projections.saldoCuenta(cuentaId).native.amount, equals(BigInt.from(800)));
+      expect(
+        projections.saldoCuenta(cuentaId).native.amount,
+        equals(BigInt.from(800)),
+      );
       expect(projections.saldoCuenta(cuentaId).usd, equals(4000));
     });
 
@@ -200,7 +230,10 @@ void main() {
           eventId: EventId('evt-ajuste-4'),
           deviceId: 'dev-1',
           cuentaId: cuentaId,
-          saldoRealNative: Money(amount: BigInt.zero, currency: CurrencyCode('USD')),
+          saldoRealNative: Money(
+            amount: BigInt.zero,
+            currency: CurrencyCode('USD'),
+          ),
         ),
         throwsA(isA<AjusteSinDiferencia>()),
       );

@@ -1,6 +1,9 @@
 class TransferenciaMonedaCruzada implements Exception {
   final String message;
-  TransferenciaMonedaCruzada([this.message = 'Transferencia entre cuentas de distintas monedas no permitida. Use Conversión.']);
+  TransferenciaMonedaCruzada([
+    this.message =
+        'Transferencia entre cuentas de distintas monedas no permitida. Use Conversión.',
+  ]);
 
   @override
   String toString() => 'TransferenciaMonedaCruzada: $message';
@@ -8,7 +11,10 @@ class TransferenciaMonedaCruzada implements Exception {
 
 class OperacionSoloUSD implements Exception {
   final String message;
-  OperacionSoloUSD([this.message = 'Esta operación solo está soportada para cuentas en USD. Operaciones en moneda extranjera corresponden al módulo de conversiones/P&L.']);
+  OperacionSoloUSD([
+    this.message =
+        'Esta operación solo está soportada para cuentas en USD. Operaciones en moneda extranjera corresponden al módulo de conversiones/P&L.',
+  ]);
 
   @override
   String toString() => 'OperacionSoloUSD: $message';
@@ -40,7 +46,10 @@ class TransaccionYaReversada implements Exception {
 
 class AjustePositivoMonedaExtranjeraNoPermitido implements Exception {
   final String message;
-  AjustePositivoMonedaExtranjeraNoPermitido([this.message = 'No se puede ajustar positivamente una cuenta en moneda extranjera. Use un ingreso para declarar el excedente con su valor real en USD.']);
+  AjustePositivoMonedaExtranjeraNoPermitido([
+    this.message =
+        'No se puede ajustar positivamente una cuenta en moneda extranjera. Use un ingreso para declarar el excedente con su valor real en USD.',
+  ]);
 
   @override
   String toString() => 'AjustePositivoMonedaExtranjeraNoPermitido: $message';
@@ -48,7 +57,10 @@ class AjustePositivoMonedaExtranjeraNoPermitido implements Exception {
 
 class AjusteSinDiferencia implements Exception {
   final String message;
-  AjusteSinDiferencia([this.message = 'El saldo real es igual al saldo proyectado. No hay diferencia que ajustar.']);
+  AjusteSinDiferencia([
+    this.message =
+        'El saldo real es igual al saldo proyectado. No hay diferencia que ajustar.',
+  ]);
 
   @override
   String toString() => 'AjusteSinDiferencia: $message';

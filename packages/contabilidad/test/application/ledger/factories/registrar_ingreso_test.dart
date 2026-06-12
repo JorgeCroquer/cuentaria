@@ -26,7 +26,7 @@ void main() {
       projections = InMemoryLedgerProjections();
       eventBus = SyncEventBus();
       catalog = InMemoryCatalogRepository();
-      
+
       final validator = ReferentialIntegrityValidator(catalog);
       registrarTransaccion = RegistrarTransaccion(
         store: store,
@@ -34,7 +34,7 @@ void main() {
         eventBus: eventBus,
         validator: validator,
       );
-      
+
       registrarIngreso = RegistrarIngreso(
         registrar: registrarTransaccion,
         catalog: catalog,
@@ -52,22 +52,25 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
-      
+
       await registrarIngreso(
         eventId: EventId('evt-1'),
         deviceId: 'dev-1',
         cuentaId: cuentaId,
-        monto: Money(amount: BigInt.from(15000), currency: CurrencyCode('USD')), // 150 USD
+        monto: Money(
+          amount: BigInt.from(15000),
+          currency: CurrencyCode('USD'),
+        ), // 150 USD
         source: 'Cliente A',
       );
-      
+
       expect(store.events.length, equals(1));
       final tx = store.events.first;
       expect(tx.metadata.tipo, equals('Ingreso'));
       expect(tx.metadata.source, equals('Cliente A'));
-      
+
       expect(projections.saldoCuenta(cuentaId).usd, equals(15000));
       expect(projections.saldoUsdSobre(stageId), equals(15000));
     });
@@ -83,7 +86,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final sobreDestinoId = EnvelopeId('env-viaje');
       catalog.saveEnvelope(
         Envelope(
@@ -94,16 +97,19 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await registrarIngreso(
         eventId: EventId('evt-1'),
         deviceId: 'dev-1',
         cuentaId: cuentaId,
         sobreId: sobreDestinoId,
-        monto: Money(amount: BigInt.from(15000), currency: CurrencyCode('USD')), // 150 USD
+        monto: Money(
+          amount: BigInt.from(15000),
+          currency: CurrencyCode('USD'),
+        ), // 150 USD
         source: 'Cliente A',
       );
-      
+
       expect(projections.saldoCuenta(cuentaId).usd, equals(15000));
       expect(projections.saldoUsdSobre(sobreDestinoId), equals(15000));
     });
@@ -119,7 +125,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await expectLater(
         () => registrarIngreso(
           eventId: EventId('evt-2'),
@@ -130,7 +136,7 @@ void main() {
         ),
         throwsA(isA<OperacionSoloUSD>()),
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
 
@@ -145,13 +151,16 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await expectLater(
         () => registrarIngreso(
           eventId: EventId('evt-3'),
           deviceId: 'dev-1',
           cuentaId: cuentaId,
-          monto: Money(amount: BigInt.from(-15000), currency: CurrencyCode('USD')),
+          monto: Money(
+            amount: BigInt.from(-15000),
+            currency: CurrencyCode('USD'),
+          ),
           source: 'Cliente C',
         ),
         throwsA(isA<ArgumentError>()),
@@ -167,7 +176,7 @@ void main() {
         ),
         throwsA(isA<ArgumentError>()),
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
   });

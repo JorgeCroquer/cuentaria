@@ -19,9 +19,9 @@ class RegistrarRealizacion {
     required RegistrarTransaccion registrar,
     required CatalogRepository catalog,
     required LedgerProjections projections,
-  })  : _registrar = registrar,
-        _catalog = catalog,
-        _projections = projections;
+  }) : _registrar = registrar,
+       _catalog = catalog,
+       _projections = projections;
 
   // Disposes a foreign-currency account balance via an expense envelope.
   Future<void> gastoMonedaExtranjera({
@@ -38,7 +38,9 @@ class RegistrarRealizacion {
       throw TargetInexistente('Cuenta no encontrada: $cuentaId');
     }
     if (cuenta.nativeCurrency == CurrencyCode('USD')) {
-      throw MonedaIncompatible('Esta factory es para moneda extranjera, no USD.');
+      throw MonedaIncompatible(
+        'Esta factory es para moneda extranjera, no USD.',
+      );
     }
 
     final sobreDestino = _catalog.getEnvelope(sobreDestinoId);
@@ -48,12 +50,15 @@ class RegistrarRealizacion {
 
     final saldo = _projections.saldoCuenta(cuentaId);
     if (montoNative.amount > saldo.native.amount) {
-      throw SaldoInsuficiente('El monto a disponer supera el saldo de la cuenta');
+      throw SaldoInsuficiente(
+        'El monto a disponer supera el saldo de la cuenta',
+      );
     }
 
     final decMonto = Decimal.fromBigInt(montoNative.amount);
     final valorMercado = (decMonto / tasaActual).round().toInt();
-    final rateRef = '${tasaActual.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD';
+    final rateRef =
+        '${tasaActual.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD';
 
     await _realizarDisposicion(
       eventId: eventId,
@@ -65,7 +70,10 @@ class RegistrarRealizacion {
       valorObservadoUsd: valorMercado,
       destinoPosting: Posting(
         target: SobreTarget(sobreDestinoId),
-        amountNative: Money(amount: BigInt.from(-valorMercado), currency: CurrencyCode('USD')),
+        amountNative: Money(
+          amount: BigInt.from(-valorMercado),
+          currency: CurrencyCode('USD'),
+        ),
         currency: CurrencyCode('USD'),
         amountUsd: -valorMercado,
         rateRef: rateRef,
@@ -88,15 +96,21 @@ class RegistrarRealizacion {
   }) async {
     final cuentaOrigen = _catalog.getAccount(cuentaOrigenExtId);
     if (cuentaOrigen == null) {
-      throw TargetInexistente('Cuenta origen no encontrada: $cuentaOrigenExtId');
+      throw TargetInexistente(
+        'Cuenta origen no encontrada: $cuentaOrigenExtId',
+      );
     }
     if (cuentaOrigen.nativeCurrency == CurrencyCode('USD')) {
-      throw MonedaIncompatible('La cuenta origen debe ser moneda extranjera, no USD.');
+      throw MonedaIncompatible(
+        'La cuenta origen debe ser moneda extranjera, no USD.',
+      );
     }
 
     final cuentaDestino = _catalog.getAccount(cuentaDestinoUsdId);
     if (cuentaDestino == null) {
-      throw TargetInexistente('Cuenta destino no encontrada: $cuentaDestinoUsdId');
+      throw TargetInexistente(
+        'Cuenta destino no encontrada: $cuentaDestinoUsdId',
+      );
     }
     if (cuentaDestino.nativeCurrency != CurrencyCode('USD')) {
       throw MonedaIncompatible('La cuenta destino debe ser USD.');
@@ -104,7 +118,9 @@ class RegistrarRealizacion {
 
     final saldo = _projections.saldoCuenta(cuentaOrigenExtId);
     if (montoNative.amount > saldo.native.amount) {
-      throw SaldoInsuficiente('El monto a disponer supera el saldo de la cuenta');
+      throw SaldoInsuficiente(
+        'El monto a disponer supera el saldo de la cuenta',
+      );
     }
 
     final valorObservado = montoUsdRecibido.amount.toInt();
@@ -149,7 +165,9 @@ class RegistrarRealizacion {
 
     final cuentaDestino = _catalog.getAccount(cuentaDestinoUsdId);
     if (cuentaDestino == null) {
-      throw TargetInexistente('Cuenta destino no encontrada: $cuentaDestinoUsdId');
+      throw TargetInexistente(
+        'Cuenta destino no encontrada: $cuentaDestinoUsdId',
+      );
     }
     if (cuentaDestino.nativeCurrency != CurrencyCode('USD')) {
       throw MonedaIncompatible('La cuenta destino debe ser USD.');
@@ -157,7 +175,9 @@ class RegistrarRealizacion {
 
     final saldo = _projections.saldoCuenta(cuentaCriptoId);
     if (cantidad.amount > saldo.native.amount) {
-      throw SaldoInsuficiente('La cantidad a vender supera el saldo de la cuenta');
+      throw SaldoInsuficiente(
+        'La cantidad a vender supera el saldo de la cuenta',
+      );
     }
 
     final valorObservado = montoUsdRecibido.amount.toInt();
@@ -195,20 +215,28 @@ class RegistrarRealizacion {
     required Posting destinoPosting,
     DomainTimestamp? occurredAt,
   }) async {
-    final sobreDiferencialId = _catalog.getSystemEnvelope(EnvelopeRole.diferencial);
+    final sobreDiferencialId = _catalog.getSystemEnvelope(
+      EnvelopeRole.diferencial,
+    );
     final delta = valorObservadoUsd - costoBase;
 
     final postings = [
       Posting(
         target: CuentaTarget(cuentaOrigenId),
-        amountNative: Money(amount: -montoNative.amount, currency: montoNative.currency),
+        amountNative: Money(
+          amount: -montoNative.amount,
+          currency: montoNative.currency,
+        ),
         currency: montoNative.currency,
         amountUsd: -costoBase,
       ),
       destinoPosting,
       Posting(
         target: SobreTarget(sobreDiferencialId),
-        amountNative: Money(amount: BigInt.from(delta), currency: CurrencyCode('USD')),
+        amountNative: Money(
+          amount: BigInt.from(delta),
+          currency: CurrencyCode('USD'),
+        ),
         currency: CurrencyCode('USD'),
         amountUsd: delta,
       ),

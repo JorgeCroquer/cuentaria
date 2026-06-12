@@ -18,9 +18,9 @@ class RegistrarApertura {
     required RegistrarTransaccion registrar,
     required CatalogRepository catalog,
     required LedgerProjections projections,
-  })  : _registrar = registrar,
-        _catalog = catalog,
-        _projections = projections;
+  }) : _registrar = registrar,
+       _catalog = catalog,
+       _projections = projections;
 
   Future<void> call({
     required EventId eventId,
@@ -35,19 +35,23 @@ class RegistrarApertura {
     if (cuenta == null) {
       throw TargetInexistente('Cuenta no encontrada: $cuentaId');
     }
-    
+
     // Guard de re-apertura
     final saldoActual = _projections.saldoCuenta(cuentaId);
     if (saldoActual.native.amount != BigInt.zero) {
-      throw ArgumentError('La cuenta ya tiene saldo, no se puede abrir de nuevo.');
+      throw ArgumentError(
+        'La cuenta ya tiene saldo, no se puede abrir de nuevo.',
+      );
     }
 
     if (montoNative.currency != cuenta.nativeCurrency) {
-      throw ArgumentError('La moneda del monto debe coincidir con la moneda nativa de la cuenta.');
+      throw ArgumentError(
+        'La moneda del monto debe coincidir con la moneda nativa de la cuenta.',
+      );
     }
 
     int usdCostBase;
-    
+
     if (cuenta.nativeCurrency == CurrencyCode('USD')) {
       usdCostBase = montoNative.amount.toInt();
     } else {
@@ -57,7 +61,9 @@ class RegistrarApertura {
         final decMonto = Decimal.fromBigInt(montoNative.amount);
         usdCostBase = (decMonto / rate).round().toInt();
       } else {
-        throw ArgumentError('Para cuentas extranjeras debe proveer amountUsd o rate.');
+        throw ArgumentError(
+          'Para cuentas extranjeras debe proveer amountUsd o rate.',
+        );
       }
     }
 
@@ -69,11 +75,17 @@ class RegistrarApertura {
         amountNative: montoNative,
         currency: montoNative.currency,
         amountUsd: usdCostBase,
-        rateRef: rate != null ? '${rate.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD' : null,
+        rateRef:
+            rate != null
+                ? '${rate.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD'
+                : null,
       ),
       Posting(
         target: SobreTarget(sobreAperturaId),
-        amountNative: Money(amount: BigInt.from(usdCostBase), currency: CurrencyCode('USD')),
+        amountNative: Money(
+          amount: BigInt.from(usdCostBase),
+          currency: CurrencyCode('USD'),
+        ),
         currency: CurrencyCode('USD'),
         amountUsd: usdCostBase,
       ),

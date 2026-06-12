@@ -12,8 +12,8 @@ class RegistrarReverso {
   RegistrarReverso({
     required RegistrarTransaccion registrar,
     required EventStore store,
-  })  : _registrar = registrar,
-        _store = store;
+  }) : _registrar = registrar,
+       _store = store;
 
   Future<void> call({
     required EventId eventId,
@@ -23,25 +23,30 @@ class RegistrarReverso {
   }) async {
     final original = await _store.get(originalEventId);
     if (original == null) {
-      throw TransaccionNoEncontrada('No se encontró la transacción original: $originalEventId');
+      throw TransaccionNoEncontrada(
+        'No se encontró la transacción original: $originalEventId',
+      );
     }
 
     if (await _store.hasReversal(originalEventId)) {
-      throw TransaccionYaReversada('La transacción ya ha sido reversada: $originalEventId');
+      throw TransaccionYaReversada(
+        'La transacción ya ha sido reversada: $originalEventId',
+      );
     }
 
-    final invertedPostings = original.postings.map((p) {
-      return Posting(
-        target: p.target,
-        amountNative: Money(
-          amount: -p.amountNative.amount,
-          currency: p.amountNative.currency,
-        ),
-        currency: p.currency,
-        amountUsd: -p.amountUsd,
-        rateRef: p.rateRef,
-      );
-    }).toList();
+    final invertedPostings =
+        original.postings.map((p) {
+          return Posting(
+            target: p.target,
+            amountNative: Money(
+              amount: -p.amountNative.amount,
+              currency: p.amountNative.currency,
+            ),
+            currency: p.currency,
+            amountUsd: -p.amountUsd,
+            rateRef: p.rateRef,
+          );
+        }).toList();
 
     final now = DateTime.now().toUtc();
     final metadata = TransaccionMetadata(

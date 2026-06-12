@@ -26,7 +26,7 @@ void main() {
       projections = InMemoryLedgerProjections();
       eventBus = SyncEventBus();
       catalog = InMemoryCatalogRepository();
-      
+
       final validator = ReferentialIntegrityValidator(catalog);
       registrarTransaccion = RegistrarTransaccion(
         store: store,
@@ -34,7 +34,7 @@ void main() {
         eventBus: eventBus,
         validator: validator,
       );
-      
+
       registrarDistribucion = RegistrarDistribucion(
         registrar: registrarTransaccion,
         catalog: catalog,
@@ -44,7 +44,7 @@ void main() {
     test('rechaza si la suma de montos no es exactamente 0', () async {
       final sobreId1 = EnvelopeId('env-1');
       final sobreId2 = EnvelopeId('env-2');
-      
+
       catalog.saveEnvelope(
         Envelope(
           id: sobreId1,
@@ -54,7 +54,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       catalog.saveEnvelope(
         Envelope(
           id: sobreId2,
@@ -64,7 +64,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       // Suma es -100 + 50 = -50 != 0
       final movimientos = [
         MovimientoDistribucion(sobreId: sobreId1, amountUsd: -100),
@@ -77,16 +77,18 @@ void main() {
           deviceId: 'dev-1',
           movimientos: movimientos,
         ),
-        throwsA(isA<ArgumentError>()), // or specific Exception, e.g. TransaccionNoBalanceada
+        throwsA(
+          isA<ArgumentError>(),
+        ), // or specific Exception, e.g. TransaccionNoBalanceada
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
 
     test('rechaza si un sobre no existe', () async {
       final sobreId = EnvelopeId('env-real');
       final missingId = EnvelopeId('env-fake');
-      
+
       catalog.saveEnvelope(
         Envelope(
           id: sobreId,
@@ -96,7 +98,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final movimientos = [
         MovimientoDistribucion(sobreId: sobreId, amountUsd: 100),
         MovimientoDistribucion(sobreId: missingId, amountUsd: -100),
@@ -110,56 +112,62 @@ void main() {
         ),
         throwsA(isA<TargetInexistente>()),
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
 
-    test('genera postings con SobreTarget en USD y persiste exitosamente', () async {
-      final sobreId1 = EnvelopeId('env-1');
-      final sobreId2 = EnvelopeId('env-2');
-      final sobreId3 = EnvelopeId('env-3');
-      
-      for (var id in [sobreId1, sobreId2, sobreId3]) {
-        catalog.saveEnvelope(
-          Envelope(
-            id: id,
-            name: 'Sobre ${id.value}',
-            role: EnvelopeRole.ninguno,
-            isArchived: false,
-            updatedAt: DateTime.now(),
-          ),
-        );
-      }
-      
-      final movimientos = [
-        MovimientoDistribucion(sobreId: sobreId1, amountUsd: -150),
-        MovimientoDistribucion(sobreId: sobreId2, amountUsd: 100),
-        MovimientoDistribucion(sobreId: sobreId3, amountUsd: 50),
-      ];
+    test(
+      'genera postings con SobreTarget en USD y persiste exitosamente',
+      () async {
+        final sobreId1 = EnvelopeId('env-1');
+        final sobreId2 = EnvelopeId('env-2');
+        final sobreId3 = EnvelopeId('env-3');
 
-      await registrarDistribucion(
-        eventId: EventId('evt-3'),
-        deviceId: 'dev-1',
-        movimientos: movimientos,
-      );
-      
-      expect(store.events.length, equals(1));
-      final tx = store.events.first;
-      expect(tx.metadata.tipo, equals('Distribucion'));
-      
-      expect(tx.postings.length, equals(3));
-      
-      // Verification of projections
-      expect(projections.saldoUsdSobre(sobreId1), equals(-150));
-      expect(projections.saldoUsdSobre(sobreId2), equals(100));
-      expect(projections.saldoUsdSobre(sobreId3), equals(50));
-      
-      // Native amount must be USD amount, currency must be USD
-      for (var posting in tx.postings) {
-        expect(posting.target, isA<SobreTarget>());
-        expect(posting.currency, equals(CurrencyCode('USD')));
-        expect(posting.amountNative.amount, equals(BigInt.from(posting.amountUsd)));
-      }
-    });
+        for (var id in [sobreId1, sobreId2, sobreId3]) {
+          catalog.saveEnvelope(
+            Envelope(
+              id: id,
+              name: 'Sobre ${id.value}',
+              role: EnvelopeRole.ninguno,
+              isArchived: false,
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+
+        final movimientos = [
+          MovimientoDistribucion(sobreId: sobreId1, amountUsd: -150),
+          MovimientoDistribucion(sobreId: sobreId2, amountUsd: 100),
+          MovimientoDistribucion(sobreId: sobreId3, amountUsd: 50),
+        ];
+
+        await registrarDistribucion(
+          eventId: EventId('evt-3'),
+          deviceId: 'dev-1',
+          movimientos: movimientos,
+        );
+
+        expect(store.events.length, equals(1));
+        final tx = store.events.first;
+        expect(tx.metadata.tipo, equals('Distribucion'));
+
+        expect(tx.postings.length, equals(3));
+
+        // Verification of projections
+        expect(projections.saldoUsdSobre(sobreId1), equals(-150));
+        expect(projections.saldoUsdSobre(sobreId2), equals(100));
+        expect(projections.saldoUsdSobre(sobreId3), equals(50));
+
+        // Native amount must be USD amount, currency must be USD
+        for (var posting in tx.postings) {
+          expect(posting.target, isA<SobreTarget>());
+          expect(posting.currency, equals(CurrencyCode('USD')));
+          expect(
+            posting.amountNative.amount,
+            equals(BigInt.from(posting.amountUsd)),
+          );
+        }
+      },
+    );
   });
 }

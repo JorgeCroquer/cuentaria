@@ -7,12 +7,7 @@ class FiltrosLog extends Equatable {
   final DomainTimestamp? desde;
   final DomainTimestamp? hasta;
 
-  const FiltrosLog({
-    this.cuenta,
-    this.sobre,
-    this.desde,
-    this.hasta,
-  });
+  const FiltrosLog({this.cuenta, this.sobre, this.desde, this.hasta});
 
   @override
   List<Object?> get props => [cuenta, sobre, desde, hasta];

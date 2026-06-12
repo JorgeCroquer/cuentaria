@@ -26,7 +26,7 @@ void main() {
       projections = InMemoryLedgerProjections();
       eventBus = SyncEventBus();
       catalog = InMemoryCatalogRepository();
-      
+
       final validator = ReferentialIntegrityValidator(catalog);
       registrarTransaccion = RegistrarTransaccion(
         store: store,
@@ -34,7 +34,7 @@ void main() {
         eventBus: eventBus,
         validator: validator,
       );
-      
+
       registrarGastoUsd = RegistrarGastoUsd(
         registrar: registrarTransaccion,
         catalog: catalog,
@@ -52,7 +52,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final sobreId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
@@ -63,19 +63,22 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await registrarGastoUsd(
         eventId: EventId('evt-1'),
         deviceId: 'dev-1',
         cuentaId: cuentaId,
         sobreId: sobreId,
-        monto: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')), // 50 USD
+        monto: Money(
+          amount: BigInt.from(5000),
+          currency: CurrencyCode('USD'),
+        ), // 50 USD
       );
-      
+
       expect(store.events.length, equals(1));
       final tx = store.events.first;
       expect(tx.metadata.tipo, equals('Gasto'));
-      
+
       expect(projections.saldoCuenta(cuentaId).usd, equals(-5000));
       expect(projections.saldoUsdSobre(sobreId), equals(-5000));
     });
@@ -91,7 +94,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final sobreId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
@@ -102,7 +105,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await expectLater(
         () => registrarGastoUsd(
           eventId: EventId('evt-2'),
@@ -113,7 +116,7 @@ void main() {
         ),
         throwsA(isA<OperacionSoloUSD>()),
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
 
@@ -128,7 +131,7 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       final sobreId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
@@ -139,14 +142,17 @@ void main() {
           updatedAt: DateTime.now(),
         ),
       );
-      
+
       await expectLater(
         () => registrarGastoUsd(
           eventId: EventId('evt-3'),
           deviceId: 'dev-1',
           cuentaId: cuentaId,
           sobreId: sobreId,
-          monto: Money(amount: BigInt.from(-500), currency: CurrencyCode('USD')),
+          monto: Money(
+            amount: BigInt.from(-500),
+            currency: CurrencyCode('USD'),
+          ),
         ),
         throwsA(isA<ArgumentError>()),
       );
@@ -161,7 +167,7 @@ void main() {
         ),
         throwsA(isA<ArgumentError>()),
       );
-      
+
       expect(store.events.isEmpty, isTrue);
     });
   });
