@@ -254,9 +254,49 @@ void main() {
       final sumaCostos = costo1 + costo2Real + costo3Real;
       expect(sumaCostos, equals(16000));
       
-      // Verificamos que el saldo final quedó en 0 exacto sin residuos fantasma
       expect(saldoFinal.native.amount, equals(BigInt.zero));
       expect(saldoFinal.usd, equals(0));
+    });
+
+    test('limpiar reinicia los saldos a cero', () {
+      final projections = InMemoryLedgerProjections();
+      final accId = AccountId('acc-1');
+      final envId = EnvelopeId('env-1');
+
+      final tx = Transaccion.crear(
+        postings: [
+          Posting(
+            target: CuentaTarget(accId),
+            amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
+            currency: CurrencyCode('USD'),
+            amountUsd: 100,
+          ),
+          Posting(
+            target: SobreTarget(envId),
+            amountNative: Money(amount: BigInt.from(100), currency: CurrencyCode('USD')),
+            currency: CurrencyCode('USD'),
+            amountUsd: 100,
+          ),
+        ],
+        metadata: TransaccionMetadata(
+          eventId: EventId('evt-123'),
+          tipo: 'Ingreso',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'device-1',
+          schemaVersion: 1,
+        ),
+      );
+
+      projections.aplicar(tx);
+      expect(projections.saldoCuenta(accId).usd, equals(100));
+      expect(projections.saldoUsdSobre(envId), equals(100));
+
+      projections.limpiar();
+
+      expect(projections.saldoCuenta(accId).usd, equals(0));
+      expect(projections.saldoCuenta(accId).native.amount, equals(BigInt.zero));
+      expect(projections.saldoUsdSobre(envId), equals(0));
     });
   });
 }
