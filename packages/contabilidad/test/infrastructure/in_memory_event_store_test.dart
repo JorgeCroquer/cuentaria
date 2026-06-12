@@ -54,5 +54,69 @@ void main() {
       // Verificamos que no haya guardado duplicados
       expect(store.events.length, equals(1));
     });
+
+    test('get y hasReversal funcionan correctamente', () async {
+      final store = InMemoryEventStore();
+
+      final metadataOrig = TransaccionMetadata(
+        eventId: EventId('evt-orig'),
+        tipo: 'Ingreso',
+        occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
+        recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
+        deviceId: 'device-1',
+        schemaVersion: 1,
+      );
+
+      final postingsOrig = [
+        Posting(
+          target: CuentaTarget(AccountId('acc-1')),
+          amountNative: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          currency: CurrencyCode('USD'),
+          amountUsd: 100,
+        ),
+        Posting(
+          target: SobreTarget(EnvelopeId('env-1')),
+          amountNative: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          currency: CurrencyCode('USD'),
+          amountUsd: 100,
+        ),
+      ];
+
+      final txOrig = Transaccion.crear(postings: postingsOrig, metadata: metadataOrig);
+      await store.append(txOrig);
+
+      // get() 
+      final retrieved = await store.get(EventId('evt-orig'));
+      expect(retrieved, isNotNull);
+      expect(retrieved?.metadata.eventId.value, equals('evt-orig'));
+      
+      final missing = await store.get(EventId('evt-missing'));
+      expect(missing, isNull);
+
+      // hasReversal() before reversal
+      expect(await store.hasReversal(EventId('evt-orig')), isFalse);
+
+      final metadataRev = TransaccionMetadata(
+        eventId: EventId('evt-rev'),
+        tipo: 'Reverso',
+        reverses: EventId('evt-orig'),
+        occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
+        recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 13)),
+        deviceId: 'device-1',
+        schemaVersion: 1,
+      );
+
+      final txRev = Transaccion.crear(postings: postingsOrig, metadata: metadataRev);
+      await store.append(txRev);
+
+      // hasReversal() after reversal
+      expect(await store.hasReversal(EventId('evt-orig')), isTrue);
+    });
   });
 }

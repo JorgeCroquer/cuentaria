@@ -16,6 +16,16 @@ class InMemoryEventStore implements EventStore {
     return true; // insertado exitosamente
   }
 
+  @override
+  Future<Transaccion?> get(EventId id) async {
+    return _store[id];
+  }
+
+  @override
+  Future<bool> hasReversal(EventId originalId) async {
+    return _store.values.any((tx) => tx.metadata.reverses == originalId);
+  }
+
   /// Expuesto solo para propósitos de testing y consulta simple.
   List<Transaccion> get events => _store.values.toList();
 }
