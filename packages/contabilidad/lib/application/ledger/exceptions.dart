@@ -13,3 +13,11 @@ class OperacionSoloUSD implements Exception {
   @override
   String toString() => 'OperacionSoloUSD: $message';
 }
+
+class SaldoInsuficiente implements Exception {
+  final String message;
+  SaldoInsuficiente(this.message);
+
+  @override
+  String toString() => 'SaldoInsuficiente: $message';
+}
