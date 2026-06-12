@@ -134,5 +134,42 @@ void main() {
       
       expect(store.events.isEmpty, isTrue);
     });
+
+    test('ingreso rechaza monto negativo o cero', () async {
+      final cuentaId = AccountId('acc-usd');
+      catalog.saveAccount(
+        Account(
+          id: cuentaId,
+          name: 'USD Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      await expectLater(
+        () => registrarIngreso(
+          eventId: EventId('evt-3'),
+          deviceId: 'dev-1',
+          cuentaId: cuentaId,
+          monto: Money(amount: BigInt.from(-15000), currency: CurrencyCode('USD')),
+          source: 'Cliente C',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      await expectLater(
+        () => registrarIngreso(
+          eventId: EventId('evt-4'),
+          deviceId: 'dev-1',
+          cuentaId: cuentaId,
+          monto: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
+          source: 'Cliente D',
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      
+      expect(store.events.isEmpty, isTrue);
+    });
   });
 }

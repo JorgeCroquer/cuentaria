@@ -39,6 +39,10 @@ class RegistrarIngreso {
     final targetSobreId =
         sobreId ?? _catalog.getSystemEnvelope(EnvelopeRole.stage);
 
+    if (monto.amount <= BigInt.zero) {
+      throw ArgumentError('El monto debe ser estrictamente positivo.');
+    }
+
     final amountUsd = monto.amount.toInt();
 
     final postings = [
@@ -56,11 +60,12 @@ class RegistrarIngreso {
       ),
     ];
 
+    final now = DateTime.now().toUtc();
     final metadata = TransaccionMetadata(
       eventId: eventId,
       tipo: 'Ingreso',
-      occurredAt: occurredAt ?? DomainTimestamp(DateTime.now().toUtc()),
-      recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+      occurredAt: occurredAt ?? DomainTimestamp(now),
+      recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
       schemaVersion: 1,
       source: source,

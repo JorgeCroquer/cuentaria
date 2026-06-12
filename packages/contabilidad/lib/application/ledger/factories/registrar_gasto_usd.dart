@@ -34,6 +34,10 @@ class RegistrarGastoUsd {
       throw OperacionSoloUSD();
     }
 
+    if (monto.amount <= BigInt.zero) {
+      throw ArgumentError('El monto debe ser estrictamente positivo.');
+    }
+
     final amountUsd = monto.amount.toInt();
     final negatedMonto = Money(amount: -monto.amount, currency: monto.currency);
 
@@ -52,11 +56,12 @@ class RegistrarGastoUsd {
       ),
     ];
 
+    final now = DateTime.now().toUtc();
     final metadata = TransaccionMetadata(
       eventId: eventId,
       tipo: 'Gasto',
-      occurredAt: occurredAt ?? DomainTimestamp(DateTime.now().toUtc()),
-      recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+      occurredAt: occurredAt ?? DomainTimestamp(now),
+      recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
       schemaVersion: 1,
     );

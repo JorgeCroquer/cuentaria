@@ -117,5 +117,53 @@ void main() {
       
       expect(store.events.isEmpty, isTrue);
     });
+
+    test('gasto rechaza monto negativo o cero', () async {
+      final cuentaId = AccountId('acc-usd');
+      catalog.saveAccount(
+        Account(
+          id: cuentaId,
+          name: 'USD Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      final sobreId = EnvelopeId('env-1');
+      catalog.saveEnvelope(
+        Envelope(
+          id: sobreId,
+          name: 'Comida',
+          role: EnvelopeRole.ninguno,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      await expectLater(
+        () => registrarGastoUsd(
+          eventId: EventId('evt-3'),
+          deviceId: 'dev-1',
+          cuentaId: cuentaId,
+          sobreId: sobreId,
+          monto: Money(amount: BigInt.from(-500), currency: CurrencyCode('USD')),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      await expectLater(
+        () => registrarGastoUsd(
+          eventId: EventId('evt-4'),
+          deviceId: 'dev-1',
+          cuentaId: cuentaId,
+          sobreId: sobreId,
+          monto: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      
+      expect(store.events.isEmpty, isTrue);
+    });
   });
 }

@@ -156,5 +156,54 @@ void main() {
       
       expect(store.events.isEmpty, isTrue);
     });
+
+    test('transferencia rechaza monto negativo o cero', () async {
+      final origenId = AccountId('acc-usd-1');
+      final destinoId = AccountId('acc-usd-2');
+      
+      catalog.saveAccount(
+        Account(
+          id: origenId,
+          name: 'USD Account 1',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      catalog.saveAccount(
+        Account(
+          id: destinoId,
+          name: 'USD Account 2',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      
+      await expectLater(
+        () => registrarTransferencia(
+          eventId: EventId('evt-4'),
+          deviceId: 'dev-1',
+          cuentaOrigenId: origenId,
+          cuentaDestinoId: destinoId,
+          monto: Money(amount: BigInt.from(-3000), currency: CurrencyCode('USD')),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      await expectLater(
+        () => registrarTransferencia(
+          eventId: EventId('evt-5'),
+          deviceId: 'dev-1',
+          cuentaOrigenId: origenId,
+          cuentaDestinoId: destinoId,
+          monto: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      
+      expect(store.events.isEmpty, isTrue);
+    });
   });
 }
