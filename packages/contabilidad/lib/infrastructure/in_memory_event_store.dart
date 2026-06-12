@@ -72,40 +72,28 @@ class InMemoryEventStore implements EventStore {
       }
     }
 
-    final list = result.toList();
-    list.sort((a, b) {
-      final cmp1 = a.metadata.occurredAt.value.compareTo(
-        b.metadata.occurredAt.value,
-      );
-      if (cmp1 != 0) return cmp1;
-
-      final cmp2 = a.metadata.recordedAt.value.compareTo(
-        b.metadata.recordedAt.value,
-      );
-      if (cmp2 != 0) return cmp2;
-
-      return a.metadata.eventId.value.compareTo(b.metadata.eventId.value);
-    });
-
+    final list = result.toList()..sort(_ordenCanonico);
     return list;
+  }
+
+  // Orden canónico C1-9: occurredAt -> recordedAt -> eventId.
+  static int _ordenCanonico(Transaccion a, Transaccion b) {
+    final cmp1 = a.metadata.occurredAt.value.compareTo(
+      b.metadata.occurredAt.value,
+    );
+    if (cmp1 != 0) return cmp1;
+
+    final cmp2 = a.metadata.recordedAt.value.compareTo(
+      b.metadata.recordedAt.value,
+    );
+    if (cmp2 != 0) return cmp2;
+
+    return a.metadata.eventId.value.compareTo(b.metadata.eventId.value);
   }
 
   /// Expuesto solo para propósitos de testing y consulta simple.
   List<Transaccion> get events {
-    final list = _store.values.toList();
-    list.sort((a, b) {
-      final cmp1 = a.metadata.occurredAt.value.compareTo(
-        b.metadata.occurredAt.value,
-      );
-      if (cmp1 != 0) return cmp1;
-
-      final cmp2 = a.metadata.recordedAt.value.compareTo(
-        b.metadata.recordedAt.value,
-      );
-      if (cmp2 != 0) return cmp2;
-
-      return a.metadata.eventId.value.compareTo(b.metadata.eventId.value);
-    });
+    final list = _store.values.toList()..sort(_ordenCanonico);
     return list;
   }
 }

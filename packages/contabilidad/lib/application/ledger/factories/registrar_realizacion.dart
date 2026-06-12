@@ -58,7 +58,7 @@ class RegistrarRealizacion {
     final decMonto = Decimal.fromBigInt(montoNative.amount);
     final valorMercado = (decMonto / tasaActual).round().toInt();
     final rateRef =
-        '${tasaActual.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD';
+        '${tasaActual.toStringAsFixed(2)} ${montoNative.currency.value}/USD';
 
     await _realizarDisposicion(
       eventId: eventId,

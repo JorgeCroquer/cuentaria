@@ -77,7 +77,7 @@ class RegistrarApertura {
         amountUsd: usdCostBase,
         rateRef:
             rate != null
-                ? '${rate.toDouble().toStringAsFixed(2)} ${montoNative.currency.value}/USD'
+                ? '${rate.toStringAsFixed(2)} ${montoNative.currency.value}/USD'
                 : null,
       ),
       Posting(
