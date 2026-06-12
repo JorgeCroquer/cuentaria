@@ -1,0 +1,1 @@
+../../.agents/skills/pr-generator/SKILL.md

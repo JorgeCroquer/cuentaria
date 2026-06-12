@@ -44,6 +44,12 @@ class InMemoryLedgerProjections implements LedgerProjections {
   }
 
   @override
+  void limpiar() {
+    _cuentas.clear();
+    _sobres.clear();
+  }
+
+  @override
   SaldoCuenta saldoCuenta(AccountId id) {
     return _cuentas[id] ??
         SaldoCuenta(

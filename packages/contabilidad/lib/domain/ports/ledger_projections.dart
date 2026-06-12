@@ -6,6 +6,7 @@ export '../saldo_cuenta.dart';
 
 abstract class LedgerProjections {
   void aplicar(Transaccion event);
+  void limpiar();
   SaldoCuenta saldoCuenta(AccountId id);
   int saldoUsdSobre(EnvelopeId id);
 }

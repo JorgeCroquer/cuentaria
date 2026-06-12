@@ -14,10 +14,10 @@ class MonedaIncompatible implements Exception {
   String toString() => 'MonedaIncompatible: $message';
 }
 
-class SystemEnvelopeDeletion implements Exception {
+class BorradoDeSobreDeSistemaNoPermitido implements Exception {
   final String message;
-  SystemEnvelopeDeletion(this.message);
+  BorradoDeSobreDeSistemaNoPermitido(this.message);
 
   @override
-  String toString() => 'SystemEnvelopeDeletion: $message';
+  String toString() => 'BorradoDeSobreDeSistemaNoPermitido: $message';
 }

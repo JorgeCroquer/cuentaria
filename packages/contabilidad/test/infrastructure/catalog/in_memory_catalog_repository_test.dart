@@ -77,7 +77,7 @@ void main() {
 
       expect(
         () => repository.deleteEnvelope(stageId),
-        throwsA(isA<SystemEnvelopeDeletion>()),
+        throwsA(isA<BorradoDeSobreDeSistemaNoPermitido>()),
       );
 
       // But we can delete a regular one
