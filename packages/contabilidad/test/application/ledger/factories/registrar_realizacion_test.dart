@@ -17,7 +17,6 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/application/ledger/factories/registrar_realizacion.dart';
-import 'package:contabilidad/domain/saldo_cuenta.dart';
 
 void main() {
   group('RegistrarRealizacion', () {

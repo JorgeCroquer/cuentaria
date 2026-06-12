@@ -2,7 +2,6 @@ import 'package:test/test.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-import 'package:contabilidad/domain/transaccion.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:contabilidad/application/registrar_transaccion.dart';
@@ -74,7 +73,7 @@ void main() {
       );
       
       expect(store.events.length, equals(1));
-      final tx = store.events.first as Transaccion;
+      final tx = store.events.first;
       expect(tx.metadata.tipo, equals('Transferencia'));
       
       expect(projections.saldoCuenta(origenId).usd, equals(-3000));

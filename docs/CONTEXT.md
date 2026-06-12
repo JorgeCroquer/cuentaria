@@ -93,3 +93,8 @@ Auto-provisioned envelopes identified by `rol` (e.g. Stage, Exchange Differentia
 
 - "Backend" was used for two things: the **domain core** (lives in the client) and the **sync/integration infra** (Supabase + workers). Resolved as distinct concepts.
 - "Event sourcing everywhere" was refined: append-only everywhere, but **two archetypes** (domain event vs observed external fact). See [ADR-0002](adr/ADR-0002-append-only.md).
+
+## Hard Rules (Money & Rates)
+
+1. **Dinero y tasas:** Enteros o `Decimal`, jamás `double` — ni en firmas, proyecciones, ni tests.
+2. **Convención de Tasa:** La tasa es siempre **native-por-USD** (como se cotiza el dólar en Bs); valor USD = `round(native / tasa)` con un único redondeo. Conversiones observan montos, no dividen.
