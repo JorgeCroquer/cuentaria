@@ -1,4 +1,4 @@
-import 'package:messaging/messaging.dart';
+import 'package:event_bus/event_bus.dart';
 import 'package:test/test.dart';
 
 class OrderPlacedEvent extends DomainEvent {

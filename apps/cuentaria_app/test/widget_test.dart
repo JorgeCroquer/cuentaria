@@ -3,7 +3,7 @@ import 'package:cuentaria_app/placeholder_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:messaging/messaging.dart';
+import 'package:event_bus/event_bus.dart';
 
 class FakeEventBus implements EventBus {
   @override

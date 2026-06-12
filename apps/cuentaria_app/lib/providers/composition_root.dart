@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:messaging/messaging.dart';
+import 'package:event_bus/event_bus.dart';
 
 final eventBusProvider = Provider<EventBus>((ref) {
   final eventBus = SyncEventBus();
