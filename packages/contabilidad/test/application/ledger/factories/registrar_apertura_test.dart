@@ -130,7 +130,7 @@ void main() {
         deviceId: 'dev-1',
         cuentaId: cuentaId,
         montoNative: Money(amount: BigInt.from(10000), currency: CurrencyCode('VES')),
-        rate: Decimal.parse('0.025'), // 10000 * 0.025 = 250
+        rate: Decimal.parse('40.0'), // 10000 / 40.0 = 250
       );
       
       final sysAperturaId = catalog.getSystemEnvelope(EnvelopeRole.apertura);

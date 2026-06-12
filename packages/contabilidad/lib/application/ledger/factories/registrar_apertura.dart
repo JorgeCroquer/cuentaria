@@ -42,6 +42,10 @@ class RegistrarApertura {
       throw ArgumentError('La cuenta ya tiene saldo, no se puede abrir de nuevo.');
     }
 
+    if (montoNative.currency != cuenta.nativeCurrency) {
+      throw ArgumentError('La moneda del monto debe coincidir con la moneda nativa de la cuenta.');
+    }
+
     int usdCostBase;
     
     if (cuenta.nativeCurrency == CurrencyCode('USD')) {
@@ -51,7 +55,7 @@ class RegistrarApertura {
         usdCostBase = amountUsd;
       } else if (rate != null) {
         final decMonto = Decimal.fromBigInt(montoNative.amount);
-        usdCostBase = (decMonto * rate).round().toBigInt().toInt();
+        usdCostBase = (decMonto / rate).round().toInt();
       } else {
         throw ArgumentError('Para cuentas extranjeras debe proveer amountUsd o rate.');
       }
