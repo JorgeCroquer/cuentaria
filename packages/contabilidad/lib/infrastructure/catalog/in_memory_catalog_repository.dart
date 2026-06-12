@@ -90,8 +90,8 @@ class InMemoryCatalogRepository implements CatalogRepository {
   void deleteEnvelope(EnvelopeId id) {
     final envelope = _envelopes[id];
     if (envelope != null && envelope.role != EnvelopeRole.ninguno) {
-      throw SystemEnvelopeDeletion(
-        'Cannot delete system envelope ${envelope.name} (Role: ${envelope.role})',
+      throw BorradoDeSobreDeSistemaNoPermitido(
+        'No se puede borrar el sobre de sistema ${envelope.role.name}',
       );
     }
     _envelopes.remove(id);
