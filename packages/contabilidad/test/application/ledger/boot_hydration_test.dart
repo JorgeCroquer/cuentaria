@@ -12,6 +12,8 @@
 ///   - Killing after a durable append and re-replaying reproduces same balances.
 library;
 
+import 'dart:math';
+
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/rebuild_projections.dart';
@@ -39,16 +41,17 @@ Transaction _buildTx({
   required int amountUsd,
   required String currency,
   DateTime? occurredAt,
-  DateTime? recordedAt,
+  int? amountNative,
   EventId? reverses,
 }) {
   final now = DateTime.utc(2026, 6, 16, 10, 0);
+  final native = amountNative ?? amountUsd;
   return Transaction.create(
     metadata: TransactionMetadata(
       eventId: EventId(eventId),
       type: 'Test',
       occurredAt: DomainTimestamp(occurredAt ?? now),
-      recordedAt: DomainTimestamp(recordedAt ?? now),
+      recordedAt: DomainTimestamp(occurredAt ?? now),
       deviceId: 'device-test',
       schemaVersion: 1,
       reverses: reverses,
@@ -57,7 +60,7 @@ Transaction _buildTx({
       Posting(
         target: AccountTarget(AccountId(accountId)),
         amountNative: Money(
-          amount: BigInt.from(amountUsd),
+          amount: BigInt.from(native),
           currency: CurrencyCode(currency),
         ),
         currency: CurrencyCode(currency),
@@ -66,7 +69,7 @@ Transaction _buildTx({
       Posting(
         target: EnvelopeTarget(EnvelopeId(envelopeId)),
         amountNative: Money(
-          amount: BigInt.from(amountUsd),
+          amount: BigInt.from(native),
           currency: CurrencyCode(currency),
         ),
         currency: CurrencyCode(currency),
@@ -174,70 +177,27 @@ void main() {
       () async {
         final store = DriftEventStore(db);
 
-        const bs = 'VES';
         const acc = 'acc-bs';
         const env = 'env-bs';
 
-        final deposit = Transaction.create(
-          metadata: TransactionMetadata(
-            eventId: EventId('bs-deposit'),
-            type: 'Income',
-            occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 0)),
-            recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 0)),
-            deviceId: 'device-test',
-            schemaVersion: 1,
-          ),
-          postings: [
-            Posting(
-              target: AccountTarget(AccountId(acc)),
-              amountNative: Money(
-                amount: BigInt.from(1000),
-                currency: CurrencyCode(bs),
-              ),
-              currency: CurrencyCode(bs),
-              amountUsd: 100,
-            ),
-            Posting(
-              target: EnvelopeTarget(EnvelopeId(env)),
-              amountNative: Money(
-                amount: BigInt.from(1000),
-                currency: CurrencyCode(bs),
-              ),
-              currency: CurrencyCode(bs),
-              amountUsd: 100,
-            ),
-          ],
+        // VES: native=1000, usd=100 (rate 10:1)
+        final deposit = _buildTx(
+          eventId: 'bs-deposit',
+          accountId: acc,
+          envelopeId: env,
+          amountUsd: 100,
+          currency: 'VES',
+          amountNative: 1000,
+          occurredAt: DateTime.utc(2026, 6, 16, 10, 0),
         );
-
-        final disposal = Transaction.create(
-          metadata: TransactionMetadata(
-            eventId: EventId('bs-disposal'),
-            type: 'Expense',
-            occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 1)),
-            recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 1)),
-            deviceId: 'device-test',
-            schemaVersion: 1,
-          ),
-          postings: [
-            Posting(
-              target: AccountTarget(AccountId(acc)),
-              amountNative: Money(
-                amount: BigInt.from(-1000),
-                currency: CurrencyCode(bs),
-              ),
-              currency: CurrencyCode(bs),
-              amountUsd: -100,
-            ),
-            Posting(
-              target: EnvelopeTarget(EnvelopeId(env)),
-              amountNative: Money(
-                amount: BigInt.from(-1000),
-                currency: CurrencyCode(bs),
-              ),
-              currency: CurrencyCode(bs),
-              amountUsd: -100,
-            ),
-          ],
+        final disposal = _buildTx(
+          eventId: 'bs-disposal',
+          accountId: acc,
+          envelopeId: env,
+          amountUsd: -100,
+          currency: 'VES',
+          amountNative: -1000,
+          occurredAt: DateTime.utc(2026, 6, 16, 10, 1),
         );
 
         await store.append(deposit);
@@ -262,36 +222,14 @@ void main() {
         amountUsd: 7500,
         currency: 'USD',
       );
-      final reversal = Transaction.create(
-        metadata: TransactionMetadata(
-          eventId: EventId('rev-evt'),
-          type: 'Reversal',
-          occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 2)),
-          recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 16, 10, 2)),
-          deviceId: 'device-test',
-          schemaVersion: 1,
-          reverses: EventId('orig-evt'),
-        ),
-        postings: [
-          Posting(
-            target: AccountTarget(AccountId('acc-rev')),
-            amountNative: Money(
-              amount: BigInt.from(-7500),
-              currency: CurrencyCode('USD'),
-            ),
-            currency: CurrencyCode('USD'),
-            amountUsd: -7500,
-          ),
-          Posting(
-            target: EnvelopeTarget(EnvelopeId('env-rev')),
-            amountNative: Money(
-              amount: BigInt.from(-7500),
-              currency: CurrencyCode('USD'),
-            ),
-            currency: CurrencyCode('USD'),
-            amountUsd: -7500,
-          ),
-        ],
+      final reversal = _buildTx(
+        eventId: 'rev-evt',
+        accountId: 'acc-rev',
+        envelopeId: 'env-rev',
+        amountUsd: -7500,
+        currency: 'USD',
+        occurredAt: DateTime.utc(2026, 6, 16, 10, 2),
+        reverses: EventId('orig-evt'),
       );
 
       await store.append(original);
@@ -334,54 +272,128 @@ void main() {
       },
     );
 
-    test(
-      'canonical order: backdated event replays identical to incremental',
-      () async {
-        final store = DriftEventStore(db);
-        final incremental = InMemoryLedgerProjections();
+    test('canonical order: queryLog returns events sorted occurredAt ASC '
+        'regardless of insertion order', () async {
+      final store = DriftEventStore(db);
 
-        // Arrive in order day2→day3→day1 (backdated)
-        final txDay2 = _buildTx(
-          eventId: 'day2',
-          accountId: 'acc-order',
-          envelopeId: 'env-order',
-          amountUsd: 200,
-          currency: 'USD',
-          occurredAt: DateTime.utc(2026, 6, 2),
-        );
-        final txDay3 = _buildTx(
-          eventId: 'day3',
-          accountId: 'acc-order',
-          envelopeId: 'env-order',
-          amountUsd: 300,
-          currency: 'USD',
-          occurredAt: DateTime.utc(2026, 6, 3),
-        );
-        final txDay1 = _buildTx(
-          eventId: 'day1',
-          accountId: 'acc-order',
-          envelopeId: 'env-order',
-          amountUsd: 100,
-          currency: 'USD',
-          occurredAt: DateTime.utc(2026, 6, 1),
-        );
+      // Arrive in order day2→day3→day1 (backdated)
+      final txDay2 = _buildTx(
+        eventId: 'day2',
+        accountId: 'acc-order',
+        envelopeId: 'env-order',
+        amountUsd: 200,
+        currency: 'USD',
+        occurredAt: DateTime.utc(2026, 6, 2),
+      );
+      final txDay3 = _buildTx(
+        eventId: 'day3',
+        accountId: 'acc-order',
+        envelopeId: 'env-order',
+        amountUsd: 300,
+        currency: 'USD',
+        occurredAt: DateTime.utc(2026, 6, 3),
+      );
+      final txDay1 = _buildTx(
+        eventId: 'day1',
+        accountId: 'acc-order',
+        envelopeId: 'env-order',
+        amountUsd: 100,
+        currency: 'USD',
+        occurredAt: DateTime.utc(2026, 6, 1),
+      );
 
-        await store.append(txDay2);
-        incremental.apply(txDay2);
-        await store.append(txDay3);
-        incremental.apply(txDay3);
-        await store.append(txDay1);
-        incremental.apply(txDay1);
+      await store.append(txDay2);
+      await store.append(txDay3);
+      await store.append(txDay1);
 
-        final replayed = await _replay(db);
+      // queryLog must return [day1, day2, day3] — NOT insertion order.
+      final ordered = await store.queryLog();
+      expect(ordered.length, equals(3));
+      expect(
+        ordered.map((t) => t.metadata.eventId.value).toList(),
+        equals(['day1', 'day2', 'day3']),
+      );
+      // Amounts must appear in that canonical order too.
+      expect(
+        ordered.map((t) => t.postings.first.amountUsd).toList(),
+        equals([100, 200, 300]),
+      );
+    });
 
-        // Sum is commutative (600); both paths must agree
-        expect(
-          replayed.accountBalance(AccountId('acc-order')).usd,
-          equals(incremental.accountBalance(AccountId('acc-order')).usd),
-        );
-      },
-    );
+    // -----------------------------------------------------------------------
+    // Property test (acceptance criterion #46):
+    //   For any sequence of events, replay-from-scratch == incremental apply.
+    // Uses a seeded RNG so failures are deterministic and reproducible.
+    // -----------------------------------------------------------------------
+    test('Property: replay-from-scratch equals incremental application '
+        'for random event sequences (seed=42, 20 cases)', () async {
+      const seed = 42;
+      const cases = 20;
+      const maxEvents = 10;
+      final rng = Random(seed);
+
+      for (var c = 0; c < cases; c++) {
+        final caseDb = openTestDb();
+        try {
+          final store = DriftEventStore(caseDb);
+          final incremental = InMemoryLedgerProjections();
+
+          final n = 1 + rng.nextInt(maxEvents); // 1..10 events
+          for (var i = 0; i < n; i++) {
+            // Random occurredAt spread over 30 days
+            final dayOffset = rng.nextInt(30);
+            final amount =
+                (rng.nextInt(990) + 10) * (rng.nextBool() ? 1 : -1); // ±10..999
+            final acc = 'acc-prop-${rng.nextInt(3)}'; // 3 accounts
+            final env = 'env-prop-${rng.nextInt(3)}'; // 3 envelopes
+
+            final tx = _buildTx(
+              eventId: 'prop-c$c-$i',
+              accountId: acc,
+              envelopeId: env,
+              amountUsd: amount,
+              currency: 'USD',
+              occurredAt: DateTime.utc(2026, 1, 1 + dayOffset),
+            );
+
+            await store.append(tx);
+            incremental.apply(tx);
+          }
+
+          // Replay from scratch
+          final replayed = InMemoryLedgerProjections();
+          await RebuildProjections(
+            store: store,
+            projections: replayed,
+          ).execute();
+
+          // Every account/envelope that incremental touched must match replay.
+          for (var a = 0; a < 3; a++) {
+            final id = AccountId('acc-prop-$a');
+            expect(
+              replayed.accountBalance(id).usd,
+              equals(incremental.accountBalance(id).usd),
+              reason: 'case $c: account acc-prop-$a usd mismatch',
+            );
+            expect(
+              replayed.accountBalance(id).native.amount,
+              equals(incremental.accountBalance(id).native.amount),
+              reason: 'case $c: account acc-prop-$a native mismatch',
+            );
+          }
+          for (var e = 0; e < 3; e++) {
+            final id = EnvelopeId('env-prop-$e');
+            expect(
+              replayed.envelopeUsdBalance(id),
+              equals(incremental.envelopeUsdBalance(id)),
+              reason: 'case $c: envelope env-prop-$e mismatch',
+            );
+          }
+        } finally {
+          await caseDb.close();
+        }
+      }
+    });
   });
 
   group('Boot hydration — DriftCatalogRepository', () {
