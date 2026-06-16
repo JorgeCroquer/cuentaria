@@ -6,6 +6,8 @@
 //   - timestamps round-trip ISO-8601 UTC ↔ DomainTimestamp
 //   - upcaster registry: v1 → identity; future schema_version → typed error
 //   - integration seam: codec ↔ upcaster registry
+//   - MalformedPayload typed error for corrupt/partial JSON
+//   - golden-bytes test to lock wire format against accidental drift
 
 import 'dart:convert';
 
@@ -15,6 +17,8 @@ import 'package:contabilidad/domain/transaction.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:contabilidad/infrastructure/codec/codec_error.dart';
 import 'package:contabilidad/infrastructure/codec/event_codec.dart';
+import 'package:contabilidad/infrastructure/codec/upcaster_registry.dart'
+    show maxSupportedVersion;
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:test/test.dart';
 
@@ -541,6 +545,140 @@ void main() {
       expect(decoded, equals(tx));
       expect(decoded.metadata.reverses?.value, equals('evt-original-xyz'));
       expect(decoded.metadata.source, equals('manual'));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 7. MalformedPayload — typed error for corrupt / partial JSON
+  // -------------------------------------------------------------------------
+
+  group('EventCodec MalformedPayload', () {
+    test('missing required field (event_id) throws MalformedPayload', () {
+      // Build a valid payload then strip a required field
+      const partial =
+          '{"device_id":"d","occurred_at":"2026-01-01T00:00:00.000Z",'
+          '"postings":[],"recorded_at":"2026-01-01T00:00:01.000Z",'
+          '"schema_version":1,"type":"Income"}';
+      expect(() => codec.decode(partial), throwsA(isA<MalformedPayload>()));
+    });
+
+    test('missing postings field throws MalformedPayload', () {
+      const partial =
+          '{"device_id":"d","event_id":"evt-1","occurred_at":"2026-01-01T00:00:00.000Z",'
+          '"recorded_at":"2026-01-01T00:00:01.000Z","schema_version":1,"type":"Income"}';
+      expect(() => codec.decode(partial), throwsA(isA<MalformedPayload>()));
+    });
+
+    test(
+      'wrong type for schema_version (string instead of int) throws MalformedPayload',
+      () {
+        const bad =
+            '{"device_id":"d","event_id":"evt-1","occurred_at":"2026-01-01T00:00:00.000Z",'
+            '"postings":[],"recorded_at":"2026-01-01T00:00:01.000Z",'
+            '"schema_version":"one","type":"Income"}';
+        expect(() => codec.decode(bad), throwsA(isA<MalformedPayload>()));
+      },
+    );
+
+    test('invalid ISO-8601 timestamp throws MalformedPayload', () {
+      const bad =
+          '{"device_id":"d","event_id":"evt-1","occurred_at":"not-a-date",'
+          '"postings":[],"recorded_at":"2026-01-01T00:00:01.000Z",'
+          '"schema_version":1,"type":"Income"}';
+      expect(() => codec.decode(bad), throwsA(isA<MalformedPayload>()));
+    });
+
+    test('posting with wrong amount_native type throws MalformedPayload', () {
+      // amount_native must be a string; put a number instead
+      const bad =
+          '{"device_id":"d","event_id":"evt-1","occurred_at":"2026-01-01T00:00:00.000Z",'
+          '"postings":[{"amount_native":100,"amount_usd":"100","currency":"USD",'
+          '"target":{"dimension":"account","id":"acc-1"}}],'
+          '"recorded_at":"2026-01-01T00:00:01.000Z","schema_version":1,"type":"Income"}';
+      expect(() => codec.decode(bad), throwsA(isA<MalformedPayload>()));
+    });
+
+    test('MalformedPayload carries a non-null cause', () {
+      const partial =
+          '{"device_id":"d","occurred_at":"2026-01-01T00:00:00.000Z",'
+          '"postings":[],"recorded_at":"2026-01-01T00:00:01.000Z",'
+          '"schema_version":1,"type":"Income"}';
+      try {
+        codec.decode(partial);
+        fail('should have thrown');
+      } on MalformedPayload catch (e) {
+        expect(e.cause, isNotNull);
+        expect(e.message, isNotEmpty);
+      }
+    });
+
+    test('syntactically invalid JSON throws MalformedPayload', () {
+      expect(
+        () => codec.decode('{not json}'),
+        throwsA(isA<MalformedPayload>()),
+      );
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 8. Golden bytes — wire-format stability against accidental drift
+  // -------------------------------------------------------------------------
+
+  group('EventCodec golden bytes', () {
+    // This test locks the exact canonical bytes for a well-known transaction.
+    // If the format changes (key rename, field order, quoting style), this
+    // fails immediately — protecting F3 sync / F4 export consumers.
+    //
+    // To update intentionally: change the golden string AND bump schema_version
+    // in TransactionMetadata + add an upcaster in upcaster_registry.dart.
+    const goldenJson =
+        '{"device_id":"device-golden","event_id":"evt-golden-001",'
+        '"occurred_at":"2026-01-01T00:00:00.000Z",'
+        '"postings":['
+        '{"amount_native":"100","amount_usd":"100","currency":"USD",'
+        '"target":{"dimension":"account","id":"acc-golden"}},'
+        '{"amount_native":"100","amount_usd":"100","currency":"USD",'
+        '"target":{"dimension":"envelope","id":"env-golden"}}'
+        '],"recorded_at":"2026-01-01T00:00:01.000Z",'
+        '"schema_version":$maxSupportedVersion,"type":"Income"}';
+
+    Transaction _goldenTx() => Transaction.create(
+      postings: [
+        Posting(
+          target: AccountTarget(AccountId('acc-golden')),
+          amountNative: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          currency: CurrencyCode('USD'),
+          amountUsd: 100,
+        ),
+        Posting(
+          target: EnvelopeTarget(EnvelopeId('env-golden')),
+          amountNative: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          currency: CurrencyCode('USD'),
+          amountUsd: 100,
+        ),
+      ],
+      metadata: TransactionMetadata(
+        eventId: EventId('evt-golden-001'),
+        type: 'Income',
+        occurredAt: DomainTimestamp(DateTime.utc(2026, 1, 1, 0, 0, 0)),
+        recordedAt: DomainTimestamp(DateTime.utc(2026, 1, 1, 0, 0, 1)),
+        deviceId: 'device-golden',
+        schemaVersion: maxSupportedVersion,
+      ),
+    );
+
+    test('encode produces exact golden bytes', () {
+      expect(codec.encode(_goldenTx()), equals(goldenJson));
+    });
+
+    test('golden JSON decodes to the expected Transaction', () {
+      expect(codec.decode(goldenJson), equals(_goldenTx()));
     });
   });
 }

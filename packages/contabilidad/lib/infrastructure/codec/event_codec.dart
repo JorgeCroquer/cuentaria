@@ -21,6 +21,7 @@ import 'package:contabilidad/domain/transaction.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import 'codec_error.dart';
 import 'upcaster_registry.dart' as registry;
 
 /// Serializes and deserializes [Transaction] to/from canonical JSON.
@@ -50,12 +51,28 @@ class EventCodec {
   /// Decodes [json] back to a [Transaction].
   ///
   /// Routes the raw map through [registry.upcast] before reconstruction.
-  /// Throws [UnsupportedSchemaVersion] if the payload's schema_version
-  /// exceeds what this codec supports.
+  ///
+  /// Throws:
+  ///   - [UnsupportedSchemaVersion] if `schema_version` exceeds the codec's
+  ///     maximum supported version.
+  ///   - [MalformedPayload] for any other parse failure: invalid JSON syntax,
+  ///     missing required fields, or wrong field types.
   Transaction decode(String json) {
-    final raw = jsonDecode(json) as Map<String, dynamic>;
-    final upcasted = registry.upcast(raw);
-    return _transactionFromMap(upcasted);
+    try {
+      final raw = jsonDecode(json) as Map<String, dynamic>;
+      // upcast may throw UnsupportedSchemaVersion — let it propagate unmodified.
+      final upcasted = registry.upcast(raw);
+      return _transactionFromMap(upcasted);
+    } on UnsupportedSchemaVersion {
+      rethrow;
+    } on MalformedPayload {
+      rethrow;
+    } catch (e) {
+      throw MalformedPayload(
+        message: 'Failed to decode Transaction from JSON',
+        cause: e,
+      );
+    }
   }
 
   // -------------------------------------------------------------------------

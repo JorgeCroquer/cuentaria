@@ -1,6 +1,25 @@
 /// Typed errors produced by [EventCodec].
 library;
 
+/// Thrown when [EventCodec.decode] cannot parse or reconstruct a payload
+/// because required fields are missing, have wrong types, or the JSON is
+/// syntactically invalid.
+///
+/// Wraps the underlying error as [cause] so callers can log details without
+/// depending on opaque [TypeError] / [CastError] internals.
+class MalformedPayload implements Exception {
+  /// Human-readable description of what was wrong.
+  final String message;
+
+  /// The original error (e.g. [TypeError], [FormatException], [ArgumentError]).
+  final Object cause;
+
+  const MalformedPayload({required this.message, required this.cause});
+
+  @override
+  String toString() => 'MalformedPayload: $message (cause: $cause)';
+}
+
 /// Thrown when [EventCodec.decode] encounters a [schema_version] greater than
 /// the maximum version the current codec supports.
 ///
