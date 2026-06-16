@@ -175,6 +175,37 @@ void main() {
     });
   });
 
+  // ------------------------------------------------------------------ event_targets derivation
+  group('event_targets derivation', () {
+    test('append writes one account + one envelope target row', () async {
+      final tx = buildTransaction(eventId: 'evt-targets');
+      await store.append(tx);
+
+      final rows = await db.select(db.eventTargets).get();
+      expect(rows, hasLength(2));
+
+      final dimensions = rows.map((r) => r.dimension).toSet();
+      expect(dimensions, containsAll(['account', 'envelope']));
+
+      final accountRow = rows.firstWhere((r) => r.dimension == 'account');
+      expect(accountRow.targetId, equals('acc-01'));
+      expect(accountRow.eventId, equals('evt-targets'));
+
+      final envelopeRow = rows.firstWhere((r) => r.dimension == 'envelope');
+      expect(envelopeRow.targetId, equals('env-01'));
+    });
+
+    test('duplicate append does not write duplicate target rows', () async {
+      final tx = buildTransaction(eventId: 'evt-dup-targets');
+      await store.append(tx);
+      await store.append(tx); // no-op
+
+      final rows = await db.select(db.eventTargets).get();
+      // Still exactly 2 rows (account + envelope), not 4.
+      expect(rows, hasLength(2));
+    });
+  });
+
   // ------------------------------------------------------------------ stubs (slice #43)
   group('queryLog / hasReversal stubs (deferred to slice #43)', () {
     test('queryLog throws UnimplementedError', () async {
