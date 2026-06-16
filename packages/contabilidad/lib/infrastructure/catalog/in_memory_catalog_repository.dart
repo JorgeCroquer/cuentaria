@@ -14,24 +14,21 @@ class InMemoryCatalogRepository implements CatalogRepository {
 
   void _seedSystemEnvelopes() {
     final now = DateTime.now();
-    final systemRoles = {
-      EnvelopeRole.stage: ('Stage', EnvelopeId('sys-stage')),
-      EnvelopeRole.differential: (
-        'Differential',
-        EnvelopeId('sys-differential'),
-      ),
-      EnvelopeRole.adjustments: ('Adjustments', EnvelopeId('sys-adjustments')),
-      EnvelopeRole.opening: ('Opening', EnvelopeId('sys-opening')),
+    const systemRoles = {
+      EnvelopeRole.stage: ('Stage', 'sys-stage'),
+      EnvelopeRole.differential: ('Differential', 'sys-differential'),
+      EnvelopeRole.adjustments: ('Adjustments', 'sys-adjustments'),
+      EnvelopeRole.opening: ('Opening', 'sys-opening'),
     };
 
     for (final entry in systemRoles.entries) {
       final role = entry.key;
       final name = entry.value.$1;
-      final id = entry.value.$2;
+      final id = EnvelopeId(entry.value.$2);
 
       final hasRole = _envelopes.values.any((e) => e.role == role);
       if (!hasRole) {
-        saveEnvelope(
+        _saveEnvelopeSync(
           Envelope(
             id: id,
             name: name,
@@ -41,6 +38,15 @@ class InMemoryCatalogRepository implements CatalogRepository {
           ),
         );
       }
+    }
+  }
+
+  void _saveEnvelopeSync(Envelope envelope) {
+    final existing = _envelopes[envelope.id];
+    if (existing != null) {
+      _envelopes[envelope.id] = existing.mergeWith(envelope);
+    } else {
+      _envelopes[envelope.id] = envelope;
     }
   }
 
@@ -65,7 +71,7 @@ class InMemoryCatalogRepository implements CatalogRepository {
   }
 
   @override
-  void saveAccount(Account account) {
+  Future<void> saveAccount(Account account) async {
     final existing = _accounts[account.id];
     if (existing != null) {
       _accounts[account.id] = existing.mergeWith(account);
@@ -75,17 +81,12 @@ class InMemoryCatalogRepository implements CatalogRepository {
   }
 
   @override
-  void saveEnvelope(Envelope envelope) {
-    final existing = _envelopes[envelope.id];
-    if (existing != null) {
-      _envelopes[envelope.id] = existing.mergeWith(envelope);
-    } else {
-      _envelopes[envelope.id] = envelope;
-    }
+  Future<void> saveEnvelope(Envelope envelope) async {
+    _saveEnvelopeSync(envelope);
   }
 
   @override
-  void deleteEnvelope(EnvelopeId id) {
+  Future<void> deleteEnvelope(EnvelopeId id) async {
     final envelope = _envelopes[id];
     if (envelope != null && envelope.role != EnvelopeRole.none) {
       throw SystemEnvelopeDeletionNotAllowed(

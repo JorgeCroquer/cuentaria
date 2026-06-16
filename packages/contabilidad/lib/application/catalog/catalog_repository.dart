@@ -3,10 +3,13 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
 abstract class CatalogRepository {
-  void saveAccount(Account account);
+  /// Reads are synchronous — served from an in-memory cache hydrated at boot.
   Account? getAccount(AccountId id);
-  void saveEnvelope(Envelope envelope);
   Envelope? getEnvelope(EnvelopeId id);
   EnvelopeId getSystemEnvelope(EnvelopeRole role);
-  void deleteEnvelope(EnvelopeId id);
+
+  /// Writes are async to allow Drift persistence (F2-10).
+  Future<void> saveAccount(Account account);
+  Future<void> saveEnvelope(Envelope envelope);
+  Future<void> deleteEnvelope(EnvelopeId id);
 }
