@@ -128,24 +128,26 @@ class DriftEventStore implements EventStore {
   /// Account and envelope filters use the `event_targets` index — no JSON scan.
   @override
   Future<List<Transaction>> queryLog({LogFilters? filters}) async {
-    // Build query with optional JOINs for account/envelope filters.
-    // Drift's typed query API doesn't compose dynamic JOINs cleanly for
-    // semi-arbitrary combos, so we use customSelect for the filter path.
-    final rows = await _queryRows(filters);
-    return rows.map((r) => _codec.decode(r.payload)).toList();
+    final payloads = await _queryPayloads(filters);
+    return payloads.map(_codec.decode).toList();
   }
 
-  Future<List<Event>> _queryRows(LogFilters? filters) async {
+  /// Returns canonical-ordered payload strings matching [filters].
+  ///
+  /// Account/envelope filters use `event_targets` EXISTS subqueries (index,
+  /// not JSON scan). All active predicates compose with AND in one query.
+  Future<List<String>> _queryPayloads(LogFilters? filters) async {
     if (filters == null) {
-      return (_db.select(_db.events)..orderBy([
-        (t) => OrderingTerm.asc(t.occurredAt),
-        (t) => OrderingTerm.asc(t.recordedAt),
-        (t) => OrderingTerm.asc(t.eventId),
-      ])).get();
+      // Typed Drift API for the unfiltered hot path.
+      final rows =
+          await (_db.select(_db.events)..orderBy([
+            (t) => OrderingTerm.asc(t.occurredAt),
+            (t) => OrderingTerm.asc(t.recordedAt),
+            (t) => OrderingTerm.asc(t.eventId),
+          ])).get();
+      return rows.map((r) => r.payload).toList();
     }
 
-    // At least one filter active — build WHERE/JOIN via raw SQL so we can
-    // compose arbitrary combinations in one query without N+1 round-trips.
     final conditions = <String>[];
     final args = <Object?>[];
 
@@ -180,13 +182,11 @@ class DriftEventStore implements EventStore {
     final where = conditions.isEmpty ? '' : 'WHERE ${conditions.join(' AND ')}';
 
     final sql =
-        'SELECT e.event_id, e.type, e.occurred_at, e.recorded_at, '
-        'e.schema_version, e.reverses, e.payload '
-        'FROM events e '
+        'SELECT e.payload FROM events e '
         '$where '
         'ORDER BY e.occurred_at ASC, e.recorded_at ASC, e.event_id ASC';
 
-    final result =
+    final rows =
         await _db
             .customSelect(
               sql,
@@ -194,19 +194,7 @@ class DriftEventStore implements EventStore {
             )
             .get();
 
-    return result
-        .map(
-          (row) => Event(
-            eventId: row.read<String>('event_id'),
-            type: row.read<String>('type'),
-            occurredAt: row.read<int>('occurred_at'),
-            recordedAt: row.read<int>('recorded_at'),
-            schemaVersion: row.read<int>('schema_version'),
-            reverses: row.readNullable<String>('reverses'),
-            payload: row.read<String>('payload'),
-          ),
-        )
-        .toList();
+    return rows.map((r) => r.read<String>('payload')).toList();
   }
 
   // -------------------------------------------------------------------------
