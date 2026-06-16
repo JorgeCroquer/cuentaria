@@ -64,6 +64,9 @@ class DriftCatalogRepository implements CatalogRepository {
   // ---------------------------------------------------------------------------
 
   @override
+  Iterable<AccountId> get accountIds => _accounts.keys;
+
+  @override
   Account? getAccount(AccountId id) => _accounts[id];
 
   @override
