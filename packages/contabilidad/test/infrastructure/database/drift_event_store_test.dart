@@ -11,7 +11,6 @@ import 'package:contabilidad/domain/posting_target.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
 import 'package:contabilidad/infrastructure/database/drift_event_store.dart';
-import 'package:contabilidad/domain/ports/log_filters.dart';
 
 /// On Linux CI/dev environments, `libsqlite3.so` (unversioned) may not be
 /// present. Fall back to the versioned `.so.0` if needed.
@@ -203,42 +202,6 @@ void main() {
       final rows = await db.select(db.eventTargets).get();
       // Still exactly 2 rows (account + envelope), not 4.
       expect(rows, hasLength(2));
-    });
-  });
-
-  // ------------------------------------------------------------------ stubs (slice #43)
-  group('queryLog / hasReversal stubs (deferred to slice #43)', () {
-    test('queryLog throws UnimplementedError', () async {
-      expect(
-        () => store.queryLog(),
-        throwsA(
-          isA<UnimplementedError>().having(
-            (e) => e.message,
-            'message',
-            contains('#43'),
-          ),
-        ),
-      );
-    });
-
-    test('queryLog with filters throws UnimplementedError', () async {
-      expect(
-        () => store.queryLog(filters: LogFilters(account: AccountId('acc-01'))),
-        throwsA(isA<UnimplementedError>()),
-      );
-    });
-
-    test('hasReversal throws UnimplementedError', () async {
-      expect(
-        () => store.hasReversal(EventId('evt-orig')),
-        throwsA(
-          isA<UnimplementedError>().having(
-            (e) => e.message,
-            'message',
-            contains('#43'),
-          ),
-        ),
-      );
     });
   });
 }
