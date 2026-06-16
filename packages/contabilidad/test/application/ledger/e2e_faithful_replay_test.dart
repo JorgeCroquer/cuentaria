@@ -453,18 +453,20 @@ void main() {
         // ----------------------------------------------------------------
         // Assert balances reconstructed identically (native + usd)
         // ----------------------------------------------------------------
-        for (final accId in ['acc-usd', 'acc-usd-2', 'acc-ves', 'acc-open']) {
-          final replayed = projections2.accountBalance(AccountId(accId));
-          final expected = snap.accounts[AccountId(accId)]!;
+        // Derive account set from catalog so a future posted account can't
+        // silently escape this assertion.
+        for (final accId in catalog2.accountIds) {
+          final replayed = projections2.accountBalance(accId);
+          final expected = snap.accounts[accId]!;
           expect(
             replayed.usd,
             equals(expected.usd),
-            reason: '$accId: usd balance matches after reopen',
+            reason: '${accId.value}: usd balance matches after reopen',
           );
           expect(
             replayed.native.amount,
             equals(expected.native.amount),
-            reason: '$accId: native balance matches after reopen',
+            reason: '${accId.value}: native balance matches after reopen',
           );
         }
 
@@ -480,9 +482,10 @@ void main() {
 
         // ----------------------------------------------------------------
         // Self-balancing invariant: Σusd[Account] == Σusd[Envelope]
+        // Account set derived from catalog so new accounts can't escape.
         // ----------------------------------------------------------------
-        final accountSum = ['acc-usd', 'acc-usd-2', 'acc-ves', 'acc-open']
-            .map((id) => projections2.accountBalance(AccountId(id)).usd)
+        final accountSum = catalog2.accountIds
+            .map((id) => projections2.accountBalance(id).usd)
             .fold(0, (a, b) => a + b);
 
         final envelopeSum = snap.envelopes.keys
@@ -559,7 +562,9 @@ void main() {
         );
       }
 
-      // After reopen, queryLog must return canonical order (occurred_at ASC)
+      // After reopen, queryLog must return canonical order (occurred_at ASC).
+      // Full tiebreaker tuple (occurred_at, recorded_at, event_id) is covered
+      // by the EventStore contract suite (#43); no need to duplicate it here.
       final store2 = DriftEventStore(db);
       final events = await store2.queryLog();
       expect(events.length, equals(3));
@@ -593,7 +598,10 @@ void main() {
         final rng = Random(0); // fixed seed: reproducible failures
         final store = DriftEventStore(db);
 
-        // Insert phase: append N raw transactions directly (no catalog/factory).
+        // Insert phase: append N raw transactions directly via store.append,
+        // bypassing RecordTransaction validation intentionally — this isolates
+        // pure replay cost (codec decode + projection apply) from write-path
+        // overhead, which is the benchmark target.
         for (var i = 0; i < n; i++) {
           final amountUsd = rng.nextInt(10000) + 1;
           final accIdx = rng.nextInt(5);
@@ -653,10 +661,9 @@ class _SnapshotBalances {
     InMemoryLedgerProjections projections,
     DriftCatalogRepository catalog,
   ) {
-    const accountIds = ['acc-usd', 'acc-usd-2', 'acc-ves', 'acc-open'];
+    // Derive from catalog so a new posted account is captured automatically.
     final accounts = {
-      for (final id in accountIds)
-        AccountId(id): projections.accountBalance(AccountId(id)),
+      for (final id in catalog.accountIds) id: projections.accountBalance(id),
     };
 
     final envelopeIds = [
