@@ -1,16 +1,15 @@
 /// Drift-backed implementation of [EventStore].
 ///
-/// Behaviors:
+/// Behaviors implemented in slice #42:
 ///   - [append]: atomic — writes [events] row + all [event_targets] rows in a
-///     single Drift transaction. Deduplicates by [event_id] PK; returns false
-///     on duplicate (no-op, no exception).
+///     single Drift transaction, using INSERT OR IGNORE for dedup. Returns false
+///     when the event_id already exists (idempotent no-op, no exception).
 ///   - [get]: decodes the stored payload via [EventCodec] and returns the
 ///     reconstructed [Transaction], or null if not found.
-///   - [hasReversal]: checks [events.reverses] column for any row reversing
-///     the given [EventId].
-///   - [queryLog]: returns events in canonical order
-///     (occurred_at → recorded_at → event_id), optionally filtered via
-///     [LogFilters].
+///
+/// Deferred to slice #43:
+///   - [hasReversal]: stub — throws [UnimplementedError].
+///   - [queryLog]: stub — throws [UnimplementedError].
 ///
 /// The [QueryExecutor] is injected through [CuentariaDatabase], so this class
 /// stays Flutter-free and testable with [NativeDatabase.memory()].
@@ -42,26 +41,19 @@ class DriftEventStore implements EventStore {
     final meta = event.metadata;
     final eventIdStr = meta.eventId.value;
 
-    // Check for existing row — deduplicate without relying on exception paths.
-    final existing =
-        await (_db.select(_db.events)
-          ..where((t) => t.eventId.equals(eventIdStr))).getSingleOrNull();
-
-    if (existing != null) {
-      return false; // idempotent no-op
-    }
-
     final payload = _codec.encode(event);
     final occurredAtUs = meta.occurredAt.value.microsecondsSinceEpoch;
     final recordedAtUs = meta.recordedAt.value.microsecondsSinceEpoch;
 
-    // Derive target rows from postings (one row per distinct dimension+id pair).
     final targets = _deriveTargets(event);
 
+    // Dedup + write happen atomically. INSERT OR IGNORE skips on PK conflict;
+    // we detect duplicate by checking affected row count.
+    bool inserted = false;
     await _db.transaction(() async {
-      await _db
+      final rowsAffected = await _db
           .into(_db.events)
-          .insert(
+          .insertReturningOrNull(
             EventsCompanion.insert(
               eventId: eventIdStr,
               type: meta.type,
@@ -71,14 +63,25 @@ class DriftEventStore implements EventStore {
               reverses: Value(meta.reverses?.value),
               payload: payload,
             ),
+            mode: InsertMode.insertOrIgnore,
           );
 
+      if (rowsAffected == null) {
+        // PK conflict — already exists, no-op.
+        inserted = false;
+        return;
+      }
+
+      inserted = true;
+
       for (final target in targets) {
-        await _db.into(_db.eventTargets).insert(target);
+        await _db
+            .into(_db.eventTargets)
+            .insert(target, mode: InsertMode.insertOrIgnore);
       }
     });
 
-    return true;
+    return inserted;
   }
 
   // -------------------------------------------------------------------------
@@ -96,64 +99,21 @@ class DriftEventStore implements EventStore {
   }
 
   // -------------------------------------------------------------------------
-  // hasReversal
+  // hasReversal — deferred to slice #43
   // -------------------------------------------------------------------------
 
   @override
-  Future<bool> hasReversal(EventId originalId) async {
-    final row =
-        await (_db.select(
-          _db.events,
-        )..where((t) => t.reverses.equals(originalId.value))).getSingleOrNull();
-
-    return row != null;
+  Future<bool> hasReversal(EventId originalId) {
+    throw UnimplementedError('hasReversal lands in slice #43');
   }
 
   // -------------------------------------------------------------------------
-  // queryLog
+  // queryLog — deferred to slice #43
   // -------------------------------------------------------------------------
 
   @override
-  Future<List<Transaction>> queryLog({LogFilters? filters}) async {
-    // Build list of event_ids matching target filters (account / envelope).
-    Set<String>? matchingIds;
-
-    if (filters?.account != null || filters?.envelope != null) {
-      matchingIds = await _targetMatchingIds(filters!);
-    }
-
-    // Select events, applying date filters and target-id set filter.
-    var query = _db.select(_db.events);
-
-    query =
-        query
-          ..where((t) {
-            Expression<bool> clause = const Constant(true);
-
-            if (matchingIds != null) {
-              clause = clause & t.eventId.isIn(matchingIds.toList());
-            }
-
-            if (filters?.from != null) {
-              final fromUs = filters!.from!.value.microsecondsSinceEpoch;
-              clause = clause & t.occurredAt.isBiggerOrEqualValue(fromUs);
-            }
-
-            if (filters?.to != null) {
-              final toUs = filters!.to!.value.microsecondsSinceEpoch;
-              clause = clause & t.occurredAt.isSmallerOrEqualValue(toUs);
-            }
-
-            return clause;
-          })
-          ..orderBy([
-            (t) => OrderingTerm.asc(t.occurredAt),
-            (t) => OrderingTerm.asc(t.recordedAt),
-            (t) => OrderingTerm.asc(t.eventId),
-          ]);
-
-    final rows = await query.get();
-    return rows.map((r) => _codec.decode(r.payload)).toList();
+  Future<List<Transaction>> queryLog({LogFilters? filters}) {
+    throw UnimplementedError('queryLog lands in slice #43');
   }
 
   // -------------------------------------------------------------------------
@@ -190,37 +150,5 @@ class DriftEventStore implements EventStore {
     }
 
     return result;
-  }
-
-  /// Returns set of event_ids that have a target matching the given filters.
-  Future<Set<String>> _targetMatchingIds(LogFilters filters) async {
-    Set<String>? accountIds;
-    Set<String>? envelopeIds;
-
-    if (filters.account != null) {
-      final rows =
-          await (_db.select(_db.eventTargets)..where(
-            (t) =>
-                t.dimension.equals('account') &
-                t.targetId.equals(filters.account!.value),
-          )).get();
-      accountIds = rows.map((r) => r.eventId).toSet();
-    }
-
-    if (filters.envelope != null) {
-      final rows =
-          await (_db.select(_db.eventTargets)..where(
-            (t) =>
-                t.dimension.equals('envelope') &
-                t.targetId.equals(filters.envelope!.value),
-          )).get();
-      envelopeIds = rows.map((r) => r.eventId).toSet();
-    }
-
-    // Both filters present → intersection (event must touch both targets).
-    if (accountIds != null && envelopeIds != null) {
-      return accountIds.intersection(envelopeIds);
-    }
-    return accountIds ?? envelopeIds ?? <String>{};
   }
 }
