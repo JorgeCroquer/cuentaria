@@ -7,30 +7,12 @@ import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
-import 'dart:ffi';
-import 'dart:io';
-
 import 'package:contabilidad/infrastructure/catalog/drift_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
-import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
-import 'package:drift/native.dart';
-import 'package:sqlite3/open.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:test/test.dart';
 
-// ---------------------------------------------------------------------------
-// SQLite helper (WSL/Debian: no unversioned .so symlink)
-// ---------------------------------------------------------------------------
-
-void _ensureSqlite3() {
-  if (!Platform.isLinux) return;
-  open.overrideForAll(() {
-    try {
-      return DynamicLibrary.open('libsqlite3.so');
-    } catch (_) {}
-    return DynamicLibrary.open('libsqlite3.so.0');
-  });
-}
+import 'test_helpers.dart';
 
 // ---------------------------------------------------------------------------
 // Factory helpers
@@ -39,8 +21,7 @@ void _ensureSqlite3() {
 CatalogRepository _inMemory() => InMemoryCatalogRepository();
 
 Future<CatalogRepository> _drift() async {
-  _ensureSqlite3();
-  final db = CuentariaDatabase(NativeDatabase.memory());
+  final db = openTestDb();
   final repo = DriftCatalogRepository(db);
   await repo.hydrate();
   return repo;
