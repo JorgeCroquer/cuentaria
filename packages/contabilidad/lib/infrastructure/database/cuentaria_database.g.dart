@@ -757,16 +757,859 @@ class EventTargetsCompanion extends UpdateCompanion<EventTarget> {
   }
 }
 
+class $AccountsTable extends Accounts
+    with TableInfo<$AccountsTable, AccountRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AccountsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nativeCurrencyMeta = const VerificationMeta(
+    'nativeCurrency',
+  );
+  @override
+  late final GeneratedColumn<String> nativeCurrency = GeneratedColumn<String>(
+    'native_currency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerMeta = const VerificationMeta(
+    'provider',
+  );
+  @override
+  late final GeneratedColumn<String> provider = GeneratedColumn<String>(
+    'provider',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    nativeCurrency,
+    provider,
+    isArchived,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'accounts';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<AccountRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('native_currency')) {
+      context.handle(
+        _nativeCurrencyMeta,
+        nativeCurrency.isAcceptableOrUnknown(
+          data['native_currency']!,
+          _nativeCurrencyMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_nativeCurrencyMeta);
+    }
+    if (data.containsKey('provider')) {
+      context.handle(
+        _providerMeta,
+        provider.isAcceptableOrUnknown(data['provider']!, _providerMeta),
+      );
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isArchivedMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  AccountRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return AccountRow(
+      id:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}id'],
+          )!,
+      name:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}name'],
+          )!,
+      nativeCurrency:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}native_currency'],
+          )!,
+      provider: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider'],
+      ),
+      isArchived:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.bool,
+            data['${effectivePrefix}is_archived'],
+          )!,
+      updatedAt:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}updated_at'],
+          )!,
+    );
+  }
+
+  @override
+  $AccountsTable createAlias(String alias) {
+    return $AccountsTable(attachedDatabase, alias);
+  }
+}
+
+class AccountRow extends DataClass implements Insertable<AccountRow> {
+  final String id;
+  final String name;
+  final String nativeCurrency;
+  final String? provider;
+  final bool isArchived;
+  final int updatedAt;
+  const AccountRow({
+    required this.id,
+    required this.name,
+    required this.nativeCurrency,
+    this.provider,
+    required this.isArchived,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['native_currency'] = Variable<String>(nativeCurrency);
+    if (!nullToAbsent || provider != null) {
+      map['provider'] = Variable<String>(provider);
+    }
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  AccountsCompanion toCompanion(bool nullToAbsent) {
+    return AccountsCompanion(
+      id: Value(id),
+      name: Value(name),
+      nativeCurrency: Value(nativeCurrency),
+      provider:
+          provider == null && nullToAbsent
+              ? const Value.absent()
+              : Value(provider),
+      isArchived: Value(isArchived),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory AccountRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return AccountRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      nativeCurrency: serializer.fromJson<String>(json['nativeCurrency']),
+      provider: serializer.fromJson<String?>(json['provider']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'nativeCurrency': serializer.toJson<String>(nativeCurrency),
+      'provider': serializer.toJson<String?>(provider),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  AccountRow copyWith({
+    String? id,
+    String? name,
+    String? nativeCurrency,
+    Value<String?> provider = const Value.absent(),
+    bool? isArchived,
+    int? updatedAt,
+  }) => AccountRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    nativeCurrency: nativeCurrency ?? this.nativeCurrency,
+    provider: provider.present ? provider.value : this.provider,
+    isArchived: isArchived ?? this.isArchived,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  AccountRow copyWithCompanion(AccountsCompanion data) {
+    return AccountRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      nativeCurrency:
+          data.nativeCurrency.present
+              ? data.nativeCurrency.value
+              : this.nativeCurrency,
+      provider: data.provider.present ? data.provider.value : this.provider,
+      isArchived:
+          data.isArchived.present ? data.isArchived.value : this.isArchived,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('nativeCurrency: $nativeCurrency, ')
+          ..write('provider: $provider, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, nativeCurrency, provider, isArchived, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AccountRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.nativeCurrency == this.nativeCurrency &&
+          other.provider == this.provider &&
+          other.isArchived == this.isArchived &&
+          other.updatedAt == this.updatedAt);
+}
+
+class AccountsCompanion extends UpdateCompanion<AccountRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> nativeCurrency;
+  final Value<String?> provider;
+  final Value<bool> isArchived;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const AccountsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.nativeCurrency = const Value.absent(),
+    this.provider = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  AccountsCompanion.insert({
+    required String id,
+    required String name,
+    required String nativeCurrency,
+    this.provider = const Value.absent(),
+    required bool isArchived,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       nativeCurrency = Value(nativeCurrency),
+       isArchived = Value(isArchived),
+       updatedAt = Value(updatedAt);
+  static Insertable<AccountRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? nativeCurrency,
+    Expression<String>? provider,
+    Expression<bool>? isArchived,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (nativeCurrency != null) 'native_currency': nativeCurrency,
+      if (provider != null) 'provider': provider,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  AccountsCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? nativeCurrency,
+    Value<String?>? provider,
+    Value<bool>? isArchived,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return AccountsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      nativeCurrency: nativeCurrency ?? this.nativeCurrency,
+      provider: provider ?? this.provider,
+      isArchived: isArchived ?? this.isArchived,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (nativeCurrency.present) {
+      map['native_currency'] = Variable<String>(nativeCurrency.value);
+    }
+    if (provider.present) {
+      map['provider'] = Variable<String>(provider.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AccountsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('nativeCurrency: $nativeCurrency, ')
+          ..write('provider: $provider, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $EnvelopesTable extends Envelopes
+    with TableInfo<$EnvelopesTable, EnvelopeRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EnvelopesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _roleMeta = const VerificationMeta('role');
+  @override
+  late final GeneratedColumn<String> role = GeneratedColumn<String>(
+    'role',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isArchivedMeta = const VerificationMeta(
+    'isArchived',
+  );
+  @override
+  late final GeneratedColumn<bool> isArchived = GeneratedColumn<bool>(
+    'is_archived',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_archived" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _metaMeta = const VerificationMeta('meta');
+  @override
+  late final GeneratedColumn<String> meta = GeneratedColumn<String>(
+    'meta',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    role,
+    isArchived,
+    updatedAt,
+    meta,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'envelopes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EnvelopeRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('role')) {
+      context.handle(
+        _roleMeta,
+        role.isAcceptableOrUnknown(data['role']!, _roleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_roleMeta);
+    }
+    if (data.containsKey('is_archived')) {
+      context.handle(
+        _isArchivedMeta,
+        isArchived.isAcceptableOrUnknown(data['is_archived']!, _isArchivedMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_isArchivedMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    if (data.containsKey('meta')) {
+      context.handle(
+        _metaMeta,
+        meta.isAcceptableOrUnknown(data['meta']!, _metaMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EnvelopeRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EnvelopeRow(
+      id:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}id'],
+          )!,
+      name:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}name'],
+          )!,
+      role:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}role'],
+          )!,
+      isArchived:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.bool,
+            data['${effectivePrefix}is_archived'],
+          )!,
+      updatedAt:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}updated_at'],
+          )!,
+      meta: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meta'],
+      ),
+    );
+  }
+
+  @override
+  $EnvelopesTable createAlias(String alias) {
+    return $EnvelopesTable(attachedDatabase, alias);
+  }
+}
+
+class EnvelopeRow extends DataClass implements Insertable<EnvelopeRow> {
+  final String id;
+  final String name;
+  final String role;
+  final bool isArchived;
+  final int updatedAt;
+  final String? meta;
+  const EnvelopeRow({
+    required this.id,
+    required this.name,
+    required this.role,
+    required this.isArchived,
+    required this.updatedAt,
+    this.meta,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['name'] = Variable<String>(name);
+    map['role'] = Variable<String>(role);
+    map['is_archived'] = Variable<bool>(isArchived);
+    map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || meta != null) {
+      map['meta'] = Variable<String>(meta);
+    }
+    return map;
+  }
+
+  EnvelopesCompanion toCompanion(bool nullToAbsent) {
+    return EnvelopesCompanion(
+      id: Value(id),
+      name: Value(name),
+      role: Value(role),
+      isArchived: Value(isArchived),
+      updatedAt: Value(updatedAt),
+      meta: meta == null && nullToAbsent ? const Value.absent() : Value(meta),
+    );
+  }
+
+  factory EnvelopeRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EnvelopeRow(
+      id: serializer.fromJson<String>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      role: serializer.fromJson<String>(json['role']),
+      isArchived: serializer.fromJson<bool>(json['isArchived']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      meta: serializer.fromJson<String?>(json['meta']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'name': serializer.toJson<String>(name),
+      'role': serializer.toJson<String>(role),
+      'isArchived': serializer.toJson<bool>(isArchived),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+      'meta': serializer.toJson<String?>(meta),
+    };
+  }
+
+  EnvelopeRow copyWith({
+    String? id,
+    String? name,
+    String? role,
+    bool? isArchived,
+    int? updatedAt,
+    Value<String?> meta = const Value.absent(),
+  }) => EnvelopeRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    role: role ?? this.role,
+    isArchived: isArchived ?? this.isArchived,
+    updatedAt: updatedAt ?? this.updatedAt,
+    meta: meta.present ? meta.value : this.meta,
+  );
+  EnvelopeRow copyWithCompanion(EnvelopesCompanion data) {
+    return EnvelopeRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      role: data.role.present ? data.role.value : this.role,
+      isArchived:
+          data.isArchived.present ? data.isArchived.value : this.isArchived,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      meta: data.meta.present ? data.meta.value : this.meta,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EnvelopeRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('role: $role, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('meta: $meta')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, role, isArchived, updatedAt, meta);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EnvelopeRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.role == this.role &&
+          other.isArchived == this.isArchived &&
+          other.updatedAt == this.updatedAt &&
+          other.meta == this.meta);
+}
+
+class EnvelopesCompanion extends UpdateCompanion<EnvelopeRow> {
+  final Value<String> id;
+  final Value<String> name;
+  final Value<String> role;
+  final Value<bool> isArchived;
+  final Value<int> updatedAt;
+  final Value<String?> meta;
+  final Value<int> rowid;
+  const EnvelopesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.role = const Value.absent(),
+    this.isArchived = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.meta = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EnvelopesCompanion.insert({
+    required String id,
+    required String name,
+    required String role,
+    required bool isArchived,
+    required int updatedAt,
+    this.meta = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       name = Value(name),
+       role = Value(role),
+       isArchived = Value(isArchived),
+       updatedAt = Value(updatedAt);
+  static Insertable<EnvelopeRow> custom({
+    Expression<String>? id,
+    Expression<String>? name,
+    Expression<String>? role,
+    Expression<bool>? isArchived,
+    Expression<int>? updatedAt,
+    Expression<String>? meta,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (role != null) 'role': role,
+      if (isArchived != null) 'is_archived': isArchived,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (meta != null) 'meta': meta,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EnvelopesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? role,
+    Value<bool>? isArchived,
+    Value<int>? updatedAt,
+    Value<String?>? meta,
+    Value<int>? rowid,
+  }) {
+    return EnvelopesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      isArchived: isArchived ?? this.isArchived,
+      updatedAt: updatedAt ?? this.updatedAt,
+      meta: meta ?? this.meta,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (role.present) {
+      map['role'] = Variable<String>(role.value);
+    }
+    if (isArchived.present) {
+      map['is_archived'] = Variable<bool>(isArchived.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (meta.present) {
+      map['meta'] = Variable<String>(meta.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EnvelopesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('role: $role, ')
+          ..write('isArchived: $isArchived, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('meta: $meta, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$CuentariaDatabase extends GeneratedDatabase {
   _$CuentariaDatabase(QueryExecutor e) : super(e);
   $CuentariaDatabaseManager get managers => $CuentariaDatabaseManager(this);
   late final $EventsTable events = $EventsTable(this);
   late final $EventTargetsTable eventTargets = $EventTargetsTable(this);
+  late final $AccountsTable accounts = $AccountsTable(this);
+  late final $EnvelopesTable envelopes = $EnvelopesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => [events, eventTargets];
+  List<DatabaseSchemaEntity> get allSchemaEntities => [
+    events,
+    eventTargets,
+    accounts,
+    envelopes,
+  ];
 }
 
 typedef $$EventsTableCreateCompanionBuilder =
@@ -1190,6 +2033,464 @@ typedef $$EventTargetsTableProcessedTableManager =
       EventTarget,
       PrefetchHooks Function()
     >;
+typedef $$AccountsTableCreateCompanionBuilder =
+    AccountsCompanion Function({
+      required String id,
+      required String name,
+      required String nativeCurrency,
+      Value<String?> provider,
+      required bool isArchived,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$AccountsTableUpdateCompanionBuilder =
+    AccountsCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> nativeCurrency,
+      Value<String?> provider,
+      Value<bool> isArchived,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$AccountsTableFilterComposer
+    extends Composer<_$CuentariaDatabase, $AccountsTable> {
+  $$AccountsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get nativeCurrency => $composableBuilder(
+    column: $table.nativeCurrency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$AccountsTableOrderingComposer
+    extends Composer<_$CuentariaDatabase, $AccountsTable> {
+  $$AccountsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get nativeCurrency => $composableBuilder(
+    column: $table.nativeCurrency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get provider => $composableBuilder(
+    column: $table.provider,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$AccountsTableAnnotationComposer
+    extends Composer<_$CuentariaDatabase, $AccountsTable> {
+  $$AccountsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get nativeCurrency => $composableBuilder(
+    column: $table.nativeCurrency,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get provider =>
+      $composableBuilder(column: $table.provider, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$AccountsTableTableManager
+    extends
+        RootTableManager<
+          _$CuentariaDatabase,
+          $AccountsTable,
+          AccountRow,
+          $$AccountsTableFilterComposer,
+          $$AccountsTableOrderingComposer,
+          $$AccountsTableAnnotationComposer,
+          $$AccountsTableCreateCompanionBuilder,
+          $$AccountsTableUpdateCompanionBuilder,
+          (
+            AccountRow,
+            BaseReferences<_$CuentariaDatabase, $AccountsTable, AccountRow>,
+          ),
+          AccountRow,
+          PrefetchHooks Function()
+        > {
+  $$AccountsTableTableManager(_$CuentariaDatabase db, $AccountsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$AccountsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () => $$AccountsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () => $$AccountsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> nativeCurrency = const Value.absent(),
+                Value<String?> provider = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => AccountsCompanion(
+                id: id,
+                name: name,
+                nativeCurrency: nativeCurrency,
+                provider: provider,
+                isArchived: isArchived,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String nativeCurrency,
+                Value<String?> provider = const Value.absent(),
+                required bool isArchived,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => AccountsCompanion.insert(
+                id: id,
+                name: name,
+                nativeCurrency: nativeCurrency,
+                provider: provider,
+                isArchived: isArchived,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          BaseReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$AccountsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CuentariaDatabase,
+      $AccountsTable,
+      AccountRow,
+      $$AccountsTableFilterComposer,
+      $$AccountsTableOrderingComposer,
+      $$AccountsTableAnnotationComposer,
+      $$AccountsTableCreateCompanionBuilder,
+      $$AccountsTableUpdateCompanionBuilder,
+      (
+        AccountRow,
+        BaseReferences<_$CuentariaDatabase, $AccountsTable, AccountRow>,
+      ),
+      AccountRow,
+      PrefetchHooks Function()
+    >;
+typedef $$EnvelopesTableCreateCompanionBuilder =
+    EnvelopesCompanion Function({
+      required String id,
+      required String name,
+      required String role,
+      required bool isArchived,
+      required int updatedAt,
+      Value<String?> meta,
+      Value<int> rowid,
+    });
+typedef $$EnvelopesTableUpdateCompanionBuilder =
+    EnvelopesCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> role,
+      Value<bool> isArchived,
+      Value<int> updatedAt,
+      Value<String?> meta,
+      Value<int> rowid,
+    });
+
+class $$EnvelopesTableFilterComposer
+    extends Composer<_$CuentariaDatabase, $EnvelopesTable> {
+  $$EnvelopesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meta => $composableBuilder(
+    column: $table.meta,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$EnvelopesTableOrderingComposer
+    extends Composer<_$CuentariaDatabase, $EnvelopesTable> {
+  $$EnvelopesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get role => $composableBuilder(
+    column: $table.role,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get meta => $composableBuilder(
+    column: $table.meta,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EnvelopesTableAnnotationComposer
+    extends Composer<_$CuentariaDatabase, $EnvelopesTable> {
+  $$EnvelopesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get role =>
+      $composableBuilder(column: $table.role, builder: (column) => column);
+
+  GeneratedColumn<bool> get isArchived => $composableBuilder(
+    column: $table.isArchived,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get meta =>
+      $composableBuilder(column: $table.meta, builder: (column) => column);
+}
+
+class $$EnvelopesTableTableManager
+    extends
+        RootTableManager<
+          _$CuentariaDatabase,
+          $EnvelopesTable,
+          EnvelopeRow,
+          $$EnvelopesTableFilterComposer,
+          $$EnvelopesTableOrderingComposer,
+          $$EnvelopesTableAnnotationComposer,
+          $$EnvelopesTableCreateCompanionBuilder,
+          $$EnvelopesTableUpdateCompanionBuilder,
+          (
+            EnvelopeRow,
+            BaseReferences<_$CuentariaDatabase, $EnvelopesTable, EnvelopeRow>,
+          ),
+          EnvelopeRow,
+          PrefetchHooks Function()
+        > {
+  $$EnvelopesTableTableManager(_$CuentariaDatabase db, $EnvelopesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$EnvelopesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () => $$EnvelopesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () => $$EnvelopesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> role = const Value.absent(),
+                Value<bool> isArchived = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<String?> meta = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EnvelopesCompanion(
+                id: id,
+                name: name,
+                role: role,
+                isArchived: isArchived,
+                updatedAt: updatedAt,
+                meta: meta,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String role,
+                required bool isArchived,
+                required int updatedAt,
+                Value<String?> meta = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EnvelopesCompanion.insert(
+                id: id,
+                name: name,
+                role: role,
+                isArchived: isArchived,
+                updatedAt: updatedAt,
+                meta: meta,
+                rowid: rowid,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          BaseReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EnvelopesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CuentariaDatabase,
+      $EnvelopesTable,
+      EnvelopeRow,
+      $$EnvelopesTableFilterComposer,
+      $$EnvelopesTableOrderingComposer,
+      $$EnvelopesTableAnnotationComposer,
+      $$EnvelopesTableCreateCompanionBuilder,
+      $$EnvelopesTableUpdateCompanionBuilder,
+      (
+        EnvelopeRow,
+        BaseReferences<_$CuentariaDatabase, $EnvelopesTable, EnvelopeRow>,
+      ),
+      EnvelopeRow,
+      PrefetchHooks Function()
+    >;
 
 class $CuentariaDatabaseManager {
   final _$CuentariaDatabase _db;
@@ -1198,4 +2499,8 @@ class $CuentariaDatabaseManager {
       $$EventsTableTableManager(_db, _db.events);
   $$EventTargetsTableTableManager get eventTargets =>
       $$EventTargetsTableTableManager(_db, _db.eventTargets);
+  $$AccountsTableTableManager get accounts =>
+      $$AccountsTableTableManager(_db, _db.accounts);
+  $$EnvelopesTableTableManager get envelopes =>
+      $$EnvelopesTableTableManager(_db, _db.envelopes);
 }
