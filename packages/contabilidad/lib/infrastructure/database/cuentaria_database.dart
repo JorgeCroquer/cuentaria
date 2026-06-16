@@ -104,10 +104,25 @@ class Envelopes extends Table {
 }
 
 // ---------------------------------------------------------------------------
+// Table: app_meta  (local only, not synced)
+// ---------------------------------------------------------------------------
+
+/// Local key-value store for per-install metadata (e.g. [device_id]).
+/// Not included in sync (F3). Simple string→string KV.
+@DataClassName('AppMetaRow')
+class AppMeta extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+// ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
 
-@DriftDatabase(tables: [Events, EventTargets, Accounts, Envelopes])
+@DriftDatabase(tables: [Events, EventTargets, Accounts, Envelopes, AppMeta])
 class CuentariaDatabase extends _$CuentariaDatabase {
   CuentariaDatabase(super.e);
 
@@ -137,6 +152,25 @@ class CuentariaDatabase extends _$CuentariaDatabase {
       await _seedSystemEnvelopes();
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // app_meta helpers
+  // ---------------------------------------------------------------------------
+
+  /// Returns the value for [key] from [app_meta], or null if absent.
+  Future<String?> getAppMeta(String key) async {
+    final row =
+        await (select(appMeta)
+          ..where((t) => t.key.equals(key))).getSingleOrNull();
+    return row?.value;
+  }
+
+  /// Upserts [key] → [value] in [app_meta].
+  Future<void> setAppMeta(String key, String value) async {
+    await into(
+      appMeta,
+    ).insertOnConflictUpdate(AppMetaCompanion.insert(key: key, value: value));
+  }
 
   /// Seeds the four system envelopes with stable well-known IDs (F2-9-c).
   /// Uses INSERT OR IGNORE so re-running is idempotent.
