@@ -41,7 +41,7 @@ void main() {
         Envelope(
           id: EnvelopeId('env-1'),
           name: 'General',
-          role: EnvelopeRole.ninguno,
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
@@ -53,7 +53,7 @@ void main() {
       () {
         final postings = [
           Posting(
-            target: CuentaTarget(AccountId('acc-usd')),
+            target: AccountTarget(AccountId('acc-usd')),
             amountNative: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
@@ -62,7 +62,7 @@ void main() {
             amountUsd: 100,
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-1')),
+            target: EnvelopeTarget(EnvelopeId('env-1')),
             amountNative: Money(
               amount: BigInt.from(-100),
               currency: CurrencyCode('USD'),
@@ -76,10 +76,10 @@ void main() {
       },
     );
 
-    test('throws TargetInexistente if account does not exist', () {
+    test('throws TargetNotFound if account does not exist', () {
       final postings = [
         Posting(
-          target: CuentaTarget(AccountId('acc-missing')),
+          target: AccountTarget(AccountId('acc-missing')),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('USD'),
@@ -91,14 +91,14 @@ void main() {
 
       expect(
         () => validator.validate(postings),
-        throwsA(isA<TargetInexistente>()),
+        throwsA(isA<TargetNotFound>()),
       );
     });
 
-    test('throws TargetInexistente if envelope does not exist', () {
+    test('throws TargetNotFound if envelope does not exist', () {
       final postings = [
         Posting(
-          target: SobreTarget(EnvelopeId('env-missing')),
+          target: EnvelopeTarget(EnvelopeId('env-missing')),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('USD'),
@@ -110,14 +110,14 @@ void main() {
 
       expect(
         () => validator.validate(postings),
-        throwsA(isA<TargetInexistente>()),
+        throwsA(isA<TargetNotFound>()),
       );
     });
 
-    test('throws MonedaIncompatible if account currency mismatches', () {
+    test('throws IncompatibleCurrency if account currency mismatches', () {
       final postings = [
         Posting(
-          target: CuentaTarget(AccountId('acc-usd')),
+          target: AccountTarget(AccountId('acc-usd')),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('VES'),
@@ -129,14 +129,14 @@ void main() {
 
       expect(
         () => validator.validate(postings),
-        throwsA(isA<MonedaIncompatible>()),
+        throwsA(isA<IncompatibleCurrency>()),
       );
     });
 
-    test('throws MonedaIncompatible if envelope currency is not USD', () {
+    test('throws IncompatibleCurrency if envelope currency is not USD', () {
       final postings = [
         Posting(
-          target: SobreTarget(EnvelopeId('env-1')),
+          target: EnvelopeTarget(EnvelopeId('env-1')),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('VES'),
@@ -148,7 +148,7 @@ void main() {
 
       expect(
         () => validator.validate(postings),
-        throwsA(isA<MonedaIncompatible>()),
+        throwsA(isA<IncompatibleCurrency>()),
       );
     });
   });

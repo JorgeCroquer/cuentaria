@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-enum EnvelopeRole { stage, diferencial, ajustes, apertura, ninguno }
+enum EnvelopeRole { stage, differential, adjustments, opening, none }
 
 class Envelope extends Equatable {
   final EnvelopeId id;

@@ -1,19 +1,17 @@
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
-import 'package:contabilidad/application/registrar_transaccion.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
 import 'package:contabilidad/domain/posting.dart';
-import 'package:contabilidad/domain/transaccion_metadata.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 
-class RegistrarReverso {
-  final RegistrarTransaccion _registrar;
+class RecordReversal {
+  final RecordTransaction _record;
   final EventStore _store;
 
-  RegistrarReverso({
-    required RegistrarTransaccion registrar,
-    required EventStore store,
-  }) : _registrar = registrar,
-       _store = store;
+  RecordReversal({required RecordTransaction record, required EventStore store})
+    : _record = record,
+      _store = store;
 
   Future<void> call({
     required EventId eventId,
@@ -23,14 +21,14 @@ class RegistrarReverso {
   }) async {
     final original = await _store.get(originalEventId);
     if (original == null) {
-      throw TransaccionNoEncontrada(
-        'No se encontró la transacción original: $originalEventId',
+      throw TransactionNotFound(
+        'Original transaction not found: $originalEventId',
       );
     }
 
     if (await _store.hasReversal(originalEventId)) {
-      throw TransaccionYaReversada(
-        'La transacción ya ha sido reversada: $originalEventId',
+      throw TransactionAlreadyReversed(
+        'Transaction has already been reversed: $originalEventId',
       );
     }
 
@@ -49,9 +47,9 @@ class RegistrarReverso {
         }).toList();
 
     final now = DateTime.now().toUtc();
-    final metadata = TransaccionMetadata(
+    final metadata = TransactionMetadata(
       eventId: eventId,
-      tipo: 'Reverso',
+      type: 'Reversal',
       occurredAt: occurredAt ?? DomainTimestamp(now),
       recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
@@ -59,6 +57,6 @@ class RegistrarReverso {
       reverses: originalEventId,
     );
 
-    await _registrar(postings: invertedPostings, metadata: metadata);
+    await _record(postings: invertedPostings, metadata: metadata);
   }
 }

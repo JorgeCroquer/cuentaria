@@ -4,22 +4,22 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
-import 'package:contabilidad/application/registrar_transaccion.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
-import 'package:contabilidad/application/ledger/factories/registrar_gasto_usd.dart';
+import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 
 void main() {
-  group('RegistrarGastoUsd', () {
+  group('RecordUsdExpense', () {
     late InMemoryEventStore store;
     late InMemoryLedgerProjections projections;
     late SyncEventBus eventBus;
     late InMemoryCatalogRepository catalog;
-    late RegistrarTransaccion registrarTransaccion;
-    late RegistrarGastoUsd registrarGastoUsd;
+    late RecordTransaction recordTransaction;
+    late RecordUsdExpense recordUsdExpense;
 
     setUp(() {
       store = InMemoryEventStore();
@@ -28,24 +28,24 @@ void main() {
       catalog = InMemoryCatalogRepository();
 
       final validator = ReferentialIntegrityValidator(catalog);
-      registrarTransaccion = RegistrarTransaccion(
+      recordTransaction = RecordTransaction(
         store: store,
         projections: projections,
         eventBus: eventBus,
         validator: validator,
       );
 
-      registrarGastoUsd = RegistrarGastoUsd(
-        registrar: registrarTransaccion,
+      recordUsdExpense = RecordUsdExpense(
+        record: recordTransaction,
         catalog: catalog,
       );
     });
 
-    test('gasto descuenta de cuenta USD y sobre', () async {
-      final cuentaId = AccountId('acc-usd');
+    test('expense deducts from USD account and envelope', () async {
+      final accountId = AccountId('acc-usd');
       catalog.saveAccount(
         Account(
-          id: cuentaId,
+          id: accountId,
           name: 'USD Account',
           nativeCurrency: CurrencyCode('USD'),
           isArchived: false,
@@ -53,23 +53,23 @@ void main() {
         ),
       );
 
-      final sobreId = EnvelopeId('env-1');
+      final envelopeId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
-          id: sobreId,
-          name: 'Comida',
-          role: EnvelopeRole.ninguno,
+          id: envelopeId,
+          name: 'Food',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
 
-      await registrarGastoUsd(
+      await recordUsdExpense(
         eventId: EventId('evt-1'),
         deviceId: 'dev-1',
-        cuentaId: cuentaId,
-        sobreId: sobreId,
-        monto: Money(
+        accountId: accountId,
+        envelopeId: envelopeId,
+        amount: Money(
           amount: BigInt.from(5000),
           currency: CurrencyCode('USD'),
         ), // 50 USD
@@ -77,17 +77,17 @@ void main() {
 
       expect(store.events.length, equals(1));
       final tx = store.events.first;
-      expect(tx.metadata.tipo, equals('Gasto'));
+      expect(tx.metadata.type, equals('Expense'));
 
-      expect(projections.saldoCuenta(cuentaId).usd, equals(-5000));
-      expect(projections.saldoUsdSobre(sobreId), equals(-5000));
+      expect(projections.accountBalance(accountId).usd, equals(-5000));
+      expect(projections.envelopeUsdBalance(envelopeId), equals(-5000));
     });
 
-    test('gasto rechaza cuenta no USD', () async {
-      final cuentaId = AccountId('acc-ves');
+    test('expense rejects non-USD account', () async {
+      final accountId = AccountId('acc-ves');
       catalog.saveAccount(
         Account(
-          id: cuentaId,
+          id: accountId,
           name: 'VES Account',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
@@ -95,36 +95,39 @@ void main() {
         ),
       );
 
-      final sobreId = EnvelopeId('env-1');
+      final envelopeId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
-          id: sobreId,
-          name: 'Comida',
-          role: EnvelopeRole.ninguno,
+          id: envelopeId,
+          name: 'Food',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
 
       await expectLater(
-        () => registrarGastoUsd(
+        () => recordUsdExpense(
           eventId: EventId('evt-2'),
           deviceId: 'dev-1',
-          cuentaId: cuentaId,
-          sobreId: sobreId,
-          monto: Money(amount: BigInt.from(500), currency: CurrencyCode('VES')),
+          accountId: accountId,
+          envelopeId: envelopeId,
+          amount: Money(
+            amount: BigInt.from(500),
+            currency: CurrencyCode('VES'),
+          ),
         ),
-        throwsA(isA<OperacionSoloUSD>()),
+        throwsA(isA<UsdOnlyOperation>()),
       );
 
       expect(store.events.isEmpty, isTrue);
     });
 
-    test('gasto rechaza monto negativo o cero', () async {
-      final cuentaId = AccountId('acc-usd');
+    test('expense rejects negative or zero amount', () async {
+      final accountId = AccountId('acc-usd');
       catalog.saveAccount(
         Account(
-          id: cuentaId,
+          id: accountId,
           name: 'USD Account',
           nativeCurrency: CurrencyCode('USD'),
           isArchived: false,
@@ -132,24 +135,24 @@ void main() {
         ),
       );
 
-      final sobreId = EnvelopeId('env-1');
+      final envelopeId = EnvelopeId('env-1');
       catalog.saveEnvelope(
         Envelope(
-          id: sobreId,
-          name: 'Comida',
-          role: EnvelopeRole.ninguno,
+          id: envelopeId,
+          name: 'Food',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
 
       await expectLater(
-        () => registrarGastoUsd(
+        () => recordUsdExpense(
           eventId: EventId('evt-3'),
           deviceId: 'dev-1',
-          cuentaId: cuentaId,
-          sobreId: sobreId,
-          monto: Money(
+          accountId: accountId,
+          envelopeId: envelopeId,
+          amount: Money(
             amount: BigInt.from(-500),
             currency: CurrencyCode('USD'),
           ),
@@ -158,12 +161,12 @@ void main() {
       );
 
       await expectLater(
-        () => registrarGastoUsd(
+        () => recordUsdExpense(
           eventId: EventId('evt-4'),
           deviceId: 'dev-1',
-          cuentaId: cuentaId,
-          sobreId: sobreId,
-          monto: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
+          accountId: accountId,
+          envelopeId: envelopeId,
+          amount: Money(amount: BigInt.from(0), currency: CurrencyCode('USD')),
         ),
         throwsA(isA<ArgumentError>()),
       );

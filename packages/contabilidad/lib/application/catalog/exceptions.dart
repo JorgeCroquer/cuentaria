@@ -1,23 +1,23 @@
-class TargetInexistente implements Exception {
+class TargetNotFound implements Exception {
   final String message;
-  TargetInexistente(this.message);
+  TargetNotFound(this.message);
 
   @override
-  String toString() => 'TargetInexistente: $message';
+  String toString() => 'TargetNotFound: $message';
 }
 
-class MonedaIncompatible implements Exception {
+class IncompatibleCurrency implements Exception {
   final String message;
-  MonedaIncompatible(this.message);
+  IncompatibleCurrency(this.message);
 
   @override
-  String toString() => 'MonedaIncompatible: $message';
+  String toString() => 'IncompatibleCurrency: $message';
 }
 
-class BorradoDeSobreDeSistemaNoPermitido implements Exception {
+class SystemEnvelopeDeletionNotAllowed implements Exception {
   final String message;
-  BorradoDeSobreDeSistemaNoPermitido(this.message);
+  SystemEnvelopeDeletionNotAllowed(this.message);
 
   @override
-  String toString() => 'BorradoDeSobreDeSistemaNoPermitido: $message';
+  String toString() => 'SystemEnvelopeDeletionNotAllowed: $message';
 }

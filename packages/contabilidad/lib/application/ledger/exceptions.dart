@@ -1,67 +1,67 @@
-class TransferenciaMonedaCruzada implements Exception {
+class CrossCurrencyTransfer implements Exception {
   final String message;
-  TransferenciaMonedaCruzada([
+  CrossCurrencyTransfer([
     this.message =
-        'Transferencia entre cuentas de distintas monedas no permitida. Use Conversión.',
+        'Transfer between accounts of different currencies is not allowed. Use Conversion.',
   ]);
 
   @override
-  String toString() => 'TransferenciaMonedaCruzada: $message';
+  String toString() => 'CrossCurrencyTransfer: $message';
 }
 
-class OperacionSoloUSD implements Exception {
+class UsdOnlyOperation implements Exception {
   final String message;
-  OperacionSoloUSD([
+  UsdOnlyOperation([
     this.message =
-        'Esta operación solo está soportada para cuentas en USD. Operaciones en moneda extranjera corresponden al módulo de conversiones/P&L.',
+        'This operation is only supported for USD accounts. Foreign currency operations belong to the conversions/P&L module.',
   ]);
 
   @override
-  String toString() => 'OperacionSoloUSD: $message';
+  String toString() => 'UsdOnlyOperation: $message';
 }
 
-class SaldoInsuficiente implements Exception {
+class InsufficientBalance implements Exception {
   final String message;
-  SaldoInsuficiente(this.message);
+  InsufficientBalance(this.message);
 
   @override
-  String toString() => 'SaldoInsuficiente: $message';
+  String toString() => 'InsufficientBalance: $message';
 }
 
-class TransaccionNoEncontrada implements Exception {
+class TransactionNotFound implements Exception {
   final String message;
-  TransaccionNoEncontrada(this.message);
+  TransactionNotFound(this.message);
 
   @override
-  String toString() => 'TransaccionNoEncontrada: $message';
+  String toString() => 'TransactionNotFound: $message';
 }
 
-class TransaccionYaReversada implements Exception {
+class TransactionAlreadyReversed implements Exception {
   final String message;
-  TransaccionYaReversada(this.message);
+  TransactionAlreadyReversed(this.message);
 
   @override
-  String toString() => 'TransaccionYaReversada: $message';
+  String toString() => 'TransactionAlreadyReversed: $message';
 }
 
-class AjustePositivoMonedaExtranjeraNoPermitido implements Exception {
+class ForeignCurrencyPositiveAdjustmentNotAllowed implements Exception {
   final String message;
-  AjustePositivoMonedaExtranjeraNoPermitido([
+  ForeignCurrencyPositiveAdjustmentNotAllowed([
     this.message =
-        'No se puede ajustar positivamente una cuenta en moneda extranjera. Use un ingreso para declarar el excedente con su valor real en USD.',
+        'Cannot positively adjust a foreign currency account. Use an income to declare the surplus with its real USD value.',
   ]);
 
   @override
-  String toString() => 'AjustePositivoMonedaExtranjeraNoPermitido: $message';
+  String toString() => 'ForeignCurrencyPositiveAdjustmentNotAllowed: $message';
 }
 
-class AjusteSinDiferencia implements Exception {
+class AdjustmentWithNoDifference implements Exception {
   final String message;
-  AjusteSinDiferencia([
+  AdjustmentWithNoDifference([
     this.message =
-        'El saldo real es igual al saldo proyectado. No hay diferencia que ajustar.',
+        'The real balance equals the projected balance. There is no difference to adjust.',
   ]);
 
   @override
-  String toString() => 'AjusteSinDiferencia: $message';
+  String toString() => 'AdjustmentWithNoDifference: $message';
 }

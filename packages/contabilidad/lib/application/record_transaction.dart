@@ -1,18 +1,18 @@
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:event_bus/event_bus.dart';
-import '../domain/transaccion.dart';
-import '../domain/transaccion_metadata.dart';
+import '../domain/transaction.dart';
+import '../domain/transaction_metadata.dart';
 import '../domain/posting.dart';
 import '../domain/ports/event_store.dart';
 import '../domain/ports/ledger_projections.dart';
 
-class RegistrarTransaccion {
+class RecordTransaction {
   final EventStore _store;
   final LedgerProjections _projections;
   final EventBus _eventBus;
   final ReferentialIntegrityValidator _validator;
 
-  RegistrarTransaccion({
+  RecordTransaction({
     required EventStore store,
     required LedgerProjections projections,
     required EventBus eventBus,
@@ -24,16 +24,16 @@ class RegistrarTransaccion {
 
   Future<void> call({
     required List<Posting> postings,
-    required TransaccionMetadata metadata,
+    required TransactionMetadata metadata,
   }) async {
     _validator.validate(postings);
 
-    final tx = Transaccion.crear(postings: postings, metadata: metadata);
+    final tx = Transaction.create(postings: postings, metadata: metadata);
 
     final isNew = await _store.append(tx);
 
     if (isNew) {
-      _projections.aplicar(tx);
+      _projections.apply(tx);
       _eventBus.publish(tx);
     }
   }

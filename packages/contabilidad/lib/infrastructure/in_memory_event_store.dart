@@ -1,25 +1,25 @@
 import 'package:shared_kernel/shared_kernel.dart';
-import '../domain/transaccion.dart';
+import '../domain/transaction.dart';
 import '../domain/ports/event_store.dart';
-import '../domain/ports/filtros_log.dart';
+import '../domain/ports/log_filters.dart';
 import '../domain/posting_target.dart';
 
 class InMemoryEventStore implements EventStore {
-  final Map<EventId, Transaccion> _store = {};
+  final Map<EventId, Transaction> _store = {};
 
   @override
-  Future<bool> append(Transaccion event) async {
+  Future<bool> append(Transaction event) async {
     final eventId = event.metadata.eventId;
     if (_store.containsKey(eventId)) {
-      return false; // deduplicado
+      return false; // deduplicated
     }
 
     _store[eventId] = event;
-    return true; // insertado exitosamente
+    return true; // inserted successfully
   }
 
   @override
-  Future<Transaccion?> get(EventId id) async {
+  Future<Transaction?> get(EventId id) async {
     return _store[id];
   }
 
@@ -29,55 +29,55 @@ class InMemoryEventStore implements EventStore {
   }
 
   @override
-  Future<List<Transaccion>> consultarLog({FiltrosLog? filtros}) async {
-    Iterable<Transaccion> result = _store.values;
+  Future<List<Transaction>> queryLog({LogFilters? filters}) async {
+    Iterable<Transaction> result = _store.values;
 
-    if (filtros != null) {
-      if (filtros.cuenta != null) {
+    if (filters != null) {
+      if (filters.account != null) {
         result = result.where(
           (tx) => tx.postings.any((p) {
             final target = p.target;
-            return target is CuentaTarget && target.accountId == filtros.cuenta;
+            return target is AccountTarget &&
+                target.accountId == filters.account;
           }),
         );
       }
 
-      if (filtros.sobre != null) {
+      if (filters.envelope != null) {
         result = result.where(
           (tx) => tx.postings.any((p) {
             final target = p.target;
-            return target is SobreTarget && target.envelopeId == filtros.sobre;
+            return target is EnvelopeTarget &&
+                target.envelopeId == filters.envelope;
           }),
         );
       }
 
-      if (filtros.desde != null) {
+      if (filters.from != null) {
         result = result.where(
           (tx) =>
-              tx.metadata.occurredAt.value.isAfter(filtros.desde!.value) ||
+              tx.metadata.occurredAt.value.isAfter(filters.from!.value) ||
               tx.metadata.occurredAt.value.isAtSameMomentAs(
-                filtros.desde!.value,
+                filters.from!.value,
               ),
         );
       }
 
-      if (filtros.hasta != null) {
+      if (filters.to != null) {
         result = result.where(
           (tx) =>
-              tx.metadata.occurredAt.value.isBefore(filtros.hasta!.value) ||
-              tx.metadata.occurredAt.value.isAtSameMomentAs(
-                filtros.hasta!.value,
-              ),
+              tx.metadata.occurredAt.value.isBefore(filters.to!.value) ||
+              tx.metadata.occurredAt.value.isAtSameMomentAs(filters.to!.value),
         );
       }
     }
 
-    final list = result.toList()..sort(_ordenCanonico);
+    final list = result.toList()..sort(_canonicalOrder);
     return list;
   }
 
-  // Orden canónico C1-9: occurredAt -> recordedAt -> eventId.
-  static int _ordenCanonico(Transaccion a, Transaccion b) {
+  // Canonical order C1-9: occurredAt -> recordedAt -> eventId.
+  static int _canonicalOrder(Transaction a, Transaction b) {
     final cmp1 = a.metadata.occurredAt.value.compareTo(
       b.metadata.occurredAt.value,
     );
@@ -91,9 +91,9 @@ class InMemoryEventStore implements EventStore {
     return a.metadata.eventId.value.compareTo(b.metadata.eventId.value);
   }
 
-  /// Expuesto solo para propósitos de testing y consulta simple.
-  List<Transaccion> get events {
-    final list = _store.values.toList()..sort(_ordenCanonico);
+  /// Exposed for testing and simple querying purposes only.
+  List<Transaction> get events {
+    final list = _store.values.toList()..sort(_canonicalOrder);
     return list;
   }
 }

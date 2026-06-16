@@ -52,9 +52,12 @@ void main() {
     test('initializes with 4 system envelopes idempotently', () {
       // Upon creation, 4 system envelopes should exist
       expect(repository.getSystemEnvelope(EnvelopeRole.stage), isNotNull);
-      expect(repository.getSystemEnvelope(EnvelopeRole.diferencial), isNotNull);
-      expect(repository.getSystemEnvelope(EnvelopeRole.ajustes), isNotNull);
-      expect(repository.getSystemEnvelope(EnvelopeRole.apertura), isNotNull);
+      expect(
+        repository.getSystemEnvelope(EnvelopeRole.differential),
+        isNotNull,
+      );
+      expect(repository.getSystemEnvelope(EnvelopeRole.adjustments), isNotNull);
+      expect(repository.getSystemEnvelope(EnvelopeRole.opening), isNotNull);
 
       // Now we rename Stage
       final stageId = repository.getSystemEnvelope(EnvelopeRole.stage);
@@ -77,14 +80,14 @@ void main() {
 
       expect(
         () => repository.deleteEnvelope(stageId),
-        throwsA(isA<BorradoDeSobreDeSistemaNoPermitido>()),
+        throwsA(isA<SystemEnvelopeDeletionNotAllowed>()),
       );
 
       // But we can delete a regular one
       final regular = Envelope(
         id: EnvelopeId('regular-1'),
         name: 'Regular',
-        role: EnvelopeRole.ninguno,
+        role: EnvelopeRole.none,
         isArchived: false,
         updatedAt: DateTime(2023, 1, 1),
       );

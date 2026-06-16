@@ -2,14 +2,14 @@ import 'package:test/test.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-import 'package:contabilidad/domain/transaccion.dart';
-import 'package:contabilidad/domain/transaccion_metadata.dart';
-import 'package:contabilidad/domain/transaccion_error.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
+import 'package:contabilidad/domain/transaction_error.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
-import 'package:contabilidad/application/registrar_transaccion.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
@@ -17,9 +17,9 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 
 void main() {
-  group('RegistrarTransaccion', () {
+  group('RecordTransaction', () {
     test(
-      'registrar con postings y metadata guarda, proyecta y publica',
+      'record with postings and metadata saves, projects and publishes',
       () async {
         final store = InMemoryEventStore();
         final projections = InMemoryLedgerProjections();
@@ -39,7 +39,7 @@ void main() {
           Envelope(
             id: EnvelopeId('env-1'),
             name: 'Env 1',
-            role: EnvelopeRole.ninguno,
+            role: EnvelopeRole.none,
             isArchived: false,
             updatedAt: DateTime.now(),
           ),
@@ -47,16 +47,16 @@ void main() {
 
         final validator = ReferentialIntegrityValidator(catalog);
 
-        final registrar = RegistrarTransaccion(
+        final record = RecordTransaction(
           store: store,
           projections: projections,
           eventBus: eventBus,
           validator: validator,
         );
 
-        final metadata = TransaccionMetadata(
+        final metadata = TransactionMetadata(
           eventId: EventId('evt-123'),
-          tipo: 'Ingreso',
+          type: 'Income',
           occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
           recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
           deviceId: 'device-1',
@@ -65,7 +65,7 @@ void main() {
 
         final postings = [
           Posting(
-            target: CuentaTarget(AccountId('acc-1')),
+            target: AccountTarget(AccountId('acc-1')),
             amountNative: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
@@ -74,7 +74,7 @@ void main() {
             amountUsd: 100,
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-1')),
+            target: EnvelopeTarget(EnvelopeId('env-1')),
             amountNative: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
@@ -86,27 +86,32 @@ void main() {
 
         final emittedEvents = <DomainEvent>[];
         eventBus.stream
-            .where((e) => e is Transaccion)
-            .cast<Transaccion>()
+            .where((e) => e is Transaction)
+            .cast<Transaction>()
             .listen(emittedEvents.add);
 
-        // Call with raw postings+metadata
-        await registrar(postings: postings, metadata: metadata);
+        await record(postings: postings, metadata: metadata);
 
         expect(store.events.length, equals(1));
-        expect(projections.saldoUsdSobre(EnvelopeId('env-1')), equals(100));
+        expect(
+          projections.envelopeUsdBalance(EnvelopeId('env-1')),
+          equals(100),
+        );
         expect(emittedEvents.length, equals(1));
 
         // Dedup: same event_id again
-        await registrar(postings: postings, metadata: metadata);
+        await record(postings: postings, metadata: metadata);
 
         expect(store.events.length, equals(1));
-        expect(projections.saldoUsdSobre(EnvelopeId('env-1')), equals(100));
+        expect(
+          projections.envelopeUsdBalance(EnvelopeId('env-1')),
+          equals(100),
+        );
         expect(emittedEvents.length, equals(1));
       },
     );
 
-    test('registrar rechaza transacción no balanceada', () async {
+    test('record rejects unbalanced transaction', () async {
       final store = InMemoryEventStore();
       final projections = InMemoryLedgerProjections();
       final eventBus = SyncEventBus();
@@ -125,7 +130,7 @@ void main() {
         Envelope(
           id: EnvelopeId('env-1'),
           name: 'Env 1',
-          role: EnvelopeRole.ninguno,
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
@@ -133,16 +138,16 @@ void main() {
 
       final validator = ReferentialIntegrityValidator(catalog);
 
-      final registrar = RegistrarTransaccion(
+      final record = RecordTransaction(
         store: store,
         projections: projections,
         eventBus: eventBus,
         validator: validator,
       );
 
-      final metadata = TransaccionMetadata(
+      final metadata = TransactionMetadata(
         eventId: EventId('evt-400'),
-        tipo: 'Ingreso',
+        type: 'Income',
         occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
         recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
         deviceId: 'device-1',
@@ -151,7 +156,7 @@ void main() {
 
       final postings = [
         Posting(
-          target: CuentaTarget(AccountId('acc-1')),
+          target: AccountTarget(AccountId('acc-1')),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('USD'),
@@ -160,7 +165,7 @@ void main() {
           amountUsd: 100,
         ),
         Posting(
-          target: SobreTarget(EnvelopeId('env-1')),
+          target: EnvelopeTarget(EnvelopeId('env-1')),
           amountNative: Money(
             amount: BigInt.from(50),
             currency: CurrencyCode('USD'),
@@ -171,13 +176,13 @@ void main() {
       ];
 
       expect(
-        () => registrar(postings: postings, metadata: metadata),
-        throwsA(isA<TransaccionNoBalanceada>()),
+        () => record(postings: postings, metadata: metadata),
+        throwsA(isA<UnbalancedTransaction>()),
       );
     });
 
     test(
-      'registrar rechaza transacción si falla integridad referencial sin guardar nada',
+      'record rejects transaction if referential integrity fails without saving anything',
       () async {
         final store = InMemoryEventStore();
         final projections = InMemoryLedgerProjections();
@@ -187,16 +192,16 @@ void main() {
         final catalog = InMemoryCatalogRepository();
         final validator = ReferentialIntegrityValidator(catalog);
 
-        final registrar = RegistrarTransaccion(
+        final record = RecordTransaction(
           store: store,
           projections: projections,
           eventBus: eventBus,
           validator: validator,
         );
 
-        final metadata = TransaccionMetadata(
+        final metadata = TransactionMetadata(
           eventId: EventId('evt-500'),
-          tipo: 'Ingreso',
+          type: 'Income',
           occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
           recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
           deviceId: 'device-1',
@@ -205,7 +210,7 @@ void main() {
 
         final postings = [
           Posting(
-            target: CuentaTarget(AccountId('acc-1')),
+            target: AccountTarget(AccountId('acc-1')),
             amountNative: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
@@ -214,7 +219,7 @@ void main() {
             amountUsd: 100,
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-1')),
+            target: EnvelopeTarget(EnvelopeId('env-1')),
             amountNative: Money(
               amount: BigInt.from(-100),
               currency: CurrencyCode('USD'),
@@ -225,8 +230,8 @@ void main() {
         ];
 
         await expectLater(
-          () => registrar(postings: postings, metadata: metadata),
-          throwsA(isA<TargetInexistente>()),
+          () => record(postings: postings, metadata: metadata),
+          throwsA(isA<TargetNotFound>()),
         );
 
         // Verify no events were saved

@@ -1,24 +1,24 @@
 import 'package:contabilidad/domain/ports/event_store.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 
-class ReconstruirProyecciones {
+class RebuildProjections {
   final EventStore _store;
   final LedgerProjections _projections;
 
-  ReconstruirProyecciones({
+  RebuildProjections({
     required EventStore store,
     required LedgerProjections projections,
   }) : _store = store,
        _projections = projections;
 
   Future<void> execute() async {
-    _projections.limpiar();
+    _projections.clear();
 
-    // Obtenemos todos los eventos (se retornan ordenados determinísticamente)
-    final eventos = await _store.consultarLog();
+    // Fetch all events (returned in deterministic canonical order)
+    final events = await _store.queryLog();
 
-    for (final event in eventos) {
-      _projections.aplicar(event);
+    for (final event in events) {
+      _projections.apply(event);
     }
   }
 }

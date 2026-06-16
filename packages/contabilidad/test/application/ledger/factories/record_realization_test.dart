@@ -2,30 +2,30 @@ import 'dart:math' as math;
 import 'package:test/test.dart';
 import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
-import 'package:contabilidad/domain/transaccion.dart';
-import 'package:contabilidad/domain/transaccion_metadata.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
-import 'package:contabilidad/application/registrar_transaccion.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
-import 'package:contabilidad/application/ledger/factories/registrar_realizacion.dart';
+import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 
 void main() {
-  group('RegistrarRealizacion', () {
+  group('RecordRealization', () {
     late InMemoryEventStore store;
     late InMemoryLedgerProjections projections;
     late SyncEventBus eventBus;
     late InMemoryCatalogRepository catalog;
-    late RegistrarTransaccion registrar;
-    late RegistrarRealizacion factory;
+    late RecordTransaction record;
+    late RecordRealization factory;
 
     setUp(() {
       store = InMemoryEventStore();
@@ -34,30 +34,30 @@ void main() {
       catalog = InMemoryCatalogRepository();
 
       final validator = ReferentialIntegrityValidator(catalog);
-      registrar = RegistrarTransaccion(
+      record = RecordTransaction(
         store: store,
         projections: projections,
         eventBus: eventBus,
         validator: validator,
       );
 
-      factory = RegistrarRealizacion(
-        registrar: registrar,
+      factory = RecordRealization(
+        record: record,
         catalog: catalog,
         projections: projections,
       );
     });
 
     test(
-      'Overdraw Rejection: lanza SaldoInsuficiente si montoNative > saldo.native',
+      'Overdraw Rejection: throws InsufficientBalance if nativeAmount > balance.native',
       () async {
-        final cuentaBsId = AccountId('acc-bs');
-        final sobreDestinoId = EnvelopeId('env-destino');
+        final bsAccountId = AccountId('acc-bs');
+        final destinationEnvelopeId = EnvelopeId('env-destination');
 
         catalog.saveAccount(
           Account(
-            id: cuentaBsId,
-            name: 'Bs Banco',
+            id: bsAccountId,
+            name: 'Bs Bank',
             nativeCurrency: CurrencyCode('VES'),
             isArchived: false,
             updatedAt: DateTime.now(),
@@ -66,19 +66,19 @@ void main() {
 
         catalog.saveEnvelope(
           Envelope(
-            id: sobreDestinoId,
-            name: 'Gastos',
-            role: EnvelopeRole.ninguno,
+            id: destinationEnvelopeId,
+            name: 'Expenses',
+            role: EnvelopeRole.none,
             isArchived: false,
             updatedAt: DateTime.now(),
           ),
         );
 
         // Add 100 VES balance via a direct event to projections
-        final initialEvent = Transaccion.crear(
-          metadata: TransaccionMetadata(
+        final initialEvent = Transaction.create(
+          metadata: TransactionMetadata(
             eventId: EventId('evt-init'),
-            tipo: 'Apertura',
+            type: 'Opening',
             occurredAt: DomainTimestamp(DateTime.now().toUtc()),
             recordedAt: DomainTimestamp(DateTime.now().toUtc()),
             deviceId: 'dev',
@@ -86,7 +86,7 @@ void main() {
           ),
           postings: [
             Posting(
-              target: CuentaTarget(cuentaBsId),
+              target: AccountTarget(bsAccountId),
               amountNative: Money(
                 amount: BigInt.from(10000),
                 currency: CurrencyCode('VES'),
@@ -95,7 +95,7 @@ void main() {
               amountUsd: 250, // $2.50
             ),
             Posting(
-              target: SobreTarget(EnvelopeId('env-apertura')),
+              target: EnvelopeTarget(EnvelopeId('env-opening')),
               amountNative: Money(
                 amount: BigInt.from(250),
                 currency: CurrencyCode('USD'),
@@ -105,33 +105,33 @@ void main() {
             ),
           ],
         );
-        projections.aplicar(initialEvent);
+        projections.apply(initialEvent);
 
         await expectLater(
-          () => factory.gastoMonedaExtranjera(
-            eventId: EventId('evt-gasto-1'),
+          () => factory.foreignCurrencyExpense(
+            eventId: EventId('evt-expense-1'),
             deviceId: 'dev-1',
-            cuentaId: cuentaBsId,
-            sobreDestinoId: sobreDestinoId,
-            montoNative: Money(
+            accountId: bsAccountId,
+            destinationEnvelopeId: destinationEnvelopeId,
+            nativeAmount: Money(
               amount: BigInt.from(15000),
               currency: CurrencyCode('VES'),
             ), // 150 VES > 100 VES
-            tasaActual: Decimal.parse('40.00'), // VES/USD
+            currentRate: Decimal.parse('40.00'), // VES/USD
           ),
-          throwsA(isA<SaldoInsuficiente>()),
+          throwsA(isA<InsufficientBalance>()),
         );
       },
     );
 
     test(
-      'MonedaIncompatible: gastoMonedaExtranjera rechaza cuenta USD',
+      'IncompatibleCurrency: foreignCurrencyExpense rejects USD account',
       () async {
-        final cuentaUsdId = AccountId('acc-usd-incompat');
-        final sobreDestinoId = EnvelopeId('env-incompat');
+        final usdAccountId = AccountId('acc-usd-incompat');
+        final destinationEnvelopeId = EnvelopeId('env-incompat');
         catalog.saveAccount(
           Account(
-            id: cuentaUsdId,
+            id: usdAccountId,
             name: 'USD acc',
             nativeCurrency: CurrencyCode('USD'),
             isArchived: false,
@@ -140,39 +140,39 @@ void main() {
         );
         catalog.saveEnvelope(
           Envelope(
-            id: sobreDestinoId,
-            name: 'Gastos',
-            role: EnvelopeRole.ninguno,
+            id: destinationEnvelopeId,
+            name: 'Expenses',
+            role: EnvelopeRole.none,
             isArchived: false,
             updatedAt: DateTime.now(),
           ),
         );
 
         await expectLater(
-          () => factory.gastoMonedaExtranjera(
+          () => factory.foreignCurrencyExpense(
             eventId: EventId('evt-incompat-1'),
             deviceId: 'dev',
-            cuentaId: cuentaUsdId,
-            sobreDestinoId: sobreDestinoId,
-            montoNative: Money(
+            accountId: usdAccountId,
+            destinationEnvelopeId: destinationEnvelopeId,
+            nativeAmount: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
             ),
-            tasaActual: Decimal.parse('1.00'),
+            currentRate: Decimal.parse('1.00'),
           ),
-          throwsA(isA<MonedaIncompatible>()),
+          throwsA(isA<IncompatibleCurrency>()),
         );
       },
     );
 
     test(
-      'MonedaIncompatible: conversionDisposicion rechaza cuenta origen USD',
+      'IncompatibleCurrency: disposalConversion rejects USD source account',
       () async {
-        final cuentaUsdId = AccountId('acc-usd-origin');
-        final cuentaDestinoId = AccountId('acc-usd-dest');
+        final usdAccountId = AccountId('acc-usd-origin');
+        final destinationAccountId = AccountId('acc-usd-dest');
         catalog.saveAccount(
           Account(
-            id: cuentaUsdId,
+            id: usdAccountId,
             name: 'USD origin',
             nativeCurrency: CurrencyCode('USD'),
             isArchived: false,
@@ -181,7 +181,7 @@ void main() {
         );
         catalog.saveAccount(
           Account(
-            id: cuentaDestinoId,
+            id: destinationAccountId,
             name: 'USD dest',
             nativeCurrency: CurrencyCode('USD'),
             isArchived: false,
@@ -190,34 +190,34 @@ void main() {
         );
 
         await expectLater(
-          () => factory.conversionDisposicion(
+          () => factory.disposalConversion(
             eventId: EventId('evt-incompat-2'),
             deviceId: 'dev',
-            cuentaOrigenExtId: cuentaUsdId,
-            cuentaDestinoUsdId: cuentaDestinoId,
-            montoNative: Money(
+            sourceForeignAccountId: usdAccountId,
+            destinationUsdAccountId: destinationAccountId,
+            nativeAmount: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
             ),
-            montoUsdRecibido: Money(
+            usdAmountReceived: Money(
               amount: BigInt.from(100),
               currency: CurrencyCode('USD'),
             ),
             rateRef: '1.00 USD/USD',
           ),
-          throwsA(isA<MonedaIncompatible>()),
+          throwsA(isA<IncompatibleCurrency>()),
         );
       },
     );
 
-    test('Gasto Moneda Extranjera: genera 3 postings (Pérdida)', () async {
-      final cuentaBsId = AccountId('acc-bs-2');
-      final sobreDestinoId = EnvelopeId('env-destino-2');
+    test('Foreign Currency Expense: generates 3 postings (Loss)', () async {
+      final bsAccountId = AccountId('acc-bs-2');
+      final destinationEnvelopeId = EnvelopeId('env-destination-2');
 
       catalog.saveAccount(
         Account(
-          id: cuentaBsId,
-          name: 'Bs Banco 2',
+          id: bsAccountId,
+          name: 'Bs Bank 2',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
           updatedAt: DateTime.now(),
@@ -226,23 +226,23 @@ void main() {
 
       catalog.saveEnvelope(
         Envelope(
-          id: sobreDestinoId,
-          name: 'Gastos 2',
-          role: EnvelopeRole.ninguno,
+          id: destinationEnvelopeId,
+          name: 'Expenses 2',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
 
-      final sobreDiferencialId = catalog.getSystemEnvelope(
-        EnvelopeRole.diferencial,
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
       );
 
       // Add 100 VES balance with a base cost of $5.00 (avg 20 VES/USD)
-      final initialEvent = Transaccion.crear(
-        metadata: TransaccionMetadata(
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
           eventId: EventId('evt-init-2'),
-          tipo: 'Apertura',
+          type: 'Opening',
           occurredAt: DomainTimestamp(DateTime.now().toUtc()),
           recordedAt: DomainTimestamp(DateTime.now().toUtc()),
           deviceId: 'dev',
@@ -250,7 +250,7 @@ void main() {
         ),
         postings: [
           Posting(
-            target: CuentaTarget(cuentaBsId),
+            target: AccountTarget(bsAccountId),
             amountNative: Money(
               amount: BigInt.from(10000),
               currency: CurrencyCode('VES'),
@@ -259,7 +259,7 @@ void main() {
             amountUsd: 500, // $5.00
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-apertura')),
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
             amountNative: Money(
               amount: BigInt.from(500),
               currency: CurrencyCode('USD'),
@@ -269,58 +269,58 @@ void main() {
           ),
         ],
       );
-      projections.aplicar(initialEvent);
+      projections.apply(initialEvent);
 
       // Spend 50 VES at current rate of 40 VES/USD.
-      // Market value (valor_mercado) = 50 VES / 40 = $1.25 (125 cents).
-      // Base cost (costo_base) = 50% of 500 cents = $2.50 (250 cents).
-      // Diferencial = valor_mercado - costo_base = 125 - 250 = -125 cents (Loss).
+      // Market value = 50 VES / 40 = $1.25 (125 cents).
+      // Base cost = 50% of 500 cents = $2.50 (250 cents).
+      // Differential = market_value - base_cost = 125 - 250 = -125 cents (Loss).
 
-      await factory.gastoMonedaExtranjera(
-        eventId: EventId('evt-gasto-2'),
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-2'),
         deviceId: 'dev-2',
-        cuentaId: cuentaBsId,
-        sobreDestinoId: sobreDestinoId,
-        montoNative: Money(
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
           amount: BigInt.from(5000),
           currency: CurrencyCode('VES'),
         ), // 50 VES
-        tasaActual: Decimal.parse('40.00'), // VES/USD
+        currentRate: Decimal.parse('40.00'), // VES/USD
       );
 
       final events = store.events;
       final event = events.last;
-      expect(event.metadata.tipo, 'GastoMonedaExtranjera');
+      expect(event.metadata.type, 'ForeignCurrencyExpense');
       expect(event.postings.length, 3);
 
-      final pCuenta = event.postings.firstWhere(
-        (p) => p.target == CuentaTarget(cuentaBsId),
+      final pAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(bsAccountId),
       );
-      expect(pCuenta.amountNative.amount, BigInt.from(-5000));
-      expect(pCuenta.amountUsd, -250);
+      expect(pAccount.amountNative.amount, BigInt.from(-5000));
+      expect(pAccount.amountUsd, -250);
 
-      final pDestino = event.postings.firstWhere(
-        (p) => p.target == SobreTarget(sobreDestinoId),
+      final pDestination = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(destinationEnvelopeId),
       );
-      expect(pDestino.amountUsd, -125);
-      expect(pDestino.rateRef, '40.00 VES/USD'); // rate_ref must be stored
+      expect(pDestination.amountUsd, -125);
+      expect(pDestination.rateRef, '40.00 VES/USD'); // rate_ref must be stored
 
-      final pDiferencial = event.postings.firstWhere(
-        (p) => p.target == SobreTarget(sobreDiferencialId),
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
       );
-      expect(pDiferencial.amountUsd, -125);
+      expect(pDifferential.amountUsd, -125);
     });
 
-    test('Gasto Moneda Extranjera: genera 3 postings (Ganancia)', () async {
-      final cuentaBsId = AccountId('acc-bs-3');
-      final sobreDestinoId = EnvelopeId('env-destino-3');
-      final sobreDiferencialId = catalog.getSystemEnvelope(
-        EnvelopeRole.diferencial,
+    test('Foreign Currency Expense: generates 3 postings (Gain)', () async {
+      final bsAccountId = AccountId('acc-bs-3');
+      final destinationEnvelopeId = EnvelopeId('env-destination-3');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
       );
 
       catalog.saveAccount(
         Account(
-          id: cuentaBsId,
+          id: bsAccountId,
           name: 'Bs 3',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
@@ -329,18 +329,18 @@ void main() {
       );
       catalog.saveEnvelope(
         Envelope(
-          id: sobreDestinoId,
-          name: 'Gastos 3',
-          role: EnvelopeRole.ninguno,
+          id: destinationEnvelopeId,
+          name: 'Expenses 3',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
       );
 
-      final initialEvent = Transaccion.crear(
-        metadata: TransaccionMetadata(
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
           eventId: EventId('evt-init-3'),
-          tipo: 'Apertura',
+          type: 'Opening',
           occurredAt: DomainTimestamp(DateTime.now().toUtc()),
           recordedAt: DomainTimestamp(DateTime.now().toUtc()),
           deviceId: 'dev',
@@ -348,7 +348,7 @@ void main() {
         ),
         postings: [
           Posting(
-            target: CuentaTarget(cuentaBsId),
+            target: AccountTarget(bsAccountId),
             amountNative: Money(
               amount: BigInt.from(10000),
               currency: CurrencyCode('VES'),
@@ -357,7 +357,7 @@ void main() {
             amountUsd: 200,
           ), // Base cost $2.00
           Posting(
-            target: SobreTarget(EnvelopeId('env-apertura')),
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
             amountNative: Money(
               amount: BigInt.from(200),
               currency: CurrencyCode('USD'),
@@ -367,53 +367,53 @@ void main() {
           ),
         ],
       );
-      projections.aplicar(initialEvent);
+      projections.apply(initialEvent);
 
       // Spend 50 VES at current rate of 25 VES/USD.
       // Market value = 50 / 25 = $2.00 (200 cents).
       // Base cost = 50% of 200 cents = $1.00 (100 cents).
-      // Diferencial = 200 - 100 = +100 cents (Gain).
+      // Differential = 200 - 100 = +100 cents (Gain).
 
-      await factory.gastoMonedaExtranjera(
-        eventId: EventId('evt-gasto-3'),
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-3'),
         deviceId: 'dev-3',
-        cuentaId: cuentaBsId,
-        sobreDestinoId: sobreDestinoId,
-        montoNative: Money(
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
           amount: BigInt.from(5000),
           currency: CurrencyCode('VES'),
         ), // 50 VES
-        tasaActual: Decimal.parse('25.00'), // VES/USD
+        currentRate: Decimal.parse('25.00'), // VES/USD
       );
 
       final event = store.events.last;
 
-      final pCuenta = event.postings.firstWhere(
-        (p) => p.target == CuentaTarget(cuentaBsId),
+      final pAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(bsAccountId),
       );
-      expect(pCuenta.amountUsd, -100);
+      expect(pAccount.amountUsd, -100);
 
-      final pDestino = event.postings.firstWhere(
-        (p) => p.target == SobreTarget(sobreDestinoId),
+      final pDestination = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(destinationEnvelopeId),
       );
-      expect(pDestino.amountUsd, -200);
+      expect(pDestination.amountUsd, -200);
 
-      final pDiferencial = event.postings.firstWhere(
-        (p) => p.target == SobreTarget(sobreDiferencialId),
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
       );
-      expect(pDiferencial.amountUsd, 100);
+      expect(pDifferential.amountUsd, 100);
     });
 
-    test('Conversion Disposición: usa montoUsdRecibido observado', () async {
-      final cuentaBsId = AccountId('acc-bs-4');
-      final cuentaUsdId = AccountId('acc-usd-4');
-      final sobreDiferencialId = catalog.getSystemEnvelope(
-        EnvelopeRole.diferencial,
+    test('Disposal Conversion: uses observed usdAmountReceived', () async {
+      final bsAccountId = AccountId('acc-bs-4');
+      final usdAccountId = AccountId('acc-usd-4');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
       );
 
       catalog.saveAccount(
         Account(
-          id: cuentaBsId,
+          id: bsAccountId,
           name: 'Bs 4',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
@@ -422,7 +422,7 @@ void main() {
       );
       catalog.saveAccount(
         Account(
-          id: cuentaUsdId,
+          id: usdAccountId,
           name: 'USD 4',
           nativeCurrency: CurrencyCode('USD'),
           isArchived: false,
@@ -430,10 +430,10 @@ void main() {
         ),
       );
 
-      final initialEvent = Transaccion.crear(
-        metadata: TransaccionMetadata(
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
           eventId: EventId('evt-init-4'),
-          tipo: 'Apertura',
+          type: 'Opening',
           occurredAt: DomainTimestamp(DateTime.now().toUtc()),
           recordedAt: DomainTimestamp(DateTime.now().toUtc()),
           deviceId: 'dev',
@@ -441,7 +441,7 @@ void main() {
         ),
         postings: [
           Posting(
-            target: CuentaTarget(cuentaBsId),
+            target: AccountTarget(bsAccountId),
             amountNative: Money(
               amount: BigInt.from(10000),
               currency: CurrencyCode('VES'),
@@ -450,7 +450,7 @@ void main() {
             amountUsd: 500,
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-apertura')),
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
             amountNative: Money(
               amount: BigInt.from(500),
               currency: CurrencyCode('USD'),
@@ -460,18 +460,18 @@ void main() {
           ),
         ],
       );
-      projections.aplicar(initialEvent);
+      projections.apply(initialEvent);
 
-      await factory.conversionDisposicion(
+      await factory.disposalConversion(
         eventId: EventId('evt-conv-1'),
         deviceId: 'dev-4',
-        cuentaOrigenExtId: cuentaBsId,
-        cuentaDestinoUsdId: cuentaUsdId,
-        montoNative: Money(
+        sourceForeignAccountId: bsAccountId,
+        destinationUsdAccountId: usdAccountId,
+        nativeAmount: Money(
           amount: BigInt.from(5000),
           currency: CurrencyCode('VES'),
         ), // 50 VES
-        montoUsdRecibido: Money(
+        usdAmountReceived: Money(
           amount: BigInt.from(300),
           currency: CurrencyCode('USD'),
         ), // $3.00
@@ -479,35 +479,35 @@ void main() {
       );
 
       final event = store.events.last;
-      expect(event.metadata.tipo, 'ConversionDisposicion');
+      expect(event.metadata.type, 'DisposalConversion');
       expect(event.postings.length, 3);
 
-      final pCuentaExt = event.postings.firstWhere(
-        (p) => p.target == CuentaTarget(cuentaBsId),
+      final pForeignAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(bsAccountId),
       );
-      expect(pCuentaExt.amountUsd, -250); // 50% de 500 = 250
+      expect(pForeignAccount.amountUsd, -250); // 50% of 500 = 250
 
-      final pCuentaUsd = event.postings.firstWhere(
-        (p) => p.target == CuentaTarget(cuentaUsdId),
+      final pUsdAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(usdAccountId),
       );
-      expect(pCuentaUsd.amountUsd, 300);
-      expect(pCuentaUsd.rateRef, '16.66 VES/USD');
+      expect(pUsdAccount.amountUsd, 300);
+      expect(pUsdAccount.rateRef, '16.66 VES/USD');
 
-      final pDiferencial = event.postings.firstWhere(
-        (p) => p.target == SobreTarget(sobreDiferencialId),
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
       );
-      expect(pDiferencial.amountUsd, 50); // 300 - 250 = 50
+      expect(pDifferential.amountUsd, 50); // 300 - 250 = 50
     });
 
     test(
-      'Zero-Native: Vaciar la cuenta barre todo el costo USD restante',
+      'Zero-Native: Emptying account sweeps all remaining USD cost',
       () async {
-        final cuentaBsId = AccountId('acc-bs-zero');
-        final sobreDestinoId = EnvelopeId('env-destino-zero');
+        final bsAccountId = AccountId('acc-bs-zero');
+        final destinationEnvelopeId = EnvelopeId('env-destination-zero');
 
         catalog.saveAccount(
           Account(
-            id: cuentaBsId,
+            id: bsAccountId,
             name: 'Bs Zero',
             nativeCurrency: CurrencyCode('VES'),
             isArchived: false,
@@ -516,19 +516,19 @@ void main() {
         );
         catalog.saveEnvelope(
           Envelope(
-            id: sobreDestinoId,
-            name: 'Destino Zero',
-            role: EnvelopeRole.ninguno,
+            id: destinationEnvelopeId,
+            name: 'Destination Zero',
+            role: EnvelopeRole.none,
             isArchived: false,
             updatedAt: DateTime.now(),
           ),
         );
 
         // Initial: 30 VES with 101 cents base cost ($1.01)
-        final initialEvent = Transaccion.crear(
-          metadata: TransaccionMetadata(
+        final initialEvent = Transaction.create(
+          metadata: TransactionMetadata(
             eventId: EventId('evt-z-init'),
-            tipo: 'Apertura',
+            type: 'Opening',
             occurredAt: DomainTimestamp(DateTime.now().toUtc()),
             recordedAt: DomainTimestamp(DateTime.now().toUtc()),
             deviceId: 'dev',
@@ -536,7 +536,7 @@ void main() {
           ),
           postings: [
             Posting(
-              target: CuentaTarget(cuentaBsId),
+              target: AccountTarget(bsAccountId),
               amountNative: Money(
                 amount: BigInt.from(3000),
                 currency: CurrencyCode('VES'),
@@ -545,7 +545,7 @@ void main() {
               amountUsd: 101,
             ),
             Posting(
-              target: SobreTarget(EnvelopeId('env-apertura')),
+              target: EnvelopeTarget(EnvelopeId('env-opening')),
               amountNative: Money(
                 amount: BigInt.from(101),
                 currency: CurrencyCode('USD'),
@@ -555,63 +555,63 @@ void main() {
             ),
           ],
         );
-        projections.aplicar(initialEvent);
+        projections.apply(initialEvent);
 
         // Spend 20 VES.
-        // costo_base = (2000 * 101) ~/ 3000 = 67
-        await factory.gastoMonedaExtranjera(
+        // base_cost = (2000 * 101) ~/ 3000 = 67
+        await factory.foreignCurrencyExpense(
           eventId: EventId('evt-z-1'),
           deviceId: 'dev-z',
-          cuentaId: cuentaBsId,
-          sobreDestinoId: sobreDestinoId,
-          montoNative: Money(
+          accountId: bsAccountId,
+          destinationEnvelopeId: destinationEnvelopeId,
+          nativeAmount: Money(
             amount: BigInt.from(2000),
             currency: CurrencyCode('VES'),
           ),
-          tasaActual: Decimal.parse('40.00'),
+          currentRate: Decimal.parse('40.00'),
         );
 
         final event1 = store.events.last;
 
-        final pCuenta1 = event1.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaBsId),
+        final pAccount1 = event1.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
         );
-        expect(pCuenta1.amountUsd, -67);
+        expect(pAccount1.amountUsd, -67);
 
         // Spend remaining 10 VES.
-        // Proporcional = (1000 * 101) ~/ 3000 = 33
+        // Proportional = (1000 * 101) ~/ 3000 = 33
         // But remaining cost is 101 - 67 = 34.
-        await factory.gastoMonedaExtranjera(
+        await factory.foreignCurrencyExpense(
           eventId: EventId('evt-z-2'),
           deviceId: 'dev-z',
-          cuentaId: cuentaBsId,
-          sobreDestinoId: sobreDestinoId,
-          montoNative: Money(
+          accountId: bsAccountId,
+          destinationEnvelopeId: destinationEnvelopeId,
+          nativeAmount: Money(
             amount: BigInt.from(1000),
             currency: CurrencyCode('VES'),
           ),
-          tasaActual: Decimal.parse('40.00'),
+          currentRate: Decimal.parse('40.00'),
         );
 
         final event2 = store.events.last;
-        final pCuenta2 = event2.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaBsId),
+        final pAccount2 = event2.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
         );
-        expect(pCuenta2.amountUsd, -34); // Sweeps exactly 34
+        expect(pAccount2.amountUsd, -34); // Sweeps exactly 34
 
-        final finalSaldo = projections.saldoCuenta(cuentaBsId);
-        expect(finalSaldo.native.amount, BigInt.zero);
-        expect(finalSaldo.usd, 0);
+        final finalBalance = projections.accountBalance(bsAccountId);
+        expect(finalBalance.native.amount, BigInt.zero);
+        expect(finalBalance.usd, 0);
       },
     );
 
-    test('Zero-Native: Test de Propiedad con operaciones aleatorias', () async {
-      final cuentaBsId = AccountId('acc-bs-prop');
-      final sobreDestinoId = EnvelopeId('env-destino-prop');
+    test('Zero-Native: Property test with random operations', () async {
+      final bsAccountId = AccountId('acc-bs-prop');
+      final destinationEnvelopeId = EnvelopeId('env-destination-prop');
 
       catalog.saveAccount(
         Account(
-          id: cuentaBsId,
+          id: bsAccountId,
           name: 'Bs Prop',
           nativeCurrency: CurrencyCode('VES'),
           isArchived: false,
@@ -620,9 +620,9 @@ void main() {
       );
       catalog.saveEnvelope(
         Envelope(
-          id: sobreDestinoId,
-          name: 'Destino Prop',
-          role: EnvelopeRole.ninguno,
+          id: destinationEnvelopeId,
+          name: 'Destination Prop',
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime.now(),
         ),
@@ -632,10 +632,10 @@ void main() {
       final initialNative = BigInt.from(10000);
       final initialUsd = 33333;
 
-      final initialEvent = Transaccion.crear(
-        metadata: TransaccionMetadata(
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
           eventId: EventId('evt-p-init'),
-          tipo: 'Apertura',
+          type: 'Opening',
           occurredAt: DomainTimestamp(DateTime.now().toUtc()),
           recordedAt: DomainTimestamp(DateTime.now().toUtc()),
           deviceId: 'dev',
@@ -643,7 +643,7 @@ void main() {
         ),
         postings: [
           Posting(
-            target: CuentaTarget(cuentaBsId),
+            target: AccountTarget(bsAccountId),
             amountNative: Money(
               amount: initialNative,
               currency: CurrencyCode('VES'),
@@ -652,7 +652,7 @@ void main() {
             amountUsd: initialUsd,
           ),
           Posting(
-            target: SobreTarget(EnvelopeId('env-apertura')),
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
             amountNative: Money(
               amount: BigInt.from(initialUsd),
               currency: CurrencyCode('USD'),
@@ -662,7 +662,7 @@ void main() {
           ),
         ],
       );
-      projections.aplicar(initialEvent);
+      projections.apply(initialEvent);
 
       BigInt remainingNative = initialNative;
       int totalUsdWithdrawn = 0;
@@ -674,20 +674,20 @@ void main() {
         BigInt spend = BigInt.from(random.nextInt(remainingNative.toInt()) + 1);
         if (spend > remainingNative) spend = remainingNative;
 
-        await factory.gastoMonedaExtranjera(
+        await factory.foreignCurrencyExpense(
           eventId: EventId('evt-p-$op'),
           deviceId: 'dev-p',
-          cuentaId: cuentaBsId,
-          sobreDestinoId: sobreDestinoId,
-          montoNative: Money(amount: spend, currency: CurrencyCode('VES')),
-          tasaActual: Decimal.parse('40.00'),
+          accountId: bsAccountId,
+          destinationEnvelopeId: destinationEnvelopeId,
+          nativeAmount: Money(amount: spend, currency: CurrencyCode('VES')),
+          currentRate: Decimal.parse('40.00'),
         );
 
         final event = store.events.last;
-        final pCuenta = event.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaBsId),
+        final pAccount = event.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
         );
-        totalUsdWithdrawn += pCuenta.amountUsd.abs();
+        totalUsdWithdrawn += pAccount.amountUsd.abs();
 
         remainingNative -= spend;
       }
@@ -695,27 +695,27 @@ void main() {
       expect(remainingNative, BigInt.zero);
       expect(totalUsdWithdrawn, initialUsd);
 
-      final finalSaldo = projections.saldoCuenta(cuentaBsId);
-      expect(finalSaldo.native.amount, BigInt.zero);
-      expect(finalSaldo.usd, 0);
+      final finalBalance = projections.accountBalance(bsAccountId);
+      expect(finalBalance.native.amount, BigInt.zero);
+      expect(finalBalance.usd, 0);
     });
 
-    // --- ventaCripto ---
+    // --- cryptoSale ---
 
     test(
-      'Venta Cripto: genera 3 postings (Pérdida — BTC baja de precio)',
+      'Crypto Sale: generates 3 postings (Loss — BTC price dropped)',
       () async {
         // BTC account: 1 BTC acquired at $50,000 (5_000_000 cents)
-        // Current price: $40,000 → realiza pérdida de $10,000
-        final cuentaBtcId = AccountId('acc-btc-1');
-        final cuentaDestinoUsdId = AccountId('acc-usd-btc-1');
-        final sobreDiferencialId = catalog.getSystemEnvelope(
-          EnvelopeRole.diferencial,
+        // Current price: $40,000 → realizes loss of $10,000
+        final btcAccountId = AccountId('acc-btc-1');
+        final usdDestAccountId = AccountId('acc-usd-btc-1');
+        final differentialId = catalog.getSystemEnvelope(
+          EnvelopeRole.differential,
         );
 
         catalog.saveAccount(
           Account(
-            id: cuentaBtcId,
+            id: btcAccountId,
             name: 'BTC',
             nativeCurrency: CurrencyCode('BTC'),
             isArchived: false,
@@ -724,7 +724,7 @@ void main() {
         );
         catalog.saveAccount(
           Account(
-            id: cuentaDestinoUsdId,
+            id: usdDestAccountId,
             name: 'USD dest',
             nativeCurrency: CurrencyCode('USD'),
             isArchived: false,
@@ -732,11 +732,11 @@ void main() {
           ),
         );
 
-        // 1 BTC = 100_000_000 satoshis, costo_base = $50,000 (5_000_000 cents)
-        final initialEvent = Transaccion.crear(
-          metadata: TransaccionMetadata(
+        // 1 BTC = 100_000_000 satoshis, base_cost = $50,000 (5_000_000 cents)
+        final initialEvent = Transaction.create(
+          metadata: TransactionMetadata(
             eventId: EventId('evt-btc-init'),
-            tipo: 'Apertura',
+            type: 'Opening',
             occurredAt: DomainTimestamp(DateTime.now().toUtc()),
             recordedAt: DomainTimestamp(DateTime.now().toUtc()),
             deviceId: 'dev',
@@ -744,7 +744,7 @@ void main() {
           ),
           postings: [
             Posting(
-              target: CuentaTarget(cuentaBtcId),
+              target: AccountTarget(btcAccountId),
               amountNative: Money(
                 amount: BigInt.from(100000000),
                 currency: CurrencyCode('BTC'),
@@ -753,7 +753,7 @@ void main() {
               amountUsd: 5000000,
             ),
             Posting(
-              target: SobreTarget(EnvelopeId('env-apertura')),
+              target: EnvelopeTarget(EnvelopeId('env-opening')),
               amountNative: Money(
                 amount: BigInt.from(5000000),
                 currency: CurrencyCode('USD'),
@@ -763,22 +763,22 @@ void main() {
             ),
           ],
         );
-        projections.aplicar(initialEvent);
+        projections.apply(initialEvent);
 
         // Sell all 1 BTC at current price $40,000 (4_000_000 cents)
-        // costo_base = 5_000_000 cents
-        // precio_actual = $40,000 → montoUsdRecibido = 4_000_000 cents
+        // base_cost = 5_000_000 cents
+        // usd_amount_received = 4_000_000 cents
         // delta = 4_000_000 - 5_000_000 = -1_000_000 (Loss)
-        await factory.ventaCripto(
-          eventId: EventId('evt-btc-venta-1'),
+        await factory.cryptoSale(
+          eventId: EventId('evt-btc-sale-1'),
           deviceId: 'dev-btc',
-          cuentaCriptoId: cuentaBtcId,
-          cuentaDestinoUsdId: cuentaDestinoUsdId,
-          cantidad: Money(
+          cryptoAccountId: btcAccountId,
+          destinationUsdAccountId: usdDestAccountId,
+          quantity: Money(
             amount: BigInt.from(100000000),
             currency: CurrencyCode('BTC'),
           ),
-          montoUsdRecibido: Money(
+          usdAmountReceived: Money(
             amount: BigInt.from(4000000),
             currency: CurrencyCode('USD'),
           ),
@@ -786,125 +786,122 @@ void main() {
         );
 
         final event = store.events.last;
-        expect(event.metadata.tipo, 'VentaCripto');
+        expect(event.metadata.type, 'CryptoSale');
         expect(event.postings.length, 3);
 
         final pBtc = event.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaBtcId),
+          (p) => p.target == AccountTarget(btcAccountId),
         );
-        expect(pBtc.amountUsd, -5000000); // costo_base
+        expect(pBtc.amountUsd, -5000000); // base_cost
         expect(pBtc.amountNative.amount, BigInt.from(-100000000));
 
         final pUsd = event.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaDestinoUsdId),
+          (p) => p.target == AccountTarget(usdDestAccountId),
         );
-        expect(pUsd.amountUsd, 4000000); // USD recibidos
+        expect(pUsd.amountUsd, 4000000); // USD received
         expect(pUsd.rateRef, '40000.00 USD/BTC');
 
-        final pDiferencial = event.postings.firstWhere(
-          (p) => p.target == SobreTarget(sobreDiferencialId),
+        final pDifferential = event.postings.firstWhere(
+          (p) => p.target == EnvelopeTarget(differentialId),
         );
-        expect(pDiferencial.amountUsd, -1000000); // 4M - 5M = -1M (loss)
+        expect(pDifferential.amountUsd, -1000000); // 4M - 5M = -1M (loss)
       },
     );
 
-    test(
-      'Venta Cripto: genera 3 postings (Ganancia — BTC sube de precio)',
-      () async {
-        // BTC account: 1 BTC acquired at $30,000 (3_000_000 cents)
-        // Current price: $45,000 → realiza ganancia de $15,000
-        final cuentaBtcId = AccountId('acc-btc-2');
-        final cuentaDestinoUsdId = AccountId('acc-usd-btc-2');
-        final sobreDiferencialId = catalog.getSystemEnvelope(
-          EnvelopeRole.diferencial,
-        );
+    test('Crypto Sale: generates 3 postings (Gain — BTC price rose)', () async {
+      // BTC account: 1 BTC acquired at $30,000 (3_000_000 cents)
+      // Current price: $45,000 → realizes gain of $15,000
+      final btcAccountId = AccountId('acc-btc-2');
+      final usdDestAccountId = AccountId('acc-usd-btc-2');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
 
-        catalog.saveAccount(
-          Account(
-            id: cuentaBtcId,
-            name: 'BTC 2',
-            nativeCurrency: CurrencyCode('BTC'),
-            isArchived: false,
-            updatedAt: DateTime.now(),
-          ),
-        );
-        catalog.saveAccount(
-          Account(
-            id: cuentaDestinoUsdId,
-            name: 'USD dest 2',
-            nativeCurrency: CurrencyCode('USD'),
-            isArchived: false,
-            updatedAt: DateTime.now(),
-          ),
-        );
+      catalog.saveAccount(
+        Account(
+          id: btcAccountId,
+          name: 'BTC 2',
+          nativeCurrency: CurrencyCode('BTC'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveAccount(
+        Account(
+          id: usdDestAccountId,
+          name: 'USD dest 2',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
-        final initialEvent = Transaccion.crear(
-          metadata: TransaccionMetadata(
-            eventId: EventId('evt-btc2-init'),
-            tipo: 'Apertura',
-            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
-            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
-            deviceId: 'dev',
-            schemaVersion: 1,
-          ),
-          postings: [
-            Posting(
-              target: CuentaTarget(cuentaBtcId),
-              amountNative: Money(
-                amount: BigInt.from(100000000),
-                currency: CurrencyCode('BTC'),
-              ),
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-btc2-init'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(btcAccountId),
+            amountNative: Money(
+              amount: BigInt.from(100000000),
               currency: CurrencyCode('BTC'),
-              amountUsd: 3000000,
             ),
-            Posting(
-              target: SobreTarget(EnvelopeId('env-apertura')),
-              amountNative: Money(
-                amount: BigInt.from(3000000),
-                currency: CurrencyCode('USD'),
-              ),
-              currency: CurrencyCode('USD'),
-              amountUsd: 3000000,
-            ),
-          ],
-        );
-        projections.aplicar(initialEvent);
-
-        // Sell all 1 BTC at $45,000 (4_500_000 cents)
-        // delta = 4_500_000 - 3_000_000 = +1_500_000 (Gain)
-        await factory.ventaCripto(
-          eventId: EventId('evt-btc2-venta-1'),
-          deviceId: 'dev-btc2',
-          cuentaCriptoId: cuentaBtcId,
-          cuentaDestinoUsdId: cuentaDestinoUsdId,
-          cantidad: Money(
-            amount: BigInt.from(100000000),
             currency: CurrencyCode('BTC'),
+            amountUsd: 3000000,
           ),
-          montoUsdRecibido: Money(
-            amount: BigInt.from(4500000),
+          Posting(
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
+            amountNative: Money(
+              amount: BigInt.from(3000000),
+              currency: CurrencyCode('USD'),
+            ),
             currency: CurrencyCode('USD'),
+            amountUsd: 3000000,
           ),
-          rateRef: '45000.00 USD/BTC',
-        );
+        ],
+      );
+      projections.apply(initialEvent);
 
-        final event = store.events.last;
+      // Sell all 1 BTC at $45,000 (4_500_000 cents)
+      // delta = 4_500_000 - 3_000_000 = +1_500_000 (Gain)
+      await factory.cryptoSale(
+        eventId: EventId('evt-btc2-sale-1'),
+        deviceId: 'dev-btc2',
+        cryptoAccountId: btcAccountId,
+        destinationUsdAccountId: usdDestAccountId,
+        quantity: Money(
+          amount: BigInt.from(100000000),
+          currency: CurrencyCode('BTC'),
+        ),
+        usdAmountReceived: Money(
+          amount: BigInt.from(4500000),
+          currency: CurrencyCode('USD'),
+        ),
+        rateRef: '45000.00 USD/BTC',
+      );
 
-        final pBtc = event.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaBtcId),
-        );
-        expect(pBtc.amountUsd, -3000000); // costo_base
+      final event = store.events.last;
 
-        final pUsd = event.postings.firstWhere(
-          (p) => p.target == CuentaTarget(cuentaDestinoUsdId),
-        );
-        expect(pUsd.amountUsd, 4500000);
+      final pBtc = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(btcAccountId),
+      );
+      expect(pBtc.amountUsd, -3000000); // base_cost
 
-        final pDiferencial = event.postings.firstWhere(
-          (p) => p.target == SobreTarget(sobreDiferencialId),
-        );
-        expect(pDiferencial.amountUsd, 1500000); // gain
-      },
-    );
+      final pUsd = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(usdDestAccountId),
+      );
+      expect(pUsd.amountUsd, 4500000);
+
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(pDifferential.amountUsd, 1500000); // gain
+    });
   });
 }

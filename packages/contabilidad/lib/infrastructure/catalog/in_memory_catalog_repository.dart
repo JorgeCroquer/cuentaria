@@ -16,9 +16,12 @@ class InMemoryCatalogRepository implements CatalogRepository {
     final now = DateTime.now();
     final systemRoles = {
       EnvelopeRole.stage: ('Stage', EnvelopeId('sys-stage')),
-      EnvelopeRole.diferencial: ('Diferencial', EnvelopeId('sys-diferencial')),
-      EnvelopeRole.ajustes: ('Ajustes', EnvelopeId('sys-ajustes')),
-      EnvelopeRole.apertura: ('Apertura', EnvelopeId('sys-apertura')),
+      EnvelopeRole.differential: (
+        'Differential',
+        EnvelopeId('sys-differential'),
+      ),
+      EnvelopeRole.adjustments: ('Adjustments', EnvelopeId('sys-adjustments')),
+      EnvelopeRole.opening: ('Opening', EnvelopeId('sys-opening')),
     };
 
     for (final entry in systemRoles.entries) {
@@ -26,11 +29,8 @@ class InMemoryCatalogRepository implements CatalogRepository {
       final name = entry.value.$1;
       final id = entry.value.$2;
 
-      // Check if we already have one with this role.
-      // If the map is empty initially, this isn't strictly necessary but good if seeding is ever called again.
       final hasRole = _envelopes.values.any((e) => e.role == role);
       if (!hasRole) {
-        // Create if absent
         saveEnvelope(
           Envelope(
             id: id,
@@ -52,16 +52,14 @@ class InMemoryCatalogRepository implements CatalogRepository {
 
   @override
   EnvelopeId getSystemEnvelope(EnvelopeRole role) {
-    if (role == EnvelopeRole.ninguno) {
-      throw ArgumentError('Role ninguno is not a system envelope');
+    if (role == EnvelopeRole.none) {
+      throw ArgumentError('Role none is not a system envelope');
     }
     final envelope = _envelopes.values.firstWhere(
       (e) => e.role == role,
       orElse:
           () =>
-              throw TargetInexistente(
-                'System envelope for role $role not found',
-              ),
+              throw TargetNotFound('System envelope for role $role not found'),
     );
     return envelope.id;
   }
@@ -89,9 +87,9 @@ class InMemoryCatalogRepository implements CatalogRepository {
   @override
   void deleteEnvelope(EnvelopeId id) {
     final envelope = _envelopes[id];
-    if (envelope != null && envelope.role != EnvelopeRole.ninguno) {
-      throw BorradoDeSobreDeSistemaNoPermitido(
-        'No se puede borrar el sobre de sistema ${envelope.role.name}',
+    if (envelope != null && envelope.role != EnvelopeRole.none) {
+      throw SystemEnvelopeDeletionNotAllowed(
+        'Cannot delete system envelope ${envelope.role.name}',
       );
     }
     _envelopes.remove(id);
