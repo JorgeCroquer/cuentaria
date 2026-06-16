@@ -16,7 +16,10 @@ class InMemoryCatalogRepository implements CatalogRepository {
     final now = DateTime.now();
     final systemRoles = {
       EnvelopeRole.stage: ('Stage', EnvelopeId('sys-stage')),
-      EnvelopeRole.differential: ('Differential', EnvelopeId('sys-differential')),
+      EnvelopeRole.differential: (
+        'Differential',
+        EnvelopeId('sys-differential'),
+      ),
       EnvelopeRole.adjustments: ('Adjustments', EnvelopeId('sys-adjustments')),
       EnvelopeRole.opening: ('Opening', EnvelopeId('sys-opening')),
     };
@@ -55,9 +58,8 @@ class InMemoryCatalogRepository implements CatalogRepository {
     final envelope = _envelopes.values.firstWhere(
       (e) => e.role == role,
       orElse:
-          () => throw TargetNotFound(
-            'System envelope for role $role not found',
-          ),
+          () =>
+              throw TargetNotFound('System envelope for role $role not found'),
     );
     return envelope.id;
   }

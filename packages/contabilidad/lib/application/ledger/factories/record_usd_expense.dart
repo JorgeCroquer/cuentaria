@@ -39,7 +39,10 @@ class RecordUsdExpense {
     }
 
     final amountUsd = amount.amount.toInt();
-    final negatedAmount = Money(amount: -amount.amount, currency: amount.currency);
+    final negatedAmount = Money(
+      amount: -amount.amount,
+      currency: amount.currency,
+    );
 
     final postings = [
       Posting(

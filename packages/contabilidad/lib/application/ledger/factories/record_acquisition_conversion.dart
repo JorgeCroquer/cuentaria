@@ -29,9 +29,7 @@ class RecordAcquisitionConversion {
   }) async {
     final source = _catalog.getAccount(sourceUsdAccountId);
     if (source == null) {
-      throw TargetNotFound(
-        'Source account not found: $sourceUsdAccountId',
-      );
+      throw TargetNotFound('Source account not found: $sourceUsdAccountId');
     }
 
     final destination = _catalog.getAccount(destinationForeignAccountId);

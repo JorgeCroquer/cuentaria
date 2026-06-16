@@ -32,7 +32,9 @@ class RecordTransfer {
 
     final destination = _catalog.getAccount(destinationAccountId);
     if (destination == null) {
-      throw TargetNotFound('Destination account not found: $destinationAccountId');
+      throw TargetNotFound(
+        'Destination account not found: $destinationAccountId',
+      );
     }
 
     if (source.nativeCurrency != destination.nativeCurrency) {
@@ -48,7 +50,10 @@ class RecordTransfer {
     }
 
     final amountUsd = amount.amount.toInt();
-    final negatedAmount = Money(amount: -amount.amount, currency: amount.currency);
+    final negatedAmount = Money(
+      amount: -amount.amount,
+      currency: amount.currency,
+    );
 
     final postings = [
       Posting(

@@ -45,14 +45,14 @@ class RecordRealization {
 
     final destinationEnvelope = _catalog.getEnvelope(destinationEnvelopeId);
     if (destinationEnvelope == null) {
-      throw TargetNotFound('Destination envelope not found: $destinationEnvelopeId');
+      throw TargetNotFound(
+        'Destination envelope not found: $destinationEnvelopeId',
+      );
     }
 
     final balance = _projections.accountBalance(accountId);
     if (nativeAmount.amount > balance.native.amount) {
-      throw InsufficientBalance(
-        'Amount to dispose exceeds account balance',
-      );
+      throw InsufficientBalance('Amount to dispose exceeds account balance');
     }
 
     final decAmount = Decimal.fromBigInt(nativeAmount.amount);
@@ -96,9 +96,7 @@ class RecordRealization {
   }) async {
     final sourceAccount = _catalog.getAccount(sourceForeignAccountId);
     if (sourceAccount == null) {
-      throw TargetNotFound(
-        'Source account not found: $sourceForeignAccountId',
-      );
+      throw TargetNotFound('Source account not found: $sourceForeignAccountId');
     }
     if (sourceAccount.nativeCurrency == CurrencyCode('USD')) {
       throw IncompatibleCurrency(
@@ -118,9 +116,7 @@ class RecordRealization {
 
     final balance = _projections.accountBalance(sourceForeignAccountId);
     if (nativeAmount.amount > balance.native.amount) {
-      throw InsufficientBalance(
-        'Amount to dispose exceeds account balance',
-      );
+      throw InsufficientBalance('Amount to dispose exceeds account balance');
     }
 
     final observedValue = usdAmountReceived.amount.toInt();
@@ -175,9 +171,7 @@ class RecordRealization {
 
     final balance = _projections.accountBalance(cryptoAccountId);
     if (quantity.amount > balance.native.amount) {
-      throw InsufficientBalance(
-        'Quantity to sell exceeds account balance',
-      );
+      throw InsufficientBalance('Quantity to sell exceeds account balance');
     }
 
     final observedValue = usdAmountReceived.amount.toInt();

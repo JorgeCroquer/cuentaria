@@ -9,11 +9,9 @@ class RecordReversal {
   final RecordTransaction _record;
   final EventStore _store;
 
-  RecordReversal({
-    required RecordTransaction record,
-    required EventStore store,
-  }) : _record = record,
-       _store = store;
+  RecordReversal({required RecordTransaction record, required EventStore store})
+    : _record = record,
+      _store = store;
 
   Future<void> call({
     required EventId eventId,

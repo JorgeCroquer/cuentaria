@@ -10,7 +10,7 @@ void main() {
         final olderEnvelope = Envelope(
           id: EnvelopeId('env-1'),
           name: 'Older Name',
-          role: EnvelopeRole.ninguno,
+          role: EnvelopeRole.none,
           isArchived: false,
           updatedAt: DateTime(2023, 1, 1),
         );
@@ -26,7 +26,7 @@ void main() {
         // older.mergeWith(newer) should pick newer data but KEEP older role
         final merged1 = olderEnvelope.mergeWith(newerEnvelope);
         expect(merged1.name, 'Newer Name');
-        expect(merged1.role, EnvelopeRole.ninguno); // Preserved!
+        expect(merged1.role, EnvelopeRole.none); // Preserved!
         expect(merged1.isArchived, true);
         expect(merged1.updatedAt, DateTime(2023, 1, 2));
 
@@ -46,7 +46,7 @@ void main() {
       final olderEnvelope = Envelope(
         id: EnvelopeId('env-1'),
         name: 'Older Name',
-        role: EnvelopeRole.ninguno,
+        role: EnvelopeRole.none,
         isArchived: false,
         updatedAt: DateTime(2023, 1, 1),
         meta: {'key': 'old'},
@@ -80,7 +80,7 @@ void main() {
       final env2 = Envelope(
         id: EnvelopeId('env-1'),
         name: 'Name 2',
-        role: EnvelopeRole.diferencial,
+        role: EnvelopeRole.differential,
         isArchived: true,
         updatedAt: DateTime(2023, 1, 1),
       );
@@ -94,7 +94,7 @@ void main() {
       final env1 = Envelope(
         id: EnvelopeId('env-1'),
         name: 'Name 1',
-        role: EnvelopeRole.ninguno,
+        role: EnvelopeRole.none,
         updatedAt: DateTime(2023, 1, 1),
         isArchived: false,
       );
@@ -102,7 +102,7 @@ void main() {
       final env2 = Envelope(
         id: EnvelopeId('env-2'),
         name: 'Name 2',
-        role: EnvelopeRole.ninguno,
+        role: EnvelopeRole.none,
         updatedAt: DateTime(2023, 1, 2),
         isArchived: false,
       );

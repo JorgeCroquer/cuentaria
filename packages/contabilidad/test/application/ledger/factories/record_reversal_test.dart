@@ -2,28 +2,27 @@ import 'package:test/test.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-import 'package:contabilidad/domain/transaccion.dart';
-import 'package:contabilidad/domain/transaccion_metadata.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
-import 'package:contabilidad/application/registrar_transaccion.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
-import 'package:contabilidad/application/ledger/factories/registrar_reverso.dart';
+import 'package:contabilidad/application/ledger/factories/record_reversal.dart';
 
 void main() {
-  group('RegistrarReverso', () {
+  group('RecordReversal', () {
     late InMemoryEventStore store;
     late InMemoryLedgerProjections projections;
     late SyncEventBus eventBus;
     late InMemoryCatalogRepository catalog;
-    late RegistrarTransaccion registrarTransaccion;
-    late RegistrarReverso registrarReverso;
+    late RecordTransaction recordTransaction;
+    late RecordReversal recordReversal;
 
     setUp(() {
       store = InMemoryEventStore();
@@ -32,29 +31,26 @@ void main() {
       catalog = InMemoryCatalogRepository();
 
       final validator = ReferentialIntegrityValidator(catalog);
-      registrarTransaccion = RegistrarTransaccion(
+      recordTransaction = RecordTransaction(
         store: store,
         projections: projections,
         eventBus: eventBus,
         validator: validator,
       );
 
-      registrarReverso = RegistrarReverso(
-        registrar: registrarTransaccion,
-        store: store,
-      );
+      recordReversal = RecordReversal(record: recordTransaction, store: store);
     });
 
     test(
-      'reversar una transacción simple invierte los postings exactamente',
+      'reversing a simple transaction inverts the postings exactly',
       () async {
-        // 1. Preparar una transacción original
-        final cuentaId = AccountId('acc-1');
-        final sobreId = EnvelopeId('env-1');
+        // 1. Prepare an original transaction
+        final accountId = AccountId('acc-1');
+        final envelopeId = EnvelopeId('env-1');
 
         catalog.saveAccount(
           Account(
-            id: cuentaId,
+            id: accountId,
             name: 'USD Account',
             nativeCurrency: CurrencyCode('USD'),
             isArchived: false,
@@ -63,7 +59,7 @@ void main() {
         );
         catalog.saveEnvelope(
           Envelope(
-            id: sobreId,
+            id: envelopeId,
             name: 'Stage',
             role: EnvelopeRole.stage,
             isArchived: false,
@@ -72,9 +68,9 @@ void main() {
         );
 
         final originalId = EventId('evt-orig');
-        final metadataOrig = TransaccionMetadata(
+        final metadataOrig = TransactionMetadata(
           eventId: originalId,
-          tipo: 'Ingreso',
+          type: 'Income',
           occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
           recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
           deviceId: 'dev-1',
@@ -83,7 +79,7 @@ void main() {
 
         final postingsOrig = [
           Posting(
-            target: CuentaTarget(cuentaId),
+            target: AccountTarget(accountId),
             amountNative: Money(
               amount: BigInt.from(10000),
               currency: CurrencyCode('USD'),
@@ -92,7 +88,7 @@ void main() {
             amountUsd: 10000,
           ),
           Posting(
-            target: SobreTarget(sobreId),
+            target: EnvelopeTarget(envelopeId),
             amountNative: Money(
               amount: BigInt.from(10000),
               currency: CurrencyCode('USD'),
@@ -102,60 +98,57 @@ void main() {
           ),
         ];
 
-        final txOrig = Transaccion.crear(
-          postings: postingsOrig,
-          metadata: metadataOrig,
-        );
-        await registrarTransaccion(
-          postings: postingsOrig,
-          metadata: metadataOrig,
-        );
+        await recordTransaction(postings: postingsOrig, metadata: metadataOrig);
 
-        expect(projections.saldoCuenta(cuentaId).usd, equals(10000));
-        expect(projections.saldoUsdSobre(sobreId), equals(10000));
+        expect(projections.accountBalance(accountId).usd, equals(10000));
+        expect(projections.envelopeUsdBalance(envelopeId), equals(10000));
 
-        // 2. Reversar
-        await registrarReverso(
+        // 2. Reverse
+        await recordReversal(
           eventId: EventId('evt-rev'),
           deviceId: 'dev-2',
           originalEventId: originalId,
         );
 
-        // 3. Verificar resultados
+        // 3. Verify results
         expect(store.events.length, equals(2));
         final revTx = store.events.last;
 
-        expect(revTx.metadata.tipo, equals('Reverso'));
+        expect(revTx.metadata.type, equals('Reversal'));
         expect(revTx.metadata.reverses, equals(originalId));
         expect(revTx.postings.length, equals(2));
 
-        // La negación es exacta
-        final pC = revTx.postings.firstWhere((p) => p.target is CuentaTarget);
-        final pS = revTx.postings.firstWhere((p) => p.target is SobreTarget);
+        // Negation is exact
+        final pAcc = revTx.postings.firstWhere(
+          (p) => p.target is AccountTarget,
+        );
+        final pEnv = revTx.postings.firstWhere(
+          (p) => p.target is EnvelopeTarget,
+        );
 
-        expect(pC.amountNative.amount, equals(BigInt.from(-10000)));
-        expect(pC.amountUsd, equals(-10000));
-        expect(pS.amountNative.amount, equals(BigInt.from(-10000)));
-        expect(pS.amountUsd, equals(-10000));
+        expect(pAcc.amountNative.amount, equals(BigInt.from(-10000)));
+        expect(pAcc.amountUsd, equals(-10000));
+        expect(pEnv.amountNative.amount, equals(BigInt.from(-10000)));
+        expect(pEnv.amountUsd, equals(-10000));
 
-        // El saldo vuelve a 0
-        expect(projections.saldoCuenta(cuentaId).usd, equals(0));
-        expect(projections.saldoUsdSobre(sobreId), equals(0));
+        // Balance returns to 0
+        expect(projections.accountBalance(accountId).usd, equals(0));
+        expect(projections.envelopeUsdBalance(envelopeId), equals(0));
       },
     );
 
     test(
-      'reversar una realización revierte su diferencial (3 postings)',
+      'reversing a realization reverts its differential (3 postings)',
       () async {
-        final cuentaId = AccountId('acc-bs');
-        final sobreGastoId = EnvelopeId('env-gasto');
-        final diferencialId = catalog.getSystemEnvelope(
-          EnvelopeRole.diferencial,
+        final accountId = AccountId('acc-bs');
+        final expenseEnvelopeId = EnvelopeId('env-expense');
+        final differentialId = catalog.getSystemEnvelope(
+          EnvelopeRole.differential,
         );
 
         catalog.saveAccount(
           Account(
-            id: cuentaId,
+            id: accountId,
             name: 'Bs Account',
             nativeCurrency: CurrencyCode('VES'),
             isArchived: false,
@@ -164,18 +157,18 @@ void main() {
         );
         catalog.saveEnvelope(
           Envelope(
-            id: sobreGastoId,
-            name: 'Comida',
-            role: EnvelopeRole.ninguno,
+            id: expenseEnvelopeId,
+            name: 'Food',
+            role: EnvelopeRole.none,
             isArchived: false,
             updatedAt: DateTime.now(),
           ),
         );
 
-        final originalId = EventId('evt-realizacion');
-        final metadataOrig = TransaccionMetadata(
+        final originalId = EventId('evt-realization');
+        final metadataOrig = TransactionMetadata(
           eventId: originalId,
-          tipo: 'Gasto',
+          type: 'Expense',
           occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
           recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
           deviceId: 'dev-1',
@@ -184,73 +177,73 @@ void main() {
 
         final postingsOrig = [
           Posting(
-            target: CuentaTarget(cuentaId),
+            target: AccountTarget(accountId),
             amountNative: Money(
               amount: BigInt.from(-100000),
               currency: CurrencyCode('VES'),
             ),
             currency: CurrencyCode('VES'),
-            amountUsd: -2500, // Costo base: $25.00
+            amountUsd: -2500, // Base cost: $25.00
             rateRef: '40.0',
           ),
           Posting(
-            target: SobreTarget(sobreGastoId),
+            target: EnvelopeTarget(expenseEnvelopeId),
             amountNative: Money(
               amount: BigInt.from(-2000),
               currency: CurrencyCode('USD'),
             ),
             currency: CurrencyCode('USD'),
-            amountUsd: -2000, // Valor mercado: $20.00
+            amountUsd: -2000, // Market value: $20.00
             rateRef: '50.0',
           ),
           Posting(
-            target: SobreTarget(diferencialId),
+            target: EnvelopeTarget(differentialId),
             amountNative: Money(
               amount: BigInt.from(-500),
               currency: CurrencyCode('USD'),
             ),
             currency: CurrencyCode('USD'),
-            amountUsd: -500, // Diferencial (pérdida): -$5.00
+            amountUsd: -500, // Differential (loss): -$5.00
           ),
         ];
 
-        await registrarTransaccion(
-          postings: postingsOrig,
-          metadata: metadataOrig,
+        await recordTransaction(postings: postingsOrig, metadata: metadataOrig);
+
+        expect(projections.accountBalance(accountId).usd, equals(-2500));
+        expect(
+          projections.envelopeUsdBalance(expenseEnvelopeId),
+          equals(-2000),
         );
+        expect(projections.envelopeUsdBalance(differentialId), equals(-500));
 
-        expect(projections.saldoCuenta(cuentaId).usd, equals(-2500));
-        expect(projections.saldoUsdSobre(sobreGastoId), equals(-2000));
-        expect(projections.saldoUsdSobre(diferencialId), equals(-500));
-
-        await registrarReverso(
+        await recordReversal(
           eventId: EventId('evt-rev-2'),
           deviceId: 'dev-2',
           originalEventId: originalId,
         );
 
-        expect(projections.saldoCuenta(cuentaId).usd, equals(0));
-        expect(projections.saldoUsdSobre(sobreGastoId), equals(0));
-        expect(projections.saldoUsdSobre(diferencialId), equals(0));
+        expect(projections.accountBalance(accountId).usd, equals(0));
+        expect(projections.envelopeUsdBalance(expenseEnvelopeId), equals(0));
+        expect(projections.envelopeUsdBalance(differentialId), equals(0));
       },
     );
 
-    test('lanza TransaccionNoEncontrada si el original no existe', () async {
+    test('throws TransactionNotFound if original does not exist', () async {
       await expectLater(
-        () => registrarReverso(
+        () => recordReversal(
           eventId: EventId('evt-rev-3'),
           deviceId: 'dev-1',
-          originalEventId: EventId('no-existe'),
+          originalEventId: EventId('non-existent'),
         ),
-        throwsA(isA<TransaccionNoEncontrada>()),
+        throwsA(isA<TransactionNotFound>()),
       );
     });
 
-    test('lanza TransaccionYaReversada si ya fue reversada', () async {
-      final cuentaId = AccountId('acc-1');
+    test('throws TransactionAlreadyReversed if already reversed', () async {
+      final accountId = AccountId('acc-1');
       catalog.saveAccount(
         Account(
-          id: cuentaId,
+          id: accountId,
           name: 'USD Account',
           nativeCurrency: CurrencyCode('USD'),
           isArchived: false,
@@ -259,9 +252,9 @@ void main() {
       );
 
       final originalId = EventId('evt-orig-2');
-      final metadataOrig = TransaccionMetadata(
+      final metadataOrig = TransactionMetadata(
         eventId: originalId,
-        tipo: 'Ingreso',
+        type: 'Income',
         occurredAt: DomainTimestamp(DateTime.utc(2026, 6, 11)),
         recordedAt: DomainTimestamp(DateTime.utc(2026, 6, 11, 12)),
         deviceId: 'dev-1',
@@ -270,7 +263,7 @@ void main() {
 
       final postingsOrig = [
         Posting(
-          target: CuentaTarget(cuentaId),
+          target: AccountTarget(accountId),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('USD'),
@@ -279,7 +272,7 @@ void main() {
           amountUsd: 100,
         ),
         Posting(
-          target: SobreTarget(catalog.getSystemEnvelope(EnvelopeRole.stage)),
+          target: EnvelopeTarget(catalog.getSystemEnvelope(EnvelopeRole.stage)),
           amountNative: Money(
             amount: BigInt.from(100),
             currency: CurrencyCode('USD'),
@@ -289,26 +282,23 @@ void main() {
         ),
       ];
 
-      await registrarTransaccion(
-        postings: postingsOrig,
-        metadata: metadataOrig,
-      );
+      await recordTransaction(postings: postingsOrig, metadata: metadataOrig);
 
-      // Primer reverso
-      await registrarReverso(
+      // First reversal
+      await recordReversal(
         eventId: EventId('evt-rev-4'),
         deviceId: 'dev-2',
         originalEventId: originalId,
       );
 
-      // Intento de doble reverso
+      // Attempt double reversal
       await expectLater(
-        () => registrarReverso(
+        () => recordReversal(
           eventId: EventId('evt-rev-5'),
           deviceId: 'dev-2',
           originalEventId: originalId,
         ),
-        throwsA(isA<TransaccionYaReversada>()),
+        throwsA(isA<TransactionAlreadyReversed>()),
       );
     });
   });
