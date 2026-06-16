@@ -27,7 +27,7 @@ Future<QueryExecutor> openEncryptedDatabase(Uint8List rawKey) async {
   final dir = await getApplicationDocumentsDirectory();
   final dbFile = File(p.join(dir.path, 'cuentaria.db'));
 
-  final hexKey = _toHexKey(rawKey);
+  final hexKey = toHexKey(rawKey);
 
   return NativeDatabase(
     dbFile,
@@ -38,7 +38,9 @@ Future<QueryExecutor> openEncryptedDatabase(Uint8List rawKey) async {
 }
 
 /// Converts raw key bytes to SQLCipher hex literal (without 0x prefix).
-String _toHexKey(Uint8List bytes) {
+///
+/// Exposed (non-private) so integration tests can reuse without duplication.
+String toHexKey(Uint8List bytes) {
   final buffer = StringBuffer();
   for (final b in bytes) {
     buffer.write(b.toRadixString(16).padLeft(2, '0'));

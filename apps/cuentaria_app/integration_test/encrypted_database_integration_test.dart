@@ -18,6 +18,7 @@ import 'dart:typed_data';
 
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
 import 'package:cuentaria_app/infrastructure/device_id_provisioner.dart';
+import 'package:cuentaria_app/infrastructure/encrypted_database_factory.dart';
 import 'package:cuentaria_app/infrastructure/key_provisioner.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -54,7 +55,7 @@ void main() {
     testWidgets('correct key opens encrypted DB and runs migrations', (
       tester,
     ) async {
-      final hexKey = _toHexKey(correctKey);
+      final hexKey = toHexKey(correctKey);
       final executor = NativeDatabase(
         dbFile,
         setup: (db) => db.execute("PRAGMA key = \"x'$hexKey'\";"),
@@ -71,18 +72,27 @@ void main() {
     });
 
     testWidgets('wrong key fails to open encrypted DB', (tester) async {
-      // DB file exists encrypted with correctKey; open with wrongKey must fail.
-      final wrongKey = Uint8List(32); // all zeros ≠ correctKey
-      final hexKey = _toHexKey(wrongKey);
+      // Seed: write the file with correctKey so the wrong-key attempt has
+      // something real to fail against. Isolated — does not depend on prior test.
+      final seedHex = toHexKey(correctKey);
+      final seedExecutor = NativeDatabase(
+        dbFile,
+        setup: (db) => db.execute("PRAGMA key = \"x'$seedHex'\";"),
+      );
+      final seedDb = CuentariaDatabase(seedExecutor);
+      await seedDb.select(seedDb.envelopes).get(); // force open + migrate
+      await seedDb.close();
 
+      // Now open with wrong key — must throw.
+      final wrongKey = Uint8List(32); // all zeros ≠ correctKey
+      final hexKey = toHexKey(wrongKey);
       final executor = NativeDatabase(
         dbFile,
         setup: (db) => db.execute("PRAGMA key = \"x'$hexKey'\";"),
       );
-
       final db = CuentariaDatabase(executor);
-      expect(
-        () async => db.select(db.envelopes).get(),
+      await expectLater(
+        db.select(db.envelopes).get(),
         throwsA(anything),
         reason: 'wrong key must not open the encrypted file',
       );
@@ -92,7 +102,7 @@ void main() {
     testWidgets(
       'device_id is stable across re-opens of the same encrypted DB',
       (tester) async {
-        final hexKey = _toHexKey(correctKey);
+        final hexKey = toHexKey(correctKey);
 
         Future<String> openAndGetDeviceId() async {
           final executor = NativeDatabase(
@@ -134,12 +144,4 @@ void main() {
       await secureStorage.delete(key: 'cuentaria.db.key');
     });
   });
-}
-
-String _toHexKey(Uint8List bytes) {
-  final buf = StringBuffer();
-  for (final b in bytes) {
-    buf.write(b.toRadixString(16).padLeft(2, '0'));
-  }
-  return buf.toString();
 }
