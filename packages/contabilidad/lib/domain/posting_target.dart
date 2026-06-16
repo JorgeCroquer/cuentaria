@@ -1,29 +1,29 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-enum Dimension { cuenta, sobre }
+enum Dimension { account, envelope }
 
 sealed class PostingTarget extends Equatable {
   Dimension get dimension;
 }
 
-class CuentaTarget extends PostingTarget {
+class AccountTarget extends PostingTarget {
   final AccountId accountId;
-  CuentaTarget(this.accountId);
+  AccountTarget(this.accountId);
 
   @override
-  Dimension get dimension => Dimension.cuenta;
+  Dimension get dimension => Dimension.account;
 
   @override
   List<Object?> get props => [accountId];
 }
 
-class SobreTarget extends PostingTarget {
+class EnvelopeTarget extends PostingTarget {
   final EnvelopeId envelopeId;
-  SobreTarget(this.envelopeId);
+  EnvelopeTarget(this.envelopeId);
 
   @override
-  Dimension get dimension => Dimension.sobre;
+  Dimension get dimension => Dimension.envelope;
 
   @override
   List<Object?> get props => [envelopeId];

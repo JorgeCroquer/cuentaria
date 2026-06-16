@@ -1,25 +1,25 @@
 import 'package:shared_kernel/shared_kernel.dart';
-import '../domain/transaccion.dart';
+import '../domain/transaction.dart';
 import '../domain/ports/ledger_projections.dart';
 import '../domain/posting_target.dart';
 
 class InMemoryLedgerProjections implements LedgerProjections {
-  final Map<AccountId, SaldoCuenta> _cuentas = {};
-  final Map<EnvelopeId, int> _sobres = {};
+  final Map<AccountId, AccountBalance> _accounts = {};
+  final Map<EnvelopeId, int> _envelopes = {};
 
   @override
-  void aplicar(Transaccion event) {
+  void apply(Transaction event) {
     for (final posting in event.postings) {
       final target = posting.target;
-      if (target is CuentaTarget) {
+      if (target is AccountTarget) {
         final current =
-            _cuentas[target.accountId] ??
-            SaldoCuenta(
+            _accounts[target.accountId] ??
+            AccountBalance(
               native: Money(amount: BigInt.zero, currency: posting.currency),
               usd: 0,
             );
 
-        // Sumamos native
+        // Add native
         if (current.native.amount != BigInt.zero &&
             current.native.currency != posting.currency) {
           throw StateError(
@@ -32,34 +32,34 @@ class InMemoryLedgerProjections implements LedgerProjections {
           currency: posting.currency,
         );
 
-        _cuentas[target.accountId] = SaldoCuenta(
+        _accounts[target.accountId] = AccountBalance(
           native: newNative,
           usd: current.usd + posting.amountUsd,
         );
-      } else if (target is SobreTarget) {
-        final current = _sobres[target.envelopeId] ?? 0;
-        _sobres[target.envelopeId] = current + posting.amountUsd;
+      } else if (target is EnvelopeTarget) {
+        final current = _envelopes[target.envelopeId] ?? 0;
+        _envelopes[target.envelopeId] = current + posting.amountUsd;
       }
     }
   }
 
   @override
-  void limpiar() {
-    _cuentas.clear();
-    _sobres.clear();
+  void clear() {
+    _accounts.clear();
+    _envelopes.clear();
   }
 
   @override
-  SaldoCuenta saldoCuenta(AccountId id) {
-    return _cuentas[id] ??
-        SaldoCuenta(
+  AccountBalance accountBalance(AccountId id) {
+    return _accounts[id] ??
+        AccountBalance(
           native: Money(amount: BigInt.zero, currency: CurrencyCode('USD')),
           usd: 0,
         );
   }
 
   @override
-  int saldoUsdSobre(EnvelopeId id) {
-    return _sobres[id] ?? 0;
+  int envelopeUsdBalance(EnvelopeId id) {
+    return _envelopes[id] ?? 0;
   }
 }
