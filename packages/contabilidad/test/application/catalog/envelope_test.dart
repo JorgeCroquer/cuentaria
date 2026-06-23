@@ -1,5 +1,5 @@
 import 'package:contabilidad/application/catalog/models/envelope.dart';
-import 'package:contabilidad/application/catalog/models/envelope_target.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:test/test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
@@ -192,11 +192,10 @@ void main() {
           isArchived: false,
           updatedAt: t0,
         );
-        final updated = env.withTarget(GoalLine(amountUsd: 50000, dueDate: due));
-        expect(
-          updated.target,
+        final updated = env.withTarget(
           GoalLine(amountUsd: 50000, dueDate: due),
         );
+        expect(updated.target, GoalLine(amountUsd: 50000, dueDate: due));
       });
 
       test('withTarget preserves other meta keys', () {

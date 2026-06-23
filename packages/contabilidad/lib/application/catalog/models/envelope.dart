@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-import 'envelope_target.dart';
+import 'funding_target.dart';
 
 enum EnvelopeRole { stage, differential, adjustments, opening, none }
 
@@ -22,18 +22,18 @@ class Envelope extends Equatable {
     this.meta,
   });
 
-  /// Typed target decoded from [meta].  Defaults to [NoTarget].
-  EnvelopeTarget get target {
+  /// Typed funding target decoded from [meta].  Defaults to [NoTarget].
+  FundingTarget get target {
     final raw = meta?['target'];
     if (raw == null) return const NoTarget();
-    return EnvelopeTarget.fromJson(raw as Map<String, dynamic>);
+    return FundingTarget.fromJson(raw as Map<String, dynamic>);
   }
 
   /// Returns a copy with [newTarget] encoded into [meta].
   ///
   /// Throws [ArgumentError] if [role] != [EnvelopeRole.none] — system
   /// envelopes must never carry a target (ADR-0015 C2-2).
-  Envelope withTarget(EnvelopeTarget newTarget) {
+  Envelope withTarget(FundingTarget newTarget) {
     if (role != EnvelopeRole.none) {
       throw ArgumentError(
         'Cannot set a target on a system envelope (role=$role)',

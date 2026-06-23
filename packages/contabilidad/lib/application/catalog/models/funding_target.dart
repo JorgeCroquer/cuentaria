@@ -4,22 +4,26 @@
 /// `"target"`.  System envelopes (`role != none`) must never carry a target.
 ///
 /// Amounts are in **USD cents (int)** — never double.
-sealed class EnvelopeTarget {
-  const EnvelopeTarget();
+///
+/// Not to be confused with [EnvelopeTarget] in `domain/posting_target.dart`,
+/// which is the posting dimension identifying the envelope side of a ledger entry.
+sealed class FundingTarget {
+  const FundingTarget();
 
   /// Deserializes from the `"target"` sub-object stored in `meta`.
-  factory EnvelopeTarget.fromJson(Map<String, dynamic> json) {
+  factory FundingTarget.fromJson(Map<String, dynamic> json) {
     final type = json['type'] as String?;
     return switch (type) {
       'none' => const NoTarget(),
       'cap' => Cap(amountUsd: json['amount_usd'] as int),
       'goal_line' => GoalLine(
-          amountUsd: json['amount_usd'] as int,
-          dueDate: json['due_date'] == null
-              ? null
-              : DateTime.parse(json['due_date'] as String),
-        ),
-      _ => throw FormatException('Unknown EnvelopeTarget type: $type'),
+        amountUsd: json['amount_usd'] as int,
+        dueDate:
+            json['due_date'] == null
+                ? null
+                : DateTime.parse(json['due_date'] as String),
+      ),
+      _ => throw FormatException('Unknown FundingTarget type: $type'),
     };
   }
 
@@ -27,7 +31,7 @@ sealed class EnvelopeTarget {
 }
 
 /// No funding target — the default for every new user Envelope.
-final class NoTarget extends EnvelopeTarget {
+final class NoTarget extends FundingTarget {
   const NoTarget();
 
   @override
@@ -42,7 +46,7 @@ final class NoTarget extends EnvelopeTarget {
 
 /// A spending cap: the Envelope balance must not exceed [amountUsd] cents.
 /// Used by the cascade engine's `fill-to-cap` step.
-final class Cap extends EnvelopeTarget {
+final class Cap extends FundingTarget {
   final int amountUsd;
 
   const Cap({required this.amountUsd});
@@ -60,7 +64,7 @@ final class Cap extends EnvelopeTarget {
 
 /// A savings goal: track progress towards [amountUsd] cents by optional
 /// [dueDate].  Read by Patrimony (S2); never enforced by the cascade engine.
-final class GoalLine extends EnvelopeTarget {
+final class GoalLine extends FundingTarget {
   final int amountUsd;
   final DateTime? dueDate;
 
@@ -68,10 +72,10 @@ final class GoalLine extends EnvelopeTarget {
 
   @override
   Map<String, dynamic> toJson() => {
-        'type': 'goal_line',
-        'amount_usd': amountUsd,
-        if (dueDate != null) 'due_date': dueDate!.toUtc().toIso8601String(),
-      };
+    'type': 'goal_line',
+    'amount_usd': amountUsd,
+    if (dueDate != null) 'due_date': dueDate!.toUtc().toIso8601String(),
+  };
 
   @override
   bool operator ==(Object other) =>

@@ -83,13 +83,13 @@ Auto-provisioned envelopes identified by `rol` (e.g. Stage, Exchange Differentia
 - **Reversal:** Exact negation of a previous transaction's frozen `amount_usd` to correct a mistake.
 - **Adjustment:** A conciliation entry posting a delta against the Adjustments system envelope to match reality.
 
-**EnvelopeTarget (catalog VO)**
-A typed, optional funding target for a user Envelope (`role == none`); sealed with three variants:
+**Funding Target**
+A typed, optional funding target for a user Envelope (`role == none`); sealed class `FundingTarget` with three variants:
 - `NoTarget` — no target (default).
 - `Cap(amountUsd)` — spending cap in USD cents; the cascade engine's `fill-to-cap` step reads it.
 - `GoalLine(amountUsd, dueDate?)` — savings progress marker in USD cents; read by Patrimony (S2), never enforced by the engine.
 Serialized inside the existing `meta` JSON column of the Envelope catalog row — zero Drift migration.
-_Distinct from_ `EnvelopeTarget` in `domain/posting_target.dart`, which is the posting dimension identifying the envelope side of a ledger entry.
+_Not to be confused with_ `EnvelopeTarget` in `domain/posting_target.dart`, which is the posting dimension identifying the envelope side of a ledger entry.
 See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-2.
 
 ## Relationships

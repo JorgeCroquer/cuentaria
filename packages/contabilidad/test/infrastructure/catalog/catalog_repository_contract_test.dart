@@ -7,7 +7,7 @@ import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
-import 'package:contabilidad/application/catalog/models/envelope_target.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/infrastructure/catalog/drift_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:shared_kernel/shared_kernel.dart';
