@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'cascade_step.dart';
 import 'distribution_proposal.dart';
@@ -50,12 +51,13 @@ final class CascadeEngine {
   }
 
   static int _percentCalc(
-    double percent,
+    Decimal percent,
     PercentBase base,
     int grossAmount,
     int remaining,
   ) {
     final basis = base == PercentBase.gross ? grossAmount : remaining;
-    return (basis * percent).round();
+    final result = (Decimal.fromInt(basis) * percent).round();
+    return result.toBigInt().toInt();
   }
 }

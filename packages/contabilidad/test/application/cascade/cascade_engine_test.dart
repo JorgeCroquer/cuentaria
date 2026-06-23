@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/application/cascade/cascade_engine.dart';
 import 'package:contabilidad/application/cascade/cascade_step.dart';
@@ -110,7 +111,7 @@ void main() {
           CascadeStep.fixed(envelopeId: e1, amountUsd: 200),
           CascadeStep.percentOfRemainder(
             envelopeId: e2,
-            percent: 0.30,
+            percent: Decimal.parse('0.30'),
             base: PercentBase.remainder,
           ),
         ],
@@ -127,7 +128,7 @@ void main() {
           CascadeStep.fixed(envelopeId: e1, amountUsd: 200),
           CascadeStep.percentOfRemainder(
             envelopeId: e2,
-            percent: 0.30,
+            percent: Decimal.parse('0.30'),
             base: PercentBase.gross,
           ),
         ],
@@ -144,7 +145,7 @@ void main() {
           CascadeStep.fixed(envelopeId: e1, amountUsd: 400),
           CascadeStep.percentOfRemainder(
             envelopeId: e2,
-            percent: 0.30,
+            percent: Decimal.parse('0.30'),
             base: PercentBase.gross,
           ),
         ],
@@ -160,7 +161,7 @@ void main() {
         [
           CascadeStep.percentOfRemainder(
             envelopeId: e1,
-            percent: 0.10,
+            percent: Decimal.parse('0.10'),
             base: PercentBase.remainder,
           ),
         ],
@@ -192,7 +193,7 @@ void main() {
           CascadeStep.fixed(envelopeId: e1, amountUsd: 100),
           CascadeStep.percentOfRemainder(
             envelopeId: e2,
-            percent: 0.30,
+            percent: Decimal.parse('0.30'),
             base: PercentBase.remainder,
           ),
           CascadeStep.catchAll(envelopeId: e3),
@@ -303,7 +304,7 @@ void main() {
           [
             CascadeStep.percentOfRemainder(
               envelopeId: e1,
-              percent: 0.5,
+              percent: Decimal.parse('0.5'),
               base: PercentBase.remainder,
             ),
           ],
@@ -337,7 +338,7 @@ void main() {
             CascadeStep.fixed(envelopeId: e1, amountUsd: 300),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
-              percent: 0.5,
+              percent: Decimal.parse('0.5'),
               base: PercentBase.remainder,
             ),
           ],
@@ -357,7 +358,7 @@ void main() {
             CascadeStep.fixed(envelopeId: e1, amountUsd: 100),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
-              percent: 0.30,
+              percent: Decimal.parse('0.30'),
               base: PercentBase.remainder,
             ),
             CascadeStep.catchAll(envelopeId: e3),

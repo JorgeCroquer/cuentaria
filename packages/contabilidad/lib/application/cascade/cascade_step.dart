@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
 /// Calibration knob for [CascadeStep.percentOfRemainder].
@@ -18,9 +19,10 @@ sealed class CascadeStep {
     required EnvelopeId envelopeId,
   }) = FillToCapStep;
 
-  const factory CascadeStep.percentOfRemainder({
+  // ponytail: Decimal (not const) — no const factory; other steps keep const.
+  factory CascadeStep.percentOfRemainder({
     required EnvelopeId envelopeId,
-    required double percent,
+    required Decimal percent,
     required PercentBase base,
   }) = PercentOfRemainderStep;
 
@@ -39,9 +41,9 @@ final class FillToCapStep extends CascadeStep {
 }
 
 final class PercentOfRemainderStep extends CascadeStep {
-  final double percent;
+  final Decimal percent;
   final PercentBase base;
-  const PercentOfRemainderStep({
+  PercentOfRemainderStep({
     required super.envelopeId,
     required this.percent,
     required this.base,
