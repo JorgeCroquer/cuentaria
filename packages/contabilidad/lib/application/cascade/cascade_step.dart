@@ -15,9 +15,8 @@ sealed class CascadeStep {
     required int amountUsd,
   }) = FixedStep;
 
-  const factory CascadeStep.fillToCap({
-    required EnvelopeId envelopeId,
-  }) = FillToCapStep;
+  const factory CascadeStep.fillToCap({required EnvelopeId envelopeId}) =
+      FillToCapStep;
 
   // ponytail: Decimal (not const) — no const factory; other steps keep const.
   factory CascadeStep.percentOfRemainder({
@@ -26,9 +25,8 @@ sealed class CascadeStep {
     required PercentBase base,
   }) = PercentOfRemainderStep;
 
-  const factory CascadeStep.catchAll({
-    required EnvelopeId envelopeId,
-  }) = CatchAllStep;
+  const factory CascadeStep.catchAll({required EnvelopeId envelopeId}) =
+      CatchAllStep;
 }
 
 final class FixedStep extends CascadeStep {

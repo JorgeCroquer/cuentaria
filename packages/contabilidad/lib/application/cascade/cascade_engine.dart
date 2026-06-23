@@ -29,15 +29,21 @@ final class CascadeEngine {
       final calc = switch (step) {
         FixedStep(:final amountUsd) => amountUsd,
         FillToCapStep() => _fillToCapCalc(state),
-        PercentOfRemainderStep(:final percent, :final base) =>
-          _percentCalc(percent, base, amount, remaining),
+        PercentOfRemainderStep(:final percent, :final base) => _percentCalc(
+          percent,
+          base,
+          amount,
+          remaining,
+        ),
         CatchAllStep() => remaining,
       };
 
       final give = calc < remaining ? calc : remaining; // min(calc, remaining)
       final clamped = give < 0 ? 0 : give; // never negative
       remaining -= clamped;
-      lines.add(AllocationLine(envelopeId: step.envelopeId, amountUsd: clamped));
+      lines.add(
+        AllocationLine(envelopeId: step.envelopeId, amountUsd: clamped),
+      );
     }
 
     return DistributionProposal(lines);

@@ -19,8 +19,11 @@ void main() {
     List<CascadeStep> steps, {
     Map<EnvelopeId, EnvelopeState> states = const {},
   }) =>
-      CascadeEngine.run(amount: amount, steps: steps, envelopeStates: states)
-          .allocations;
+      CascadeEngine.run(
+        amount: amount,
+        steps: steps,
+        envelopeStates: states,
+      ).allocations;
 
   // ─── fixed step ───────────────────────────────────────────────────────────
   group('fixed', () {
@@ -324,8 +327,11 @@ void main() {
           states: {e1: state(balance: 0, cap: 50), e2: state()},
         );
         for (final line in result) {
-          expect(line.amountUsd, greaterThanOrEqualTo(0),
-              reason: 'negative in scenario amount=$amount');
+          expect(
+            line.amountUsd,
+            greaterThanOrEqualTo(0),
+            reason: 'negative in scenario amount=$amount',
+          );
         }
       }
     });
@@ -345,8 +351,11 @@ void main() {
           states: {e1: state(), e2: state()},
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
-        expect(total, lessThanOrEqualTo(amount),
-            reason: 'sum > amount for amount=$amount');
+        expect(
+          total,
+          lessThanOrEqualTo(amount),
+          reason: 'sum > amount for amount=$amount',
+        );
       }
     });
 
@@ -366,8 +375,11 @@ void main() {
           states: {e1: state(), e2: state(), e3: state()},
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
-        expect(total, amount,
-            reason: 'sum != amount for amount=$amount with catch-all');
+        expect(
+          total,
+          amount,
+          reason: 'sum != amount for amount=$amount with catch-all',
+        );
       }
     });
   });
