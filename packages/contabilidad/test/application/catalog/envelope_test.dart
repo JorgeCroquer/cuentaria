@@ -1,4 +1,5 @@
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:test/test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
@@ -108,6 +109,165 @@ void main() {
       );
 
       expect(() => env1.mergeWith(env2), throwsArgumentError);
+    });
+
+    // -------------------------------------------------------------------------
+    // EnvelopeTarget — typed access
+    // -------------------------------------------------------------------------
+
+    group('target', () {
+      final t0 = DateTime(2024, 1, 1);
+
+      test('defaults to NoTarget when meta is null', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t1'),
+          name: 'Groceries',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        expect(env.target, const NoTarget());
+      });
+
+      test('defaults to NoTarget when meta has no target key', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t2'),
+          name: 'Groceries',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {'other': 'data'},
+        );
+        expect(env.target, const NoTarget());
+      });
+
+      test('returns Cap from meta', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t3'),
+          name: 'Groceries',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {
+            'target': {'type': 'cap', 'amount_usd': 30000},
+          },
+        );
+        expect(env.target, const Cap(amountUsd: 30000));
+      });
+
+      test('returns GoalLine from meta', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t4'),
+          name: 'Emergency',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {
+            'target': {'type': 'goal_line', 'amount_usd': 100000},
+          },
+        );
+        expect(env.target, const GoalLine(amountUsd: 100000));
+      });
+
+      test('withTarget encodes Cap into meta and round-trips', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t5'),
+          name: 'Dining',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        final updated = env.withTarget(const Cap(amountUsd: 20000));
+        expect(updated.target, const Cap(amountUsd: 20000));
+        expect(updated.id, env.id);
+        expect(updated.name, env.name);
+      });
+
+      test('withTarget encodes GoalLine with date into meta', () {
+        final due = DateTime.utc(2028, 1, 1);
+        final env = Envelope(
+          id: EnvelopeId('env-t6'),
+          name: 'Emergency',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        final updated = env.withTarget(
+          GoalLine(amountUsd: 50000, dueDate: due),
+        );
+        expect(updated.target, GoalLine(amountUsd: 50000, dueDate: due));
+      });
+
+      test('withTarget preserves other meta keys', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t7'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {'custom': 'value'},
+        );
+        final updated = env.withTarget(const Cap(amountUsd: 10000));
+        expect(updated.meta!['custom'], 'value');
+        expect(updated.target, const Cap(amountUsd: 10000));
+      });
+
+      test('withTarget NoTarget removes target key from meta', () {
+        final env = Envelope(
+          id: EnvelopeId('env-t8'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {
+            'custom': 'value',
+            'target': {'type': 'cap', 'amount_usd': 10000},
+          },
+        );
+        final updated = env.withTarget(const NoTarget());
+        expect(updated.target, const NoTarget());
+        expect(updated.meta!.containsKey('target'), isFalse);
+        expect(updated.meta!['custom'], 'value');
+      });
+
+      test('withTarget on system envelope throws', () {
+        final env = Envelope(
+          id: EnvelopeId('sys-stage'),
+          name: 'Stage',
+          role: EnvelopeRole.stage,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        expect(
+          () => env.withTarget(const Cap(amountUsd: 10000)),
+          throwsArgumentError,
+        );
+      });
+
+      test('mergeWith preserves target via LWW (newer wins)', () {
+        final older = Envelope(
+          id: EnvelopeId('env-merge'),
+          name: 'X',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime(2024, 1, 1),
+          meta: {
+            'target': {'type': 'cap', 'amount_usd': 10000},
+          },
+        );
+        final newer = Envelope(
+          id: EnvelopeId('env-merge'),
+          name: 'X',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime(2024, 1, 2),
+          meta: {
+            'target': {'type': 'cap', 'amount_usd': 99000},
+          },
+        );
+        expect(older.mergeWith(newer).target, const Cap(amountUsd: 99000));
+        expect(newer.mergeWith(older).target, const Cap(amountUsd: 99000));
+      });
     });
   });
 }
