@@ -65,6 +65,8 @@ final class CascadeValidator {
 
       // envelope existence + usability
       final env = catalog[step.envelopeId];
+      final usable =
+          env != null && env.role == EnvelopeRole.none && !env.isArchived;
       if (env == null) {
         errors.add(
           'Step $pos: envelope "${step.envelopeId.value}" does not exist.',
@@ -90,14 +92,11 @@ final class CascadeValidator {
           }
 
         case FillToCapStep():
-          // Only warn if the envelope passed the usability check above
-          if (env != null && env.role == EnvelopeRole.none && !env.isArchived) {
-            if (env.target is! Cap) {
-              warnings.add(
-                'Step $pos: envelope "${step.envelopeId.value}" has no cap; '
-                'fill-to-cap will always contribute 0.',
-              );
-            }
+          if (usable && env.target is! Cap) {
+            warnings.add(
+              'Step $pos: envelope "${step.envelopeId.value}" has no cap; '
+              'fill-to-cap will always contribute 0.',
+            );
           }
 
         case PercentOfRemainderStep(:final percent):
