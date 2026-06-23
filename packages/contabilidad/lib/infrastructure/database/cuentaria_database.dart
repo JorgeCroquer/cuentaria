@@ -1,7 +1,7 @@
-/// Drift database definition for Cuentaria — schema v1.
+/// Drift database definition for Cuentaria — schema v2.
 ///
 /// Two version counters (F2-8):
-///   - [schemaVersion] (= 1): Drift structural schema version → controls
+///   - [schemaVersion] (= 2): Drift structural schema version → controls
 ///     `MigrationStrategy` and table DDL.
 ///   - `schema_version` column inside `events.payload`: event-shape version,
 ///     used by [EventCodec] upcaster registry. Starts at 1 (identity upcast).
@@ -11,6 +11,7 @@
 ///   - [EventTargets]: derived index rows for account/envelope queries.
 ///   - [Accounts]: catalog — LWW config, survives reopen.
 ///   - [Envelopes]: catalog — LWW config with stable system-envelope IDs.
+///   - [CascadeConfig]: single-row cascade plan — LWW config (C2, ADR-0015).
 ///
 /// [QueryExecutor] is injected so that tests can use [NativeDatabase.memory()]
 /// and production can swap in an SQLCipher executor (slice #45).
@@ -104,17 +105,38 @@ class Envelopes extends Table {
 }
 
 // ---------------------------------------------------------------------------
+// Table: cascade_config  (single-row LWW config, C2 ADR-0015)
+// ---------------------------------------------------------------------------
+
+/// Single-row table holding the serialized cascade plan.
+///
+/// [rowId] is always 'singleton' — only one row ever exists.
+/// [steps] is a JSON array of [CascadeStep] objects.
+/// [updatedAt] is epoch microseconds for LWW conflict resolution.
+@DataClassName('CascadeConfigRow')
+class CascadeConfig extends Table {
+  TextColumn get rowId => text()();
+  TextColumn get steps => text()(); // JSON array
+  IntColumn get updatedAt => integer()(); // epoch µs
+
+  @override
+  Set<Column> get primaryKey => {rowId};
+}
+
+// ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
 
-@DriftDatabase(tables: [Events, EventTargets, Accounts, Envelopes])
+@DriftDatabase(
+  tables: [Events, EventTargets, Accounts, Envelopes, CascadeConfig],
+)
 class CuentariaDatabase extends _$CuentariaDatabase {
   CuentariaDatabase(super.e);
 
   /// Drift structural schema version. Increment when tables change.
   /// See also [schemaVersion] column in [events] (different counter — F2-8).
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -135,6 +157,11 @@ class CuentariaDatabase extends _$CuentariaDatabase {
         'ON event_targets (event_id)',
       );
       await _seedSystemEnvelopes();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        await m.createTable(cascadeConfig);
+      }
     },
   );
 

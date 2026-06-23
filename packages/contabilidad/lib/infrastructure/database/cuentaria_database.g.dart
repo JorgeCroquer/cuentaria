@@ -1593,6 +1593,272 @@ class EnvelopesCompanion extends UpdateCompanion<EnvelopeRow> {
   }
 }
 
+class $CascadeConfigTable extends CascadeConfig
+    with TableInfo<$CascadeConfigTable, CascadeConfigRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CascadeConfigTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _rowIdMeta = const VerificationMeta('rowId');
+  @override
+  late final GeneratedColumn<String> rowId = GeneratedColumn<String>(
+    'row_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _stepsMeta = const VerificationMeta('steps');
+  @override
+  late final GeneratedColumn<String> steps = GeneratedColumn<String>(
+    'steps',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<int> updatedAt = GeneratedColumn<int>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [rowId, steps, updatedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cascade_config';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CascadeConfigRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('row_id')) {
+      context.handle(
+        _rowIdMeta,
+        rowId.isAcceptableOrUnknown(data['row_id']!, _rowIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_rowIdMeta);
+    }
+    if (data.containsKey('steps')) {
+      context.handle(
+        _stepsMeta,
+        steps.isAcceptableOrUnknown(data['steps']!, _stepsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_stepsMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {rowId};
+  @override
+  CascadeConfigRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CascadeConfigRow(
+      rowId:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}row_id'],
+          )!,
+      steps:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.string,
+            data['${effectivePrefix}steps'],
+          )!,
+      updatedAt:
+          attachedDatabase.typeMapping.read(
+            DriftSqlType.int,
+            data['${effectivePrefix}updated_at'],
+          )!,
+    );
+  }
+
+  @override
+  $CascadeConfigTable createAlias(String alias) {
+    return $CascadeConfigTable(attachedDatabase, alias);
+  }
+}
+
+class CascadeConfigRow extends DataClass
+    implements Insertable<CascadeConfigRow> {
+  final String rowId;
+  final String steps;
+  final int updatedAt;
+  const CascadeConfigRow({
+    required this.rowId,
+    required this.steps,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['row_id'] = Variable<String>(rowId);
+    map['steps'] = Variable<String>(steps);
+    map['updated_at'] = Variable<int>(updatedAt);
+    return map;
+  }
+
+  CascadeConfigCompanion toCompanion(bool nullToAbsent) {
+    return CascadeConfigCompanion(
+      rowId: Value(rowId),
+      steps: Value(steps),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory CascadeConfigRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CascadeConfigRow(
+      rowId: serializer.fromJson<String>(json['rowId']),
+      steps: serializer.fromJson<String>(json['steps']),
+      updatedAt: serializer.fromJson<int>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'rowId': serializer.toJson<String>(rowId),
+      'steps': serializer.toJson<String>(steps),
+      'updatedAt': serializer.toJson<int>(updatedAt),
+    };
+  }
+
+  CascadeConfigRow copyWith({String? rowId, String? steps, int? updatedAt}) =>
+      CascadeConfigRow(
+        rowId: rowId ?? this.rowId,
+        steps: steps ?? this.steps,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  CascadeConfigRow copyWithCompanion(CascadeConfigCompanion data) {
+    return CascadeConfigRow(
+      rowId: data.rowId.present ? data.rowId.value : this.rowId,
+      steps: data.steps.present ? data.steps.value : this.steps,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CascadeConfigRow(')
+          ..write('rowId: $rowId, ')
+          ..write('steps: $steps, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(rowId, steps, updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CascadeConfigRow &&
+          other.rowId == this.rowId &&
+          other.steps == this.steps &&
+          other.updatedAt == this.updatedAt);
+}
+
+class CascadeConfigCompanion extends UpdateCompanion<CascadeConfigRow> {
+  final Value<String> rowId;
+  final Value<String> steps;
+  final Value<int> updatedAt;
+  final Value<int> rowid;
+  const CascadeConfigCompanion({
+    this.rowId = const Value.absent(),
+    this.steps = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CascadeConfigCompanion.insert({
+    required String rowId,
+    required String steps,
+    required int updatedAt,
+    this.rowid = const Value.absent(),
+  }) : rowId = Value(rowId),
+       steps = Value(steps),
+       updatedAt = Value(updatedAt);
+  static Insertable<CascadeConfigRow> custom({
+    Expression<String>? rowId,
+    Expression<String>? steps,
+    Expression<int>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (rowId != null) 'row_id': rowId,
+      if (steps != null) 'steps': steps,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CascadeConfigCompanion copyWith({
+    Value<String>? rowId,
+    Value<String>? steps,
+    Value<int>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return CascadeConfigCompanion(
+      rowId: rowId ?? this.rowId,
+      steps: steps ?? this.steps,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (rowId.present) {
+      map['row_id'] = Variable<String>(rowId.value);
+    }
+    if (steps.present) {
+      map['steps'] = Variable<String>(steps.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<int>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CascadeConfigCompanion(')
+          ..write('rowId: $rowId, ')
+          ..write('steps: $steps, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$CuentariaDatabase extends GeneratedDatabase {
   _$CuentariaDatabase(QueryExecutor e) : super(e);
   $CuentariaDatabaseManager get managers => $CuentariaDatabaseManager(this);
@@ -1600,6 +1866,7 @@ abstract class _$CuentariaDatabase extends GeneratedDatabase {
   late final $EventTargetsTable eventTargets = $EventTargetsTable(this);
   late final $AccountsTable accounts = $AccountsTable(this);
   late final $EnvelopesTable envelopes = $EnvelopesTable(this);
+  late final $CascadeConfigTable cascadeConfig = $CascadeConfigTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1609,6 +1876,7 @@ abstract class _$CuentariaDatabase extends GeneratedDatabase {
     eventTargets,
     accounts,
     envelopes,
+    cascadeConfig,
   ];
 }
 
@@ -2491,6 +2759,189 @@ typedef $$EnvelopesTableProcessedTableManager =
       EnvelopeRow,
       PrefetchHooks Function()
     >;
+typedef $$CascadeConfigTableCreateCompanionBuilder =
+    CascadeConfigCompanion Function({
+      required String rowId,
+      required String steps,
+      required int updatedAt,
+      Value<int> rowid,
+    });
+typedef $$CascadeConfigTableUpdateCompanionBuilder =
+    CascadeConfigCompanion Function({
+      Value<String> rowId,
+      Value<String> steps,
+      Value<int> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$CascadeConfigTableFilterComposer
+    extends Composer<_$CuentariaDatabase, $CascadeConfigTable> {
+  $$CascadeConfigTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get steps => $composableBuilder(
+    column: $table.steps,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CascadeConfigTableOrderingComposer
+    extends Composer<_$CuentariaDatabase, $CascadeConfigTable> {
+  $$CascadeConfigTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get rowId => $composableBuilder(
+    column: $table.rowId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get steps => $composableBuilder(
+    column: $table.steps,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CascadeConfigTableAnnotationComposer
+    extends Composer<_$CuentariaDatabase, $CascadeConfigTable> {
+  $$CascadeConfigTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get rowId =>
+      $composableBuilder(column: $table.rowId, builder: (column) => column);
+
+  GeneratedColumn<String> get steps =>
+      $composableBuilder(column: $table.steps, builder: (column) => column);
+
+  GeneratedColumn<int> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$CascadeConfigTableTableManager
+    extends
+        RootTableManager<
+          _$CuentariaDatabase,
+          $CascadeConfigTable,
+          CascadeConfigRow,
+          $$CascadeConfigTableFilterComposer,
+          $$CascadeConfigTableOrderingComposer,
+          $$CascadeConfigTableAnnotationComposer,
+          $$CascadeConfigTableCreateCompanionBuilder,
+          $$CascadeConfigTableUpdateCompanionBuilder,
+          (
+            CascadeConfigRow,
+            BaseReferences<
+              _$CuentariaDatabase,
+              $CascadeConfigTable,
+              CascadeConfigRow
+            >,
+          ),
+          CascadeConfigRow,
+          PrefetchHooks Function()
+        > {
+  $$CascadeConfigTableTableManager(
+    _$CuentariaDatabase db,
+    $CascadeConfigTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer:
+              () => $$CascadeConfigTableFilterComposer($db: db, $table: table),
+          createOrderingComposer:
+              () =>
+                  $$CascadeConfigTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer:
+              () => $$CascadeConfigTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> rowId = const Value.absent(),
+                Value<String> steps = const Value.absent(),
+                Value<int> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CascadeConfigCompanion(
+                rowId: rowId,
+                steps: steps,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String rowId,
+                required String steps,
+                required int updatedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CascadeConfigCompanion.insert(
+                rowId: rowId,
+                steps: steps,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper:
+              (p0) =>
+                  p0
+                      .map(
+                        (e) => (
+                          e.readTable(table),
+                          BaseReferences(db, table, e),
+                        ),
+                      )
+                      .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CascadeConfigTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CuentariaDatabase,
+      $CascadeConfigTable,
+      CascadeConfigRow,
+      $$CascadeConfigTableFilterComposer,
+      $$CascadeConfigTableOrderingComposer,
+      $$CascadeConfigTableAnnotationComposer,
+      $$CascadeConfigTableCreateCompanionBuilder,
+      $$CascadeConfigTableUpdateCompanionBuilder,
+      (
+        CascadeConfigRow,
+        BaseReferences<
+          _$CuentariaDatabase,
+          $CascadeConfigTable,
+          CascadeConfigRow
+        >,
+      ),
+      CascadeConfigRow,
+      PrefetchHooks Function()
+    >;
 
 class $CuentariaDatabaseManager {
   final _$CuentariaDatabase _db;
@@ -2503,4 +2954,6 @@ class $CuentariaDatabaseManager {
       $$AccountsTableTableManager(_db, _db.accounts);
   $$EnvelopesTableTableManager get envelopes =>
       $$EnvelopesTableTableManager(_db, _db.envelopes);
+  $$CascadeConfigTableTableManager get cascadeConfig =>
+      $$CascadeConfigTableTableManager(_db, _db.cascadeConfig);
 }
