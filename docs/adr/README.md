@@ -17,8 +17,10 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 | [0009](ADR-0009-seguridad-e2ee.md) | Seguridad: E2EE por sobre, Auth, cifrado local, export | Aceptada |
 | [0010](ADR-0010-metas-sobres.md) | Modelo unificado de metas/aportes de Sobres | Aceptada |
 | [0011](ADR-0011-conciliacion.md) | Conciliación operativa: tolerancia configurable | Aceptada |
+| [0015](ADR-0015-cascada-distribucion.md) | Cascada de distribución + metas de Sobres (refina 0010) | Aceptada |
 
-> Todas aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
+> 0001–0011 aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
+> ADR-0015 (2026-06-23) refina el 0010 para C2.
 
 ## Plantilla para nuevos ADRs
 
