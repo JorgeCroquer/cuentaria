@@ -1,6 +1,8 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import 'envelope_target.dart';
+
 enum EnvelopeRole { stage, differential, adjustments, opening, none }
 
 class Envelope extends Equatable {
@@ -19,6 +21,39 @@ class Envelope extends Equatable {
     required this.updatedAt,
     this.meta,
   });
+
+  /// Typed target decoded from [meta].  Defaults to [NoTarget].
+  EnvelopeTarget get target {
+    final raw = meta?['target'];
+    if (raw == null) return const NoTarget();
+    return EnvelopeTarget.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Returns a copy with [newTarget] encoded into [meta].
+  ///
+  /// Throws [ArgumentError] if [role] != [EnvelopeRole.none] — system
+  /// envelopes must never carry a target (ADR-0015 C2-2).
+  Envelope withTarget(EnvelopeTarget newTarget) {
+    if (role != EnvelopeRole.none) {
+      throw ArgumentError(
+        'Cannot set a target on a system envelope (role=$role)',
+      );
+    }
+    final updated = Map<String, dynamic>.from(meta ?? {});
+    if (newTarget is NoTarget) {
+      updated.remove('target');
+    } else {
+      updated['target'] = newTarget.toJson();
+    }
+    return Envelope(
+      id: id,
+      name: name,
+      role: role,
+      isArchived: isArchived,
+      updatedAt: updatedAt,
+      meta: updated.isEmpty ? null : updated,
+    );
+  }
 
   /// Merges this envelope with another using Last-Write-Wins based on [updatedAt].
   /// If timestamps are exactly equal, the current instance is kept.

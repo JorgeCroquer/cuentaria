@@ -7,6 +7,7 @@ import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/envelope_target.dart';
 import 'package:contabilidad/infrastructure/catalog/drift_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -268,6 +269,102 @@ void _runContractSuite(
           () async => repo.deleteEnvelope(stageId),
           throwsA(isA<SystemEnvelopeDeletionNotAllowed>()),
         );
+      });
+    });
+
+    // -----------------------------------------------------------------------
+    // EnvelopeTarget — round-trip through repository (meta JSON column)
+    // -----------------------------------------------------------------------
+
+    group('EnvelopeTarget round-trip', () {
+      final t0 = DateTime.utc(2024, 6, 1);
+
+      test('NoTarget survives save + retrieve', () async {
+        final env = Envelope(
+          id: EnvelopeId('tgt-1'),
+          name: 'NoTarget Env',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        await repo.saveEnvelope(env);
+        expect(repo.getEnvelope(EnvelopeId('tgt-1'))!.target, const NoTarget());
+      });
+
+      test('Cap survives save + retrieve', () async {
+        final env = Envelope(
+          id: EnvelopeId('tgt-2'),
+          name: 'Dining',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(const Cap(amountUsd: 30000));
+        await repo.saveEnvelope(env);
+        expect(
+          repo.getEnvelope(EnvelopeId('tgt-2'))!.target,
+          const Cap(amountUsd: 30000),
+        );
+      });
+
+      test('GoalLine without dueDate survives save + retrieve', () async {
+        final env = Envelope(
+          id: EnvelopeId('tgt-3'),
+          name: 'Emergency Fund',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(const GoalLine(amountUsd: 500000));
+        await repo.saveEnvelope(env);
+        expect(
+          repo.getEnvelope(EnvelopeId('tgt-3'))!.target,
+          const GoalLine(amountUsd: 500000),
+        );
+      });
+
+      test('GoalLine with dueDate survives save + retrieve', () async {
+        final due = DateTime.utc(2028, 12, 31);
+        final env = Envelope(
+          id: EnvelopeId('tgt-4'),
+          name: 'Car Fund',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(GoalLine(amountUsd: 200000, dueDate: due));
+        await repo.saveEnvelope(env);
+        expect(
+          repo.getEnvelope(EnvelopeId('tgt-4'))!.target,
+          GoalLine(amountUsd: 200000, dueDate: due),
+        );
+      });
+
+      test('LWW update preserves new target', () async {
+        final t1 = t0.add(const Duration(days: 1));
+        final env1 = Envelope(
+          id: EnvelopeId('tgt-5'),
+          name: 'Savings',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(const Cap(amountUsd: 10000));
+        final env2 = Envelope(
+          id: EnvelopeId('tgt-5'),
+          name: 'Savings',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t1,
+        ).withTarget(const Cap(amountUsd: 99000));
+        await repo.saveEnvelope(env1);
+        await repo.saveEnvelope(env2);
+        expect(
+          repo.getEnvelope(EnvelopeId('tgt-5'))!.target,
+          const Cap(amountUsd: 99000),
+        );
+      });
+
+      test('system envelopes always have NoTarget after save attempt', () async {
+        // The system Stage envelope cannot accept a target; verify it stays NoTarget.
+        final stageId = repo.getSystemEnvelope(EnvelopeRole.stage);
+        expect(repo.getEnvelope(stageId)!.target, const NoTarget());
       });
     });
   });
