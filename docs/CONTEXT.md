@@ -92,6 +92,15 @@ Serialized inside the existing `meta` JSON column of the Envelope catalog row �
 _Not to be confused with_ `EnvelopeTarget` in `domain/posting_target.dart`, which is the posting dimension identifying the envelope side of a ledger entry.
 See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-2.
 
+**Cascade**
+The user's single, ordered plan for distributing the Stage Envelope's balance into other Envelopes. Stored as last-write-wins config (not event-sourced), edited as one document. Running it produces a Distribution Proposal. See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-3.
+
+**Cascade Step**
+One ordered entry in a Cascade, targeting a user Envelope with a funding type: `fixed` (a fixed USD amount, **accumulates** month over month), `fill-to-cap` (tops up only to the Envelope's `Cap`, does **not** accumulate), `percentOfRemainder` (a percentage of the remaining — or gross — amount), or `catchAll` (everything left; at most one, must be last). The funding type is **independent** of the Envelope's Funding Target marker. See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-4/§C2-7.
+
+**Distribution Proposal**
+The Cascade engine's output: a previewable, per-Envelope list of allocations for a given amount, before anything is posted. Applying it becomes a single self-balancing Distribution transaction (`Σ = 0`); steps can be skipped before applying. See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-6.
+
 ## Relationships
 
 - A **Command** on an **Aggregate** produces one or more **Domain Events**.
