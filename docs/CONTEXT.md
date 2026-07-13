@@ -79,6 +79,18 @@ The historical cost of an asset (USD / native) derived dynamically from the even
 **System Envelope**
 Auto-provisioned envelopes identified by `rol` (e.g. Stage, Exchange Differential, Adjustments, Opening Balance). The system relies on their roles, not hardcoded IDs.
 
+**Envelope Target**
+Optional, polymorphic goal on a user Envelope. Either a **Cap** (working spending limit for an expense envelope; consumed by the cascade's fill-to-cap step) or a **Goal Line** (savings progress marker by amount and optional date; **does not limit growth**; read by Patrimony, not by the cascade). System envelopes never carry one. See [ADR-0010](adr/ADR-0010-metas-sobres.md).
+
+**Cascade**
+The user's single, ordered distribution plan: an ordered list of **Cascade Steps** that allocates incoming money (sitting in Stage) across Envelopes by priority. It is editable last-write-wins config, **not** a domain event; only its *application* produces a Distribution. _Avoid_: treating the plan itself as event-sourced.
+
+**Cascade Step**
+One ordered rule within the Cascade targeting one Envelope. Four types: **fixed amount** (contributes the same amount every run, so the Envelope **accumulates** a buffer when underspent), **fill-to-cap** (tops up only to the Cap, so it **never accumulates** beyond it), **% of remainder**, and **catch-all** (the terminal step that absorbs whatever is left). How an Envelope is *funded* (its step type) is **independent** of its **Envelope Target** marker: an expense Envelope can be funded by a fixed accumulating contribution.
+
+**Distribution Proposal**
+The previewable result of running the Cascade over a given amount and the current Envelope states: a set of Envelope moves that sum to zero, each step skippable. It **never proposes negative balances** — non-existent money is not forced (lean month). Becomes a Distribution transaction only when the user applies it.
+
 **Reversal vs Adjustment**
 - **Reversal:** Exact negation of a previous transaction's frozen `amount_usd` to correct a mistake.
 - **Adjustment:** A conciliation entry posting a delta against the Adjustments system envelope to match reality.

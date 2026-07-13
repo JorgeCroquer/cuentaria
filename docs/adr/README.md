@@ -17,8 +17,11 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 | [0009](ADR-0009-seguridad-e2ee.md) | Seguridad: E2EE por sobre, Auth, cifrado local, export | Aceptada |
 | [0010](ADR-0010-metas-sobres.md) | Modelo unificado de metas/aportes de Sobres | Aceptada |
 | [0011](ADR-0011-conciliacion.md) | Conciliación operativa: tolerancia configurable | Aceptada |
+| [0014](ADR-0014-persistencia-f2-cifrado-local.md) | F2: store cifrado solo-nativo, web diferida, llave local separada del DEK de sync | Aceptada |
+| [0015](ADR-0015-cascada-distribucion.md) | C2: cascada de distribución como config ordenada (LWW), motor total, knob de base % | Aceptada |
 
-> Todas aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
+> ADRs 0001–0011 aceptados el 2026-06-09 en la sesión de diseño `grill-with-docs`. ADR-0014 (2026-06-15) refina el 0009 para F2. ADR-0015 (2026-06-23) refina el 0010 para C2.
+> Reservados (candidatos sin redactar): **0012** Riverpod + go_router (F1-5), **0013** Doctrina B de realización + costo base promedio (C1-5).
 
 ## Plantilla para nuevos ADRs
 
