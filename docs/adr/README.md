@@ -18,7 +18,8 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 | [0010](ADR-0010-metas-sobres.md) | Modelo unificado de metas/aportes de Sobres | Aceptada |
 | [0011](ADR-0011-conciliacion.md) | Conciliación operativa: tolerancia configurable | Aceptada |
 
-> Todas aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
+> ADRs 0001–0011 aceptados el 2026-06-09 en la sesión de diseño `grill-with-docs`.
+> Reservados (candidatos sin redactar): **0012** Riverpod + go_router (F1-5), **0013** Doctrina B de realización + costo base promedio (C1-5), **0014** F2 persistencia cifrado local, **0015** C2 cascada de distribución.
 
 ## Plantilla para nuevos ADRs
 
