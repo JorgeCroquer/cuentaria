@@ -18,6 +18,8 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   sqlcipher_flutter_libs: ^0.6.8
   path_provider: ^2.1.5
+  contabilidad:
+    path: ../../packages/contabilidad
 
 dev_dependencies:
   flutter_test:
@@ -25,8 +27,8 @@ dev_dependencies:
   integration_test:
     sdk: flutter
   flutter_lints: ^5.0.0
-  contabilidad:
-    path: ../../packages/contabilidad
+  shared_kernel:
+    path: ../../packages/shared_kernel
 
 flutter:
   uses-material-design: true
