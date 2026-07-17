@@ -1,7 +1,7 @@
-/// Drift database definition for Cuentaria — schema v2.
+/// Drift database definition for Cuentaria — schema v3.
 ///
 /// Two version counters (F2-8):
-///   - [schemaVersion] (= 2): Drift structural schema version → controls
+///   - [schemaVersion] (= 3): Drift structural schema version → controls
 ///     `MigrationStrategy` and table DDL.
 ///   - `schema_version` column inside `events.payload`: event-shape version,
 ///     used by [EventCodec] upcaster registry. Starts at 1 (identity upcast).
@@ -12,6 +12,7 @@
 ///   - [Accounts]: catalog — LWW config, survives reopen.
 ///   - [Envelopes]: catalog — LWW config with stable system-envelope IDs.
 ///   - [CascadeConfig]: single-row cascade plan — LWW config (C2, ADR-0015).
+///   - [AppMeta]: local-only device metadata, never synced (slice #45).
 ///
 /// [QueryExecutor] is injected so that tests can use [NativeDatabase.memory()]
 /// and production can swap in an SQLCipher executor (slice #45).
@@ -124,11 +125,28 @@ class CascadeConfig extends Table {
 }
 
 // ---------------------------------------------------------------------------
+// Table: app_meta  (local-only, never synced)
+// ---------------------------------------------------------------------------
+
+/// Local-only device metadata (e.g. `device_id`, slice #45).
+///
+/// Never synced: it identifies *this install*, not a domain fact. Sync logic
+/// (when it lands) must exclude this table explicitly.
+@DataClassName('AppMetaRow')
+class AppMeta extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
+}
+
+// ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
 
 @DriftDatabase(
-  tables: [Events, EventTargets, Accounts, Envelopes, CascadeConfig],
+  tables: [Events, EventTargets, Accounts, Envelopes, CascadeConfig, AppMeta],
 )
 class CuentariaDatabase extends _$CuentariaDatabase {
   CuentariaDatabase(super.e);
@@ -136,7 +154,7 @@ class CuentariaDatabase extends _$CuentariaDatabase {
   /// Drift structural schema version. Increment when tables change.
   /// See also [schemaVersion] column in [events] (different counter — F2-8).
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -161,6 +179,9 @@ class CuentariaDatabase extends _$CuentariaDatabase {
     onUpgrade: (m, from, to) async {
       if (from < 2) {
         await m.createTable(cascadeConfig);
+      }
+      if (from < 3) {
+        await m.createTable(appMeta);
       }
     },
   );
