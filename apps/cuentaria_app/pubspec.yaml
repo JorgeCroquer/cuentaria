@@ -13,11 +13,20 @@ dependencies:
   go_router: ^17.0.0
   event_bus:
     path: ../../packages/event_bus
+  drift: ^2.31.0
+  sqlite3: ^2.9.4
+  flutter_secure_storage: ^10.3.1
+  sqlcipher_flutter_libs: ^0.6.8
+  path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  integration_test:
+    sdk: flutter
   flutter_lints: ^5.0.0
+  contabilidad:
+    path: ../../packages/contabilidad
 
 flutter:
   uses-material-design: true
