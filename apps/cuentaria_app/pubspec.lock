@@ -74,7 +74,7 @@ packages:
     source: hosted
     version: "1.19.1"
   contabilidad:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       path: "../../packages/contabilidad"
       relative: true
@@ -526,7 +526,7 @@ packages:
     source: hosted
     version: "3.3.2"
   shared_kernel:
-    dependency: "direct overridden"
+    dependency: "direct dev"
     description:
       path: "../../packages/shared_kernel"
       relative: true
