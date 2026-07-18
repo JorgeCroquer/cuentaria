@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../placeholder_screen.dart';
+import '../ui/ledger_screen.dart';
 import '../ui/splash_screen.dart';
 
 final goRouterProvider = Provider<GoRouter>((ref) {
@@ -11,8 +11,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/',
         builder:
-            (context, state) =>
-                const SplashScreen(child: PlaceholderScreen()),
+            (context, state) => const SplashScreen(child: LedgerScreen()),
       ),
     ],
   );

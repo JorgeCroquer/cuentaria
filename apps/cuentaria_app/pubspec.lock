@@ -526,7 +526,7 @@ packages:
     source: hosted
     version: "3.3.2"
   shared_kernel:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       path: "../../packages/shared_kernel"
       relative: true
