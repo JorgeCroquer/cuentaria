@@ -1,6 +1,6 @@
 import 'package:cuentaria_app/main.dart';
-import 'package:cuentaria_app/placeholder_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/ui/ledger_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:event_bus/event_bus.dart';
@@ -16,12 +16,18 @@ void main() {
   testWidgets(
     'DI and Navigation setup: app resolves initial route without crash',
     (WidgetTester tester) async {
-      // Build our app and trigger a frame.
-      await tester.pumpWidget(const ProviderScope(child: MyApp()));
-      await tester.pumpAndSettle(); // Wait for navigation to complete
+      // Build our app and trigger a frame. Force the web (in-memory) adapter
+      // path — there's no platform channel to open a real encrypted DB here.
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle(); // Wait for bootstrap + navigation.
 
-      // Verify that the PlaceholderScreen is rendered.
-      expect(find.byType(PlaceholderScreen), findsOneWidget);
+      // Verify that the LedgerScreen is rendered.
+      expect(find.byType(LedgerScreen), findsOneWidget);
     },
   );
 
