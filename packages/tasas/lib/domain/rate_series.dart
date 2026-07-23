@@ -7,5 +7,7 @@ abstract class RateSeries {
   Future<void> append(RateObservation observation);
 
   /// Most recent observation for [currency], or null if none was recorded.
-  Future<RateObservation?> latestFor(CurrencyCode currency);
+  /// When [source] is given, scopes to observations from that exact source
+  /// (e.g. `manual:bcv` vs `manual:paralelo`) instead of the latest overall.
+  Future<RateObservation?> latestFor(CurrencyCode currency, {String? source});
 }

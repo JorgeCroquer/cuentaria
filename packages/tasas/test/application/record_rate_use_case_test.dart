@@ -14,8 +14,10 @@ class _RecordingRateSeries implements RateSeries {
   }
 
   @override
-  Future<RateObservation?> latestFor(CurrencyCode currency) async =>
-      throw UnimplementedError();
+  Future<RateObservation?> latestFor(
+    CurrencyCode currency, {
+    String? source,
+  }) async => throw UnimplementedError();
 }
 
 RateObservation _obs({

@@ -44,7 +44,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('\$0.00'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$0.00',
+      );
 
       final container = ProviderScope.containerOf(
         tester.element(find.byType(PatrimonioScreen)),
@@ -63,8 +66,14 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(find.text('\$25.00'), findsOneWidget);
-      expect(find.text('\$0.00'), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$25.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
+        '\$25.00',
+      );
     },
   );
 
