@@ -1,6 +1,6 @@
+import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
-import 'package:cuentaria_app/ui/ledger_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:event_bus/event_bus.dart';
@@ -26,8 +26,8 @@ void main() {
       );
       await tester.pumpAndSettle(); // Wait for bootstrap + navigation.
 
-      // Verify that the LedgerScreen is rendered.
-      expect(find.byType(LedgerScreen), findsOneWidget);
+      // Verify that the app boots into the Patrimonio tab (#79).
+      expect(find.byType(PatrimonioScreen), findsOneWidget);
     },
   );
 
