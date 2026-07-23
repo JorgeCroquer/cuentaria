@@ -22,6 +22,11 @@ dependencies:
     path: ../../packages/contabilidad
   shared_kernel:
     path: ../../packages/shared_kernel
+  tasas:
+    path: ../../packages/tasas
+  patrimonio:
+    path: ../../packages/patrimonio
+  decimal: ^3.2.4
 
 dev_dependencies:
   flutter_test:
