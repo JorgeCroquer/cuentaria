@@ -129,6 +129,57 @@ void _runContractSuite(
         expect(await series.latestFor(CurrencyCode('VES')), paralelo);
       },
     );
+
+    test(
+      'latestFor(source: ...) scopes to that source, so BCV stays reachable '
+      'even after a later parallel observation at the same instant',
+      () async {
+        final sameInstant = DateTime.utc(2026, 7, 23, 12);
+        final bcv = _obs(
+          observedAt: sameInstant,
+          rate: '37',
+          source: 'manual:bcv',
+        );
+        final paralelo = _obs(
+          observedAt: sameInstant,
+          rate: '90',
+          source: 'manual:paralelo',
+        );
+
+        await series.append(bcv);
+        await series.append(paralelo);
+
+        expect(
+          await series.latestFor(CurrencyCode('VES'), source: 'manual:bcv'),
+          bcv,
+        );
+        expect(
+          await series.latestFor(
+            CurrencyCode('VES'),
+            source: 'manual:paralelo',
+          ),
+          paralelo,
+        );
+      },
+    );
+
+    test(
+      'latestFor(source: ...) returns null when that source has no '
+      'observation for the currency',
+      () async {
+        await series.append(
+          _obs(observedAt: DateTime.utc(2026, 7, 23), source: 'manual:bcv'),
+        );
+
+        expect(
+          await series.latestFor(
+            CurrencyCode('VES'),
+            source: 'manual:paralelo',
+          ),
+          isNull,
+        );
+      },
+    );
   });
 }
 

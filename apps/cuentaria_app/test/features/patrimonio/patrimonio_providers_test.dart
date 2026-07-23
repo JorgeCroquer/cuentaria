@@ -1,14 +1,22 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
+import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/domain/posting.dart';
+import 'package:contabilidad/domain/posting_target.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/patrimonio/application/patrimonio_providers.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
+import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 void main() {
-  group('netWorthUsdProvider', () {
-    test('excludes archived accounts from the sum', () async {
+  group('patrimonioSnapshotProvider', () {
+    test('excludes archived accounts from the totals', () async {
       final container = ProviderContainer(
         overrides: [isWebProvider.overrideWithValue(true)],
       );
@@ -43,8 +51,12 @@ void main() {
         source: 'Manual entry',
       );
 
-      final netWorth = await container.read(netWorthUsdProvider.future);
-      expect(netWorth, 2500);
+      final snapshot = await container.read(
+        patrimonioSnapshotProvider.future,
+      );
+      expect(snapshot.realCostUsdCents, 2500);
+      expect(snapshot.todayValueUsdCents, 2500);
+      expect(snapshot.bcvReferenceUsdCents, 2500);
     });
 
     test('invalidates itself when a transaction is recorded', () async {
@@ -53,8 +65,10 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final initial = await container.read(netWorthUsdProvider.future);
-      expect(initial, 0);
+      final initial = await container.read(
+        patrimonioSnapshotProvider.future,
+      );
+      expect(initial.realCostUsdCents, 0);
 
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
@@ -68,8 +82,111 @@ void main() {
         source: 'Manual entry',
       );
 
-      final updated = await container.read(netWorthUsdProvider.future);
-      expect(updated, 1500);
+      final updated = await container.read(patrimonioSnapshotProvider.future);
+      expect(updated.realCostUsdCents, 1500);
     });
+
+    test(
+      'values a foreign-currency account at the parallel rate, keeps BCV '
+      'as a separate reference, and flags currencies without a rate',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+
+        final catalog = await container.read(
+          catalogRepositoryProvider.future,
+        );
+        final deviceId = await container.read(deviceIdProvider.future);
+        final projections = container.read(ledgerProjectionsProvider);
+
+        final vesAccountId = AccountId('ves-1');
+        await catalog.saveAccount(
+          Account(
+            id: vesAccountId,
+            name: 'Cuenta Bs',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        // $100 cost basis at executed 75 Bs/USD => native balance 7500 Bs
+        // (750000 in minor units, matching the USD cents scale).
+        final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+        projections.apply(
+          Transaction.create(
+            postings: [
+              Posting(
+                target: AccountTarget(vesAccountId),
+                amountNative: Money(
+                  amount: BigInt.from(750000),
+                  currency: CurrencyCode('VES'),
+                ),
+                currency: CurrencyCode('VES'),
+                amountUsd: 10000,
+              ),
+              Posting(
+                target: EnvelopeTarget(stageEnvelope),
+                amountNative: Money(
+                  amount: BigInt.from(750000),
+                  currency: CurrencyCode('VES'),
+                ),
+                currency: CurrencyCode('VES'),
+                amountUsd: 10000,
+              ),
+            ],
+            metadata: TransactionMetadata(
+              eventId: EventId('evt-ves-acquisition'),
+              type: 'Adjustment',
+              occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+              recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+              deviceId: deviceId,
+              schemaVersion: 1,
+            ),
+          ),
+        );
+
+        final beforeRates = await container.read(
+          patrimonioSnapshotProvider.future,
+        );
+        final vesGroupBefore = beforeRates.accountGroups.singleWhere(
+          (g) => g.currency == CurrencyCode('VES'),
+        );
+        expect(vesGroupBefore.hasRate, isFalse);
+        expect(beforeRates.hasMissingRate, isTrue);
+        expect(vesGroupBefore.todayValueUsdCents, 10000);
+
+        final recordRates = await container.read(
+          recordRateUseCaseProvider.future,
+        );
+        final observedAt = DateTime.now().toUtc();
+        await recordRates.execute(
+          bcv: RateObservation(
+            currency: CurrencyCode('VES'),
+            nativePerUsd: Decimal.parse('50'),
+            observedAt: observedAt,
+            source: 'manual:bcv',
+          ),
+          paralelo: RateObservation(
+            currency: CurrencyCode('VES'),
+            nativePerUsd: Decimal.parse('100'),
+            observedAt: observedAt,
+            source: 'manual:paralelo',
+          ),
+        );
+        container.invalidate(patrimonioSnapshotProvider);
+
+        final snapshot = await container.read(
+          patrimonioSnapshotProvider.future,
+        );
+        expect(snapshot.realCostUsdCents, 10000);
+        expect(snapshot.todayValueUsdCents, 7500);
+        expect(snapshot.unrealizedPnlUsdCents, -2500);
+        expect(snapshot.bcvReferenceUsdCents, 15000);
+        expect(snapshot.hasMissingRate, isFalse);
+      },
+    );
   });
 }

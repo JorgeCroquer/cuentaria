@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 
@@ -8,8 +9,12 @@ import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../application/patrimonio_providers.dart';
 
-/// First visible Patrimonio screen (#79): net worth at real cost only, no
-/// rate overlay yet. Shows a guidance empty state when the catalog has no
+String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Patrimonio screen (#82): header (real cost, today's value, unrealized
+/// P&L, BCV reference) + accounts grouped by currency, driven end-to-end by
+/// [patrimonioSnapshotProvider] — the engine, not the widget tree, does the
+/// valuation math. Shows a guidance empty state when the catalog has no
 /// accounts, rather than a spinner or a bare zero.
 class PatrimonioScreen extends ConsumerWidget {
   const PatrimonioScreen({super.key});
@@ -28,7 +33,7 @@ class PatrimonioScreen extends ConsumerWidget {
           if (catalog.accounts.isEmpty) {
             return const _EmptyState();
           }
-          return const _NetWorthHeader();
+          return const _PatrimonioBody();
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(child: Text('Error: $error')),
@@ -37,32 +42,86 @@ class PatrimonioScreen extends ConsumerWidget {
   }
 }
 
-class _NetWorthHeader extends ConsumerWidget {
-  const _NetWorthHeader();
+class _PatrimonioBody extends ConsumerWidget {
+  const _PatrimonioBody();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final netWorthAsync = ref.watch(netWorthUsdProvider);
+    final snapshotAsync = ref.watch(patrimonioSnapshotProvider);
 
-    return Center(
-      child: netWorthAsync.when(
-        data: (usd) {
-          final dollars = usd / 100;
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Net worth (real cost)'),
-              const SizedBox(height: 8),
-              Text(
-                '\$${dollars.toStringAsFixed(2)}',
-                key: const Key('netWorthAmount'),
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-            ],
-          );
-        },
-        loading: () => const CircularProgressIndicator(),
-        error: (error, stackTrace) => Text('Error: $error'),
+    return snapshotAsync.when(
+      data: (snapshot) => ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _Header(snapshot: snapshot),
+          const SizedBox(height: 24),
+          for (final group in snapshot.accountGroups)
+            _AccountGroupTile(group: group),
+        ],
+      ),
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) => Center(child: Text('Error: $error')),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  const _Header({required this.snapshot});
+
+  final PatrimonioSnapshot snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('Real cost'),
+        Text(
+          _formatUsdCents(snapshot.realCostUsdCents),
+          key: const Key('realCostAmount'),
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 16),
+        const Text("Today's value (parallel)"),
+        Text(
+          _formatUsdCents(snapshot.todayValueUsdCents),
+          key: const Key('todayValueAmount'),
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Unrealized P&L: ${_formatUsdCents(snapshot.unrealizedPnlUsdCents)}',
+          key: const Key('unrealizedPnlAmount'),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'BCV reference: ${_formatUsdCents(snapshot.bcvReferenceUsdCents)}',
+          key: const Key('bcvReferenceAmount'),
+        ),
+        if (snapshot.hasMissingRate)
+          const Text(
+            'sin tasa — some currencies have no rate yet',
+            key: Key('missingRateFlag'),
+          ),
+      ],
+    );
+  }
+}
+
+class _AccountGroupTile extends StatelessWidget {
+  const _AccountGroupTile({required this.group});
+
+  final PatrimonioAccountGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: Key('accountGroup_${group.currency.value}'),
+      title: Text(group.currency.value),
+      subtitle: Text(
+        'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
+        "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
+        '${group.hasRate ? '' : ' (sin tasa)'}',
       ),
     );
   }
@@ -160,6 +219,7 @@ class _RecordRatesDialogState extends ConsumerState<_RecordRatesDialog> {
         ),
       );
 
+      ref.invalidate(patrimonioSnapshotProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() => _error = e.toString());
