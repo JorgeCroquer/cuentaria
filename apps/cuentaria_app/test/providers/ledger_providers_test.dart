@@ -7,28 +7,34 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 void main() {
   group('recordIncomeProvider', () {
-    test('records a movement that updates account and envelope balances', () async {
-      final container = ProviderContainer(
-        overrides: [isWebProvider.overrideWithValue(true)],
-      );
-      addTearDown(container.dispose);
+    test(
+      'records a movement that updates account and envelope balances',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
 
-      final catalog = await container.read(catalogRepositoryProvider.future);
-      final accountId = catalog.accountIds.first;
-      final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final accountId = catalog.accountIds.first;
+        final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
 
-      final recordIncome = await container.read(recordIncomeProvider.future);
-      await recordIncome(
-        eventId: EventId('evt-test-1'),
-        deviceId: 'test-device',
-        accountId: accountId,
-        amount: Money(amount: BigInt.from(2500), currency: CurrencyCode('USD')),
-        source: 'Manual entry',
-      );
+        final recordIncome = await container.read(recordIncomeProvider.future);
+        await recordIncome(
+          eventId: EventId('evt-test-1'),
+          deviceId: 'test-device',
+          accountId: accountId,
+          amount: Money(
+            amount: BigInt.from(2500),
+            currency: CurrencyCode('USD'),
+          ),
+          source: 'Manual entry',
+        );
 
-      final projections = container.read(ledgerProjectionsProvider);
-      expect(projections.accountBalance(accountId).usd, 2500);
-      expect(projections.envelopeUsdBalance(stageId), 2500);
-    });
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(projections.accountBalance(accountId).usd, 2500);
+        expect(projections.envelopeUsdBalance(stageId), 2500);
+      },
+    );
   });
 }

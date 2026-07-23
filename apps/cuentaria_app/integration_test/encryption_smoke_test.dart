@@ -54,9 +54,7 @@ void main() {
 
       // Reopening with the wrong key must fail: SQLCipher rejects the file
       // as "not a database" rather than silently returning garbage.
-      final reader = CuentariaDatabase(
-        openEncryptedDatabase(dbFile, wrongKey),
-      );
+      final reader = CuentariaDatabase(openEncryptedDatabase(dbFile, wrongKey));
       await expectLater(
         DeviceIdProvider(reader).getOrCreateDeviceId(),
         throwsException,
@@ -64,15 +62,12 @@ void main() {
     });
   });
 
-  testWidgets(
-    'key is generated once and persists across provider instances '
-    '(simulates app restart)',
-    (tester) async {
-      const store = FlutterSecureKeyStore();
-      final first = await EncryptionKeyProvider(store).getOrCreateKey();
-      final second = await EncryptionKeyProvider(store).getOrCreateKey();
+  testWidgets('key is generated once and persists across provider instances '
+      '(simulates app restart)', (tester) async {
+    const store = FlutterSecureKeyStore();
+    final first = await EncryptionKeyProvider(store).getOrCreateKey();
+    final second = await EncryptionKeyProvider(store).getOrCreateKey();
 
-      expect(second, first);
-    },
-  );
+    expect(second, first);
+  });
 }

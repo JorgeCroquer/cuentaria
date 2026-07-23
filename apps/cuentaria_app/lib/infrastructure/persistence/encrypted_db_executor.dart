@@ -25,8 +25,6 @@ QueryExecutor openEncryptedDatabase(File dbFile, List<int> encryptionKey) {
 /// Encodes [key] as a SQLCipher raw-key hex literal (`x'...'`), the format
 /// `PRAGMA key` expects for a raw (non-passphrase-derived) 256-bit key.
 String keyToSqlCipherPragma(List<int> key) {
-  final hex = key
-      .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
-      .join();
+  final hex = key.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
   return "x'$hex'";
 }

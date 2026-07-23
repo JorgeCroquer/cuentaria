@@ -38,8 +38,7 @@ class DeviceIdProvider {
   Future<String?> _read() async {
     final row =
         await (_db.select(_db.appMeta)
-              ..where((t) => t.key.equals(_deviceIdKey)))
-            .getSingleOrNull();
+          ..where((t) => t.key.equals(_deviceIdKey))).getSingleOrNull();
     return row?.value;
   }
 }

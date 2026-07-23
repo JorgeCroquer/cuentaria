@@ -53,26 +53,29 @@ void main() {
   });
 
   group('default account seeding', () {
-    test('seeds a single default USD account when the catalog is empty', () async {
-      final container = ProviderContainer(
-        overrides: [isWebProvider.overrideWithValue(true)],
-      );
-      addTearDown(container.dispose);
+    test(
+      'seeds a single default USD account when the catalog is empty',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
 
-      final catalogRepository = await container.read(
-        catalogRepositoryProvider.future,
-      );
+        final catalogRepository = await container.read(
+          catalogRepositoryProvider.future,
+        );
 
-      expect(catalogRepository.accountIds, hasLength(1));
-      final accountId = catalogRepository.accountIds.first;
-      expect(
-        catalogRepository.getAccount(accountId)?.nativeCurrency,
-        CurrencyCode('USD'),
-      );
+        expect(catalogRepository.accountIds, hasLength(1));
+        final accountId = catalogRepository.accountIds.first;
+        expect(
+          catalogRepository.getAccount(accountId)?.nativeCurrency,
+          CurrencyCode('USD'),
+        );
 
-      // Re-reading (cached future) must not seed a second account.
-      final again = await container.read(catalogRepositoryProvider.future);
-      expect(again.accountIds, hasLength(1));
-    });
+        // Re-reading (cached future) must not seed a second account.
+        final again = await container.read(catalogRepositoryProvider.future);
+        expect(again.accountIds, hasLength(1));
+      },
+    );
   });
 }

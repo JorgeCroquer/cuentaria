@@ -10,8 +10,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/',
-        builder:
-            (context, state) => const SplashScreen(child: LedgerScreen()),
+        builder: (context, state) => const SplashScreen(child: LedgerScreen()),
       ),
     ],
   );

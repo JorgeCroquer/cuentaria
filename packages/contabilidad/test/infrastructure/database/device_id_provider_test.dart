@@ -18,8 +18,7 @@ void main() {
 
       final row =
           await (db.select(db.appMeta)
-                ..where((t) => t.key.equals('device_id')))
-              .getSingle();
+            ..where((t) => t.key.equals('device_id'))).getSingle();
       expect(row.value, id);
 
       await db.close();
@@ -37,19 +36,16 @@ void main() {
       await db.close();
     });
 
-    test(
-      'a fresh provider on the same database reuses the persisted id '
-      '(simulates app restart)',
-      () async {
-        final db = openTestDb();
+    test('a fresh provider on the same database reuses the persisted id '
+        '(simulates app restart)', () async {
+      final db = openTestDb();
 
-        final first = await DeviceIdProvider(db).getOrCreateDeviceId();
-        final second = await DeviceIdProvider(db).getOrCreateDeviceId();
+      final first = await DeviceIdProvider(db).getOrCreateDeviceId();
+      final second = await DeviceIdProvider(db).getOrCreateDeviceId();
 
-        expect(second, first);
+      expect(second, first);
 
-        await db.close();
-      },
-    );
+      await db.close();
+    });
   });
 }

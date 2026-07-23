@@ -53,12 +53,10 @@ void main() {
     });
 
     test('two providers generate different random keys', () async {
-      final keyA = await EncryptionKeyProvider(
-        FakeSecureKeyStore(),
-      ).getOrCreateKey();
-      final keyB = await EncryptionKeyProvider(
-        FakeSecureKeyStore(),
-      ).getOrCreateKey();
+      final keyA =
+          await EncryptionKeyProvider(FakeSecureKeyStore()).getOrCreateKey();
+      final keyB =
+          await EncryptionKeyProvider(FakeSecureKeyStore()).getOrCreateKey();
 
       expect(keyA, isNot(equals(keyB)));
     });
