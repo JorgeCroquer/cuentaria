@@ -12,8 +12,9 @@ dependencies:
   event_bus:
     path: ../event_bus
   decimal: ^3.2.4
+  uuid: ^4.5.1
 
-  equatable: any
+  equatable: ^2.1.0
   drift: ^2.31.0
   sqlite3: ^2.9.4
 dev_dependencies:

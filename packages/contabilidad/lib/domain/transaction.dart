@@ -5,7 +5,7 @@ import 'posting_target.dart';
 import 'transaction_metadata.dart';
 import 'transaction_error.dart';
 
-class Transaction extends DomainEvent with EquatableMixin {
+class Transaction extends DomainEvent with Equatable {
   final List<Posting> postings;
   final TransactionMetadata metadata;
 
