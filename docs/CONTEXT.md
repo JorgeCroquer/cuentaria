@@ -62,7 +62,14 @@ Transaction that by itself fulfills `Σ usd[Account] == Σ usd[Envelope]`. The d
 _Avoid_: recomputing the historical USD from the current rate.
 
 **Overlay Valuation / Unrealized P&L**
-Today's value computed on the fly (`quantity × current rate/price`) shown in Patrimony, without posting to the ledger. The difference with real cost is the **unrealized** P&L; it becomes **realized** only when converting/selling/spending.
+Today's value computed on the fly (`quantity × current rate/price`) shown in Patrimony, without posting to the ledger. The difference with real cost is the **unrealized** P&L; it becomes **realized** only when converting/selling/spending. Computed with the **parallel** rate (see Liquidation Value vs BCV Value).
+
+**Rate Observation**
+One appended entry in a currency's rate series: `(currency, nativePerUsd, observedAt, source)`. An Observed External Fact — never overwritten, never a domain event. In the MVP the source is manual (typed by the user); S1's worker later appends automatic sources to the same series. See [ADR-0016](adr/ADR-0016-tasas-manuales-valoracion-patrimonio.md).
+
+**Liquidation Value vs BCV Value ("the parallel values, the BCV informs")**
+Two readings of the same native balance. **Liquidation value** = balance at the **parallel** rate: what you would actually obtain by converting today — it is the only rate that enters net worth and unrealized P&L. **BCV value** = balance at the official rate: "sticker" purchasing power against formally-priced goods — shown as a labeled reference, never summed into net worth. The **executed** rate of past operations participates in neither; it lives frozen in the ledger as real cost. See [ADR-0016](adr/ADR-0016-tasas-manuales-valoracion-patrimonio.md).
+_Avoid_: averaging or mixing both rates into a single figure.
 
 **Ledger Transaction (The Aggregate)**
 The only true aggregate in the ledger context. Each transaction is self-contained and self-validated. **Accounts and Envelopes are NOT aggregates**, they are just identifiers and materialized views.
