@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
@@ -14,11 +12,11 @@ import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-import '../infrastructure/persistence/encrypted_db_executor.dart';
 import '../infrastructure/persistence/encryption_key_provider.dart';
+import '../infrastructure/persistence/open_app_database_stub.dart'
+    if (dart.library.io) '../infrastructure/persistence/open_app_database_native.dart';
 import '../infrastructure/persistence/secure_key_store.dart';
 
 final eventBusProvider = Provider<EventBus>((ref) {
@@ -39,9 +37,7 @@ final encryptionKeyProvider = FutureProvider<List<int>>((ref) {
 /// see [isWebProvider].
 final databaseProvider = FutureProvider<CuentariaDatabase>((ref) async {
   final key = await ref.watch(encryptionKeyProvider.future);
-  final dir = await getApplicationDocumentsDirectory();
-  final dbFile = File('${dir.path}${Platform.pathSeparator}cuentaria.db');
-  return CuentariaDatabase(openEncryptedDatabase(dbFile, key));
+  return CuentariaDatabase(await openAppDatabase(key));
 });
 
 final eventStoreProvider = FutureProvider<EventStore>((ref) async {
