@@ -367,6 +367,66 @@ void _runContractSuite(
         expect(repo.getEnvelope(stageId)!.target, const NoTarget());
       });
     });
+
+    // -----------------------------------------------------------------------
+    // Enumeration — accounts / envelopes getters
+    // -----------------------------------------------------------------------
+
+    group('enumeration', () {
+      final t0 = DateTime.utc(2024, 1, 1);
+
+      test('accounts is empty when no accounts saved', () {
+        expect(repo.accounts, isEmpty);
+      });
+
+      test('accounts returns every saved account with full fields', () async {
+        final acc1 = Account(
+          id: AccountId('enum-acc-1'),
+          name: 'Cash',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: t0,
+        );
+        final acc2 = Account(
+          id: AccountId('enum-acc-2'),
+          name: 'Bank',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: t0,
+        );
+        await repo.saveAccount(acc1);
+        await repo.saveAccount(acc2);
+
+        expect(repo.accounts, unorderedEquals([acc1, acc2]));
+      });
+
+      test('envelopes includes system envelopes by default', () {
+        final roles = repo.envelopes.map((e) => e.role).toSet();
+        expect(roles, {
+          EnvelopeRole.stage,
+          EnvelopeRole.differential,
+          EnvelopeRole.adjustments,
+          EnvelopeRole.opening,
+        });
+      });
+
+      test('envelopes includes user-created envelopes alongside system ones', () async {
+        final env = Envelope(
+          id: EnvelopeId('enum-env-1'),
+          name: 'Dining',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(const Cap(amountUsd: 30000));
+        await repo.saveEnvelope(env);
+
+        final all = repo.envelopes.toList();
+        expect(all.length, 5); // 4 system + 1 user
+        final found = all.firstWhere((e) => e.id == EnvelopeId('enum-env-1'));
+        expect(found.name, 'Dining');
+        expect(found.target, const Cap(amountUsd: 30000));
+      });
+    });
   });
 }
 

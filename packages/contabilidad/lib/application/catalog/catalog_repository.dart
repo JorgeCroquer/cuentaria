@@ -8,6 +8,8 @@ abstract class CatalogRepository {
   Envelope? getEnvelope(EnvelopeId id);
   EnvelopeId getSystemEnvelope(EnvelopeRole role);
   Iterable<AccountId> get accountIds;
+  Iterable<Account> get accounts;
+  Iterable<Envelope> get envelopes;
 
   /// Writes are async to allow Drift persistence (F2-10).
   Future<void> saveAccount(Account account);
