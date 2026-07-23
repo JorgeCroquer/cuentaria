@@ -3,7 +3,9 @@ import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.d
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
+import 'package:cuentaria_app/providers/tasas_providers.dart';
 import 'package:cuentaria_app/ui/ledger_screen.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,6 +87,40 @@ void main() {
       expect(find.byKey(const Key('patrimonioEmptyState')), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.text('\$0.00'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'recording rates from a cold app boot appends both observations',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatrimonioScreen), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('recordRatesAction')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('bcvRateField')), '37.5');
+      await tester.enterText(find.byKey(const Key('paraleloRateField')), '90');
+      await tester.tap(find.byKey(const Key('saveRatesButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('bcvRateField')), findsNothing);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PatrimonioScreen)),
+      );
+      final series = await container.read(rateSeriesProvider.future);
+      final latest = await series.latestFor(CurrencyCode('VES'));
+      expect(latest, isNotNull);
+      expect(latest!.source, 'manual:paralelo');
+      expect(latest.nativePerUsd, Decimal.parse('90'));
     },
   );
 }
