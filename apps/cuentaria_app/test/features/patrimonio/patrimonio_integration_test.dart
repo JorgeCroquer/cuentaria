@@ -83,6 +83,104 @@ void main() {
   );
 
   testWidgets(
+    'recording a movement from the Ledger tab updates Patrimonio figures, '
+    'with no manual cross-invalidation (#84)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$0.00',
+      );
+
+      await tester.tap(find.byIcon(Icons.list_alt_outlined));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('amountField')), '30.00');
+      await tester.tap(find.byKey(const Key('recordButton')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.pie_chart_outline));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$30.00',
+      );
+    },
+  );
+
+  testWidgets(
+    'faithful e2e: records income and rates through real use cases and '
+    'shows the exact header, account and envelope figures on screen (#84)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PatrimonioScreen)),
+      );
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+
+      await recordIncome(
+        eventId: EventId('evt-faithful-income'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        amount: Money(amount: BigInt.from(10000), currency: CurrencyCode('USD')),
+        source: 'Manual entry',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('recordRatesAction')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('bcvRateField')), '38');
+      await tester.enterText(find.byKey(const Key('paraleloRateField')), '40');
+      await tester.tap(find.byKey(const Key('saveRatesButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$100.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
+        '\$100.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
+        'Unrealized P&L: \$0.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
+        'BCV reference: \$100.00',
+      );
+      expect(find.byKey(const Key('missingRateFlag')), findsNothing);
+      expect(find.textContaining('Sin asignar: \$100.00'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('accountGroup_USD')),
+          matching: find.text('Real cost: \$100.00 · Today: \$100.00'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
     'shows guidance instead of a spinner or zero when there are no accounts',
     (tester) async {
       await tester.pumpWidget(
