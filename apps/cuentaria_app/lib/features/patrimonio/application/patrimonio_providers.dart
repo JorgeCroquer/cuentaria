@@ -1,3 +1,6 @@
+import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart'
+    as contabilidad;
 import 'package:contabilidad/domain/transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:patrimonio/patrimonio.dart';
@@ -45,36 +48,63 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
   ];
 
   final usd = CurrencyCode('USD');
-  final foreignCurrencies = accounts
-      .map((a) => a.currency)
-      .where((c) => c != usd)
-      .toSet();
+  final foreignCurrencies =
+      accounts.map((a) => a.currency).where((c) => c != usd).toSet();
 
   final rates = <CurrencyCode, RateView>{};
   for (final currency in foreignCurrencies) {
-    final parallel = await series.latestFor(
-      currency,
-      source: _paraleloSource,
-    );
+    final parallel = await series.latestFor(currency, source: _paraleloSource);
     final bcv = await series.latestFor(currency, source: _bcvSource);
     if (parallel == null && bcv == null) continue;
 
     rates[currency] = RateView(
       currency: currency,
-      parallel: parallel == null
-          ? null
-          : RateObservationView(
-              nativePerUsd: parallel.nativePerUsd,
-              observedAt: parallel.observedAt,
-            ),
-      bcv: bcv == null
-          ? null
-          : RateObservationView(
-              nativePerUsd: bcv.nativePerUsd,
-              observedAt: bcv.observedAt,
-            ),
+      parallel:
+          parallel == null
+              ? null
+              : RateObservationView(
+                nativePerUsd: parallel.nativePerUsd,
+                observedAt: parallel.observedAt,
+              ),
+      bcv:
+          bcv == null
+              ? null
+              : RateObservationView(
+                nativePerUsd: bcv.nativePerUsd,
+                observedAt: bcv.observedAt,
+              ),
     );
   }
 
-  return _engine(accounts, rates);
+  final envelopes = [
+    for (final envelope in catalog.envelopes)
+      if (!envelope.isArchived)
+        EnvelopeView(
+          id: envelope.id,
+          name: envelope.name,
+          role: _mapRole(envelope.role),
+          balanceUsd: projections.envelopeUsdBalance(envelope.id),
+          target: _mapTarget(envelope.target),
+        ),
+  ];
+
+  return _engine(accounts, rates, envelopes, DateTime.now().toUtc());
 });
+
+EnvelopeRoleView _mapRole(EnvelopeRole role) => switch (role) {
+  EnvelopeRole.none => EnvelopeRoleView.user,
+  EnvelopeRole.stage => EnvelopeRoleView.stage,
+  EnvelopeRole.differential => EnvelopeRoleView.differential,
+  EnvelopeRole.adjustments => EnvelopeRoleView.adjustments,
+  EnvelopeRole.opening => EnvelopeRoleView.opening,
+};
+
+FundingTargetView _mapTarget(contabilidad.FundingTarget target) =>
+    switch (target) {
+      contabilidad.NoTarget() => const NoTargetView(),
+      contabilidad.Cap(:final amountUsd) => CapView(amountUsd: amountUsd),
+      contabilidad.GoalLine(:final amountUsd, :final dueDate) => GoalLineView(
+        amountUsd: amountUsd,
+        dueDate: dueDate,
+      ),
+    };

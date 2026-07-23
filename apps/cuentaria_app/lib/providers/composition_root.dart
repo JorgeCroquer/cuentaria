@@ -1,7 +1,10 @@
+import 'package:contabilidad/application/cascade/cascade_repository.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
+import 'package:contabilidad/infrastructure/cascade/drift_cascade_repository.dart';
+import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/drift_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
@@ -83,6 +86,20 @@ Future<void> _ensureDefaultAccount(CatalogRepository repository) async {
 
 final ledgerProjectionsProvider = Provider<LedgerProjections>((ref) {
   return InMemoryLedgerProjections();
+});
+
+/// The single saved cascade plan (ADR-0015 §1), read by the distribute flow
+/// (C2) reachable from Patrimonio's "Sin asignar" (S2, #83).
+final cascadeRepositoryProvider = FutureProvider<CascadeRepository>((
+  ref,
+) async {
+  if (ref.watch(isWebProvider)) {
+    return InMemoryCascadeRepository();
+  }
+  final db = await ref.watch(databaseProvider.future);
+  final repository = DriftCascadeRepository(db);
+  await repository.hydrate();
+  return repository;
 });
 
 /// Stable per-install device id (slice #45), consumed to fill

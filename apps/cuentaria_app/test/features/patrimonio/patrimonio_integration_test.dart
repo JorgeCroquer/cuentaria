@@ -1,4 +1,9 @@
+import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/ledger/factories/record_opening.dart';
+import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
+import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
@@ -130,6 +135,127 @@ void main() {
       expect(latest, isNotNull);
       expect(latest!.source, 'manual:paralelo');
       expect(latest.nativePerUsd, Decimal.parse('90'));
+    },
+  );
+
+  testWidgets(
+    'tapping "Sin asignar" from a cold start navigates to the distribute '
+    'flow (#83)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PatrimonioScreen)),
+      );
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+
+      await recordIncome(
+        eventId: EventId('evt-stage-nav'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
+        source: 'Manual entry',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Sin asignar'), findsOneWidget);
+
+      await tester.tap(find.textContaining('Sin asignar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DistributeScreen), findsOneWidget);
+      expect(find.byKey(const Key('noCascadeMessage')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Envelopes block lists a user Envelope with GoalLine progress and hides '
+    'the Diferencial/Ajustes system Envelopes (#83)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final vacaciones = EnvelopeId('vacaciones');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: vacaciones,
+          name: 'Vacaciones',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: PatrimonioScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Vacaciones'), findsOneWidget);
+      expect(find.text('Differential'), findsNothing);
+      expect(find.text('Adjustments'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Envelopes block shows the Apertura opening-balance notice once it '
+    'carries a non-zero balance (#83)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final eventBus = container.read(eventBusProvider);
+      final deviceId = await container.read(deviceIdProvider.future);
+
+      final recordOpening = RecordOpening(
+        record: RecordTransaction(
+          store: store,
+          projections: projections,
+          eventBus: eventBus,
+          validator: ReferentialIntegrityValidator(catalog),
+        ),
+        catalog: catalog,
+        projections: projections,
+      );
+
+      await recordOpening(
+        eventId: EventId('evt-opening-1'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        nativeAmount: Money(
+          amount: BigInt.from(1500),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: PatrimonioScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('openingBalanceNotice')), findsOneWidget);
     },
   );
 }

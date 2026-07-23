@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
@@ -11,6 +12,7 @@ import 'package:cuentaria_app/providers/tasas_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 
@@ -51,9 +53,7 @@ void main() {
         source: 'Manual entry',
       );
 
-      final snapshot = await container.read(
-        patrimonioSnapshotProvider.future,
-      );
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
       expect(snapshot.realCostUsdCents, 2500);
       expect(snapshot.todayValueUsdCents, 2500);
       expect(snapshot.bcvReferenceUsdCents, 2500);
@@ -65,9 +65,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final initial = await container.read(
-        patrimonioSnapshotProvider.future,
-      );
+      final initial = await container.read(patrimonioSnapshotProvider.future);
       expect(initial.realCostUsdCents, 0);
 
       final catalog = await container.read(catalogRepositoryProvider.future);
@@ -95,9 +93,7 @@ void main() {
         );
         addTearDown(container.dispose);
 
-        final catalog = await container.read(
-          catalogRepositoryProvider.future,
-        );
+        final catalog = await container.read(catalogRepositoryProvider.future);
         final deviceId = await container.read(deviceIdProvider.future);
         final projections = container.read(ledgerProjectionsProvider);
 
@@ -188,5 +184,87 @@ void main() {
         expect(snapshot.hasMissingRate, isFalse);
       },
     );
+  });
+
+  group('patrimonioSnapshotProvider envelopes', () {
+    test('maps a user envelope with a GoalLine target into metadata', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+
+      final vacaciones = EnvelopeId('vacaciones');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: vacaciones,
+          name: 'Vacaciones',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withTarget(const GoalLine(amountUsd: 10000)),
+      );
+
+      await recordIncome(
+        eventId: EventId('evt-envelope-goal'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        envelopeId: vacaciones,
+        amount: Money(amount: BigInt.from(4000), currency: CurrencyCode('USD')),
+        source: 'Manual entry',
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      final envelope = snapshot.envelopes.singleWhere(
+        (e) => e.id == vacaciones,
+      );
+      expect(envelope.balanceUsd, 4000);
+      expect(envelope.role, EnvelopeRoleView.user);
+      final metadata = envelope.metadata as GoalLineMetadata;
+      expect(metadata.progressPercent, 40);
+    });
+
+    test('Stage is surfaced as "Sin asignar" only once it has a balance; '
+        'Diferencial/Ajustes never appear', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final before = await container.read(patrimonioSnapshotProvider.future);
+      expect(
+        before.envelopes.where((e) => e.role == EnvelopeRoleView.stage),
+        isEmpty,
+      );
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+
+      await recordIncome(
+        eventId: EventId('evt-stage'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
+        source: 'Manual entry',
+      );
+
+      final after = await container.read(patrimonioSnapshotProvider.future);
+      final stage = after.envelopes.singleWhere(
+        (e) => e.role == EnvelopeRoleView.stage,
+      );
+      expect(stage.balanceUsd, 2000);
+      expect(
+        after.envelopes.where(
+          (e) =>
+              e.role == EnvelopeRoleView.differential ||
+              e.role == EnvelopeRoleView.adjustments,
+        ),
+        isEmpty,
+      );
+    });
   });
 }
