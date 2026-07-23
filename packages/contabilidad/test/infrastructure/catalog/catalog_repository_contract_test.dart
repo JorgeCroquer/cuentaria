@@ -410,22 +410,25 @@ void _runContractSuite(
         });
       });
 
-      test('envelopes includes user-created envelopes alongside system ones', () async {
-        final env = Envelope(
-          id: EnvelopeId('enum-env-1'),
-          name: 'Dining',
-          role: EnvelopeRole.none,
-          isArchived: false,
-          updatedAt: t0,
-        ).withTarget(const Cap(amountUsd: 30000));
-        await repo.saveEnvelope(env);
+      test(
+        'envelopes includes user-created envelopes alongside system ones',
+        () async {
+          final env = Envelope(
+            id: EnvelopeId('enum-env-1'),
+            name: 'Dining',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: t0,
+          ).withTarget(const Cap(amountUsd: 30000));
+          await repo.saveEnvelope(env);
 
-        final all = repo.envelopes.toList();
-        expect(all.length, 5); // 4 system + 1 user
-        final found = all.firstWhere((e) => e.id == EnvelopeId('enum-env-1'));
-        expect(found.name, 'Dining');
-        expect(found.target, const Cap(amountUsd: 30000));
-      });
+          final all = repo.envelopes.toList();
+          expect(all.length, 5); // 4 system + 1 user
+          final found = all.firstWhere((e) => e.id == EnvelopeId('enum-env-1'));
+          expect(found.name, 'Dining');
+          expect(found.target, const Cap(amountUsd: 30000));
+        },
+      );
     });
   });
 }

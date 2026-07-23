@@ -139,7 +139,10 @@ void main() {
         eventId: EventId('evt-faithful-income'),
         deviceId: deviceId,
         accountId: catalog.accountIds.first,
-        amount: Money(amount: BigInt.from(10000), currency: CurrencyCode('USD')),
+        amount: Money(
+          amount: BigInt.from(10000),
+          currency: CurrencyCode('USD'),
+        ),
         source: 'Manual entry',
       );
       await tester.pumpAndSettle();

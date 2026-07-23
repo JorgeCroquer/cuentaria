@@ -29,44 +29,41 @@ void _ensureSqlite3() {
 void main() {
   setUpAll(_ensureSqlite3);
 
-  test(
-    'observations appended before a close are readable after reopening the '
-    'same database file',
-    () async {
-      final dir = Directory.systemTemp.createTempSync('tasas_persistence_test');
-      final dbPath = '${dir.path}/tasas.db';
+  test('observations appended before a close are readable after reopening the '
+      'same database file', () async {
+    final dir = Directory.systemTemp.createTempSync('tasas_persistence_test');
+    final dbPath = '${dir.path}/tasas.db';
 
-      try {
-        var db = TasasDatabase(NativeDatabase(File(dbPath)));
-        var series = DriftRateSeries(db);
+    try {
+      var db = TasasDatabase(NativeDatabase(File(dbPath)));
+      var series = DriftRateSeries(db);
 
-        final bcv = RateObservation(
-          currency: CurrencyCode('VES'),
-          nativePerUsd: Decimal.parse('37.5'),
-          observedAt: DateTime.utc(2026, 7, 23, 9),
-          source: 'manual:bcv',
-        );
-        final paralelo = RateObservation(
-          currency: CurrencyCode('VES'),
-          nativePerUsd: Decimal.parse('90'),
-          observedAt: DateTime.utc(2026, 7, 23, 9, 1),
-          source: 'manual:paralelo',
-        );
+      final bcv = RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('37.5'),
+        observedAt: DateTime.utc(2026, 7, 23, 9),
+        source: 'manual:bcv',
+      );
+      final paralelo = RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('90'),
+        observedAt: DateTime.utc(2026, 7, 23, 9, 1),
+        source: 'manual:paralelo',
+      );
 
-        await series.append(bcv);
-        await series.append(paralelo);
-        await db.close();
+      await series.append(bcv);
+      await series.append(paralelo);
+      await db.close();
 
-        db = TasasDatabase(NativeDatabase(File(dbPath)));
-        series = DriftRateSeries(db);
+      db = TasasDatabase(NativeDatabase(File(dbPath)));
+      series = DriftRateSeries(db);
 
-        final latest = await series.latestFor(CurrencyCode('VES'));
-        expect(latest, paralelo);
+      final latest = await series.latestFor(CurrencyCode('VES'));
+      expect(latest, paralelo);
 
-        await db.close();
-      } finally {
-        dir.deleteSync(recursive: true);
-      }
-    },
-  );
+      await db.close();
+    } finally {
+      dir.deleteSync(recursive: true);
+    }
+  });
 }

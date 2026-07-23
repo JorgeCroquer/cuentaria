@@ -68,30 +68,39 @@ void _runContractSuite(
       expect(await series.latestFor(CurrencyCode('VES')), obs);
     });
 
-    test('latestFor returns null for a currency with no observations', () async {
-      expect(await series.latestFor(CurrencyCode('USD')), isNull);
-    });
+    test(
+      'latestFor returns null for a currency with no observations',
+      () async {
+        expect(await series.latestFor(CurrencyCode('USD')), isNull);
+      },
+    );
 
-    test('latestFor returns the most recent observation per currency', () async {
-      final older = _obs(observedAt: DateTime.utc(2026, 7, 20), rate: '36');
-      final newer = _obs(observedAt: DateTime.utc(2026, 7, 23), rate: '38');
-      await series.append(older);
-      await series.append(newer);
+    test(
+      'latestFor returns the most recent observation per currency',
+      () async {
+        final older = _obs(observedAt: DateTime.utc(2026, 7, 20), rate: '36');
+        final newer = _obs(observedAt: DateTime.utc(2026, 7, 23), rate: '38');
+        await series.append(older);
+        await series.append(newer);
 
-      expect(await series.latestFor(CurrencyCode('VES')), newer);
-    });
+        expect(await series.latestFor(CurrencyCode('VES')), newer);
+      },
+    );
 
-    test('appends out of chronological order still resolve to the max', () async {
-      final oldest = _obs(observedAt: DateTime.utc(2026, 7, 1), rate: '35');
-      final newest = _obs(observedAt: DateTime.utc(2026, 7, 23), rate: '38');
-      final middle = _obs(observedAt: DateTime.utc(2026, 7, 10), rate: '36');
+    test(
+      'appends out of chronological order still resolve to the max',
+      () async {
+        final oldest = _obs(observedAt: DateTime.utc(2026, 7, 1), rate: '35');
+        final newest = _obs(observedAt: DateTime.utc(2026, 7, 23), rate: '38');
+        final middle = _obs(observedAt: DateTime.utc(2026, 7, 10), rate: '36');
 
-      await series.append(newest);
-      await series.append(oldest);
-      await series.append(middle);
+        await series.append(newest);
+        await series.append(oldest);
+        await series.append(middle);
 
-      expect(await series.latestFor(CurrencyCode('VES')), newest);
-    });
+        expect(await series.latestFor(CurrencyCode('VES')), newest);
+      },
+    );
 
     test('latestFor is scoped to the requested currency', () async {
       final ves = _obs(currency: 'VES', observedAt: DateTime.utc(2026, 7, 23));
@@ -107,28 +116,25 @@ void _runContractSuite(
       expect(await series.latestFor(CurrencyCode('VES')), ves);
     });
 
-    test(
-      'two observations at the same instant are both stored; '
-      'latestFor resolves to the last one appended',
-      () async {
-        final sameInstant = DateTime.utc(2026, 7, 23, 12);
-        final bcv = _obs(
-          observedAt: sameInstant,
-          rate: '37',
-          source: 'manual:bcv',
-        );
-        final paralelo = _obs(
-          observedAt: sameInstant,
-          rate: '90',
-          source: 'manual:paralelo',
-        );
+    test('two observations at the same instant are both stored; '
+        'latestFor resolves to the last one appended', () async {
+      final sameInstant = DateTime.utc(2026, 7, 23, 12);
+      final bcv = _obs(
+        observedAt: sameInstant,
+        rate: '37',
+        source: 'manual:bcv',
+      );
+      final paralelo = _obs(
+        observedAt: sameInstant,
+        rate: '90',
+        source: 'manual:paralelo',
+      );
 
-        await series.append(bcv);
-        await series.append(paralelo);
+      await series.append(bcv);
+      await series.append(paralelo);
 
-        expect(await series.latestFor(CurrencyCode('VES')), paralelo);
-      },
-    );
+      expect(await series.latestFor(CurrencyCode('VES')), paralelo);
+    });
 
     test(
       'latestFor(source: ...) scopes to that source, so BCV stays reachable '
@@ -163,23 +169,17 @@ void _runContractSuite(
       },
     );
 
-    test(
-      'latestFor(source: ...) returns null when that source has no '
-      'observation for the currency',
-      () async {
-        await series.append(
-          _obs(observedAt: DateTime.utc(2026, 7, 23), source: 'manual:bcv'),
-        );
+    test('latestFor(source: ...) returns null when that source has no '
+        'observation for the currency', () async {
+      await series.append(
+        _obs(observedAt: DateTime.utc(2026, 7, 23), source: 'manual:bcv'),
+      );
 
-        expect(
-          await series.latestFor(
-            CurrencyCode('VES'),
-            source: 'manual:paralelo',
-          ),
-          isNull,
-        );
-      },
-    );
+      expect(
+        await series.latestFor(CurrencyCode('VES'), source: 'manual:paralelo'),
+        isNull,
+      );
+    });
   });
 }
 
@@ -189,12 +189,8 @@ void main() {
   _runContractSuite('InMemoryRateSeries', () async => InMemoryRateSeries());
 
   late TasasDatabase db;
-  _runContractSuite(
-    'DriftRateSeries',
-    () async {
-      db = TasasDatabase(NativeDatabase.memory());
-      return DriftRateSeries(db);
-    },
-    teardown: () async => db.close(),
-  );
+  _runContractSuite('DriftRateSeries', () async {
+    db = TasasDatabase(NativeDatabase.memory());
+    return DriftRateSeries(db);
+  }, teardown: () async => db.close());
 }

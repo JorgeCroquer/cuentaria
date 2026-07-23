@@ -49,99 +49,96 @@ void main() {
     },
   );
 
-  testWidgets(
-    "recording rates through the dialog immediately refreshes a "
-    "foreign-currency account's today's value and clears the missing-rate "
-    'flag (#84)',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: [isWebProvider.overrideWithValue(true)],
-      );
-      addTearDown(container.dispose);
+  testWidgets("recording rates through the dialog immediately refreshes a "
+      "foreign-currency account's today's value and clears the missing-rate "
+      'flag (#84)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
 
-      final catalog = await container.read(catalogRepositoryProvider.future);
-      final projections = container.read(ledgerProjectionsProvider);
-      final deviceId = await container.read(deviceIdProvider.future);
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final projections = container.read(ledgerProjectionsProvider);
+    final deviceId = await container.read(deviceIdProvider.future);
 
-      final vesAccountId = AccountId('ves-1');
-      await catalog.saveAccount(
-        Account(
-          id: vesAccountId,
-          name: 'Cuenta Bs',
-          nativeCurrency: CurrencyCode('VES'),
-          isArchived: false,
-          updatedAt: DateTime.now(),
-        ),
-      );
+    final vesAccountId = AccountId('ves-1');
+    await catalog.saveAccount(
+      Account(
+        id: vesAccountId,
+        name: 'Cuenta Bs',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      ),
+    );
 
-      // $100 cost basis, native balance 7500 Bs (750000 in minor units).
-      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
-      projections.apply(
-        Transaction.create(
-          postings: [
-            Posting(
-              target: AccountTarget(vesAccountId),
-              amountNative: Money(
-                amount: BigInt.from(750000),
-                currency: CurrencyCode('VES'),
-              ),
+    // $100 cost basis, native balance 7500 Bs (750000 in minor units).
+    final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+    projections.apply(
+      Transaction.create(
+        postings: [
+          Posting(
+            target: AccountTarget(vesAccountId),
+            amountNative: Money(
+              amount: BigInt.from(750000),
               currency: CurrencyCode('VES'),
-              amountUsd: 10000,
             ),
-            Posting(
-              target: EnvelopeTarget(stageEnvelope),
-              amountNative: Money(
-                amount: BigInt.from(750000),
-                currency: CurrencyCode('VES'),
-              ),
-              currency: CurrencyCode('VES'),
-              amountUsd: 10000,
-            ),
-          ],
-          metadata: TransactionMetadata(
-            eventId: EventId('evt-ves-dialog'),
-            type: 'Adjustment',
-            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
-            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
-            deviceId: deviceId,
-            schemaVersion: 1,
+            currency: CurrencyCode('VES'),
+            amountUsd: 10000,
           ),
+          Posting(
+            target: EnvelopeTarget(stageEnvelope),
+            amountNative: Money(
+              amount: BigInt.from(750000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: 10000,
+          ),
+        ],
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-ves-dialog'),
+          type: 'Adjustment',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: deviceId,
+          schemaVersion: 1,
         ),
-      );
+      ),
+    );
 
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: PatrimonioScreen()),
-        ),
-      );
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: PatrimonioScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('missingRateFlag')), findsOneWidget);
-      expect(find.textContaining('(sin tasa)'), findsOneWidget);
-      expect(
-        tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
-        '\$100.00',
-      );
+    expect(find.byKey(const Key('missingRateFlag')), findsOneWidget);
+    expect(find.textContaining('(sin tasa)'), findsOneWidget);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
+      '\$100.00',
+    );
 
-      await tester.tap(find.byKey(const Key('recordRatesAction')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('recordRatesAction')));
+    await tester.pumpAndSettle();
 
-      await tester.enterText(find.byKey(const Key('bcvRateField')), '50');
-      await tester.enterText(find.byKey(const Key('paraleloRateField')), '100');
-      await tester.tap(find.byKey(const Key('saveRatesButton')));
-      await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('bcvRateField')), '50');
+    await tester.enterText(find.byKey(const Key('paraleloRateField')), '100');
+    await tester.tap(find.byKey(const Key('saveRatesButton')));
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('missingRateFlag')), findsNothing);
-      expect(find.textContaining('(sin tasa)'), findsNothing);
-      expect(
-        tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
-        '\$75.00',
-      );
-      expect(
-        tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'BCV reference: \$150.00',
-      );
-    },
-  );
+    expect(find.byKey(const Key('missingRateFlag')), findsNothing);
+    expect(find.textContaining('(sin tasa)'), findsNothing);
+    expect(
+      tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
+      '\$75.00',
+    );
+    expect(
+      tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
+      'BCV reference: \$150.00',
+    );
+  });
 }
