@@ -9,7 +9,8 @@ import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
 import '../features/envelopes/ui/screens/envelopes_list_screen.dart';
 import '../features/patrimonio/ui/screens/patrimonio_screen.dart';
-import '../ui/ledger_screen.dart';
+import '../ui/screens/movements/movement_detail_screen.dart';
+import '../ui/screens/movements/movements_screen.dart';
 import '../ui/shell/patrimonio_shell.dart';
 import '../ui/splash_screen.dart';
 
@@ -50,6 +51,13 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/accounts',
         builder: (context, state) => const AccountsScreen(),
       ),
+      GoRoute(
+        path: '/movements/:id',
+        builder:
+            (context, state) => MovementDetailScreen(
+              eventId: EventId(state.pathParameters['id']!),
+            ),
+      ),
       StatefulShellRoute.indexedStack(
         builder:
             (context, state, navigationShell) => SplashScreen(
@@ -67,8 +75,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/ledger',
-                builder: (context, state) => const LedgerScreen(),
+                path: '/movements',
+                builder: (context, state) => const MovementsScreen(),
               ),
             ],
           ),
