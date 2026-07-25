@@ -4,7 +4,8 @@
 ///   - **Reads** (`getAccount` / `getEnvelope` / `getSystemEnvelope`) are
 ///     served synchronously from an in-memory cache, keeping the sync port
 ///     intact and C1 factories unchanged.
-///   - **Writes** (`saveAccount` / `saveEnvelope` / `deleteEnvelope`) persist
+///   - **Writes** (`saveAccount` / `saveEnvelope` / `deleteAccount` /
+///     `deleteEnvelope`) persist
 ///     to Drift with LWW conflict resolution, then update the cache.
 ///   - **Boot**: call [hydrate] once after opening the database; it loads all
 ///     rows into the cache and resolves the role→id index for system envelopes.
@@ -120,6 +121,12 @@ class DriftCatalogRepository implements CatalogRepository {
   }
 
   @override
+  Future<void> deleteAccount(AccountId id) async {
+    await (_db.delete(_db.accounts)..where((t) => t.id.equals(id.value))).go();
+    _accounts.remove(id);
+  }
+
+  @override
   Future<void> deleteEnvelope(EnvelopeId id) async {
     final envelope = _envelopes[id];
     if (envelope != null && envelope.role != EnvelopeRole.none) {
@@ -142,6 +149,10 @@ class DriftCatalogRepository implements CatalogRepository {
     provider: row.provider,
     isArchived: row.isArchived,
     updatedAt: DateTime.fromMicrosecondsSinceEpoch(row.updatedAt, isUtc: true),
+    meta:
+        (row.meta != null && row.meta!.isNotEmpty)
+            ? (jsonDecode(row.meta!) as Map<String, dynamic>)
+            : null,
   );
 
   AccountsCompanion _accountToCompanion(Account a) => AccountsCompanion(
@@ -151,6 +162,7 @@ class DriftCatalogRepository implements CatalogRepository {
     provider: Value(a.provider),
     isArchived: Value(a.isArchived),
     updatedAt: Value(a.updatedAt.microsecondsSinceEpoch),
+    meta: Value(a.meta != null ? jsonEncode(a.meta) : null),
   );
 
   Envelope _envelopeFromRow(EnvelopeRow row) {

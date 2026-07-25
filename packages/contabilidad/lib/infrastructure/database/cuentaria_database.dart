@@ -80,6 +80,7 @@ class Accounts extends Table {
   TextColumn get provider => text().nullable()();
   BoolColumn get isArchived => boolean()();
   IntColumn get updatedAt => integer()(); // epoch µs
+  TextColumn get meta => text().nullable()(); // JSON
 
   @override
   Set<Column> get primaryKey => {id};
@@ -154,7 +155,7 @@ class CuentariaDatabase extends _$CuentariaDatabase {
   /// Drift structural schema version. Increment when tables change.
   /// See also [schemaVersion] column in [events] (different counter — F2-8).
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -182,6 +183,9 @@ class CuentariaDatabase extends _$CuentariaDatabase {
       }
       if (from < 3) {
         await m.createTable(appMeta);
+      }
+      if (from < 4) {
+        await m.addColumn(accounts, accounts.meta);
       }
     },
   );

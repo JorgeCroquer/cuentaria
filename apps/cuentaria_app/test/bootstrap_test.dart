@@ -52,30 +52,19 @@ void main() {
     });
   });
 
-  group('default account seeding', () {
-    test(
-      'seeds a single default USD account when the catalog is empty',
-      () async {
-        final container = ProviderContainer(
-          overrides: [isWebProvider.overrideWithValue(true)],
-        );
-        addTearDown(container.dispose);
+  group('catalog seeding', () {
+    test('does not auto-seed any account — the Accounts screen (#94) guides '
+        'creation instead', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
 
-        final catalogRepository = await container.read(
-          catalogRepositoryProvider.future,
-        );
+      final catalogRepository = await container.read(
+        catalogRepositoryProvider.future,
+      );
 
-        expect(catalogRepository.accountIds, hasLength(1));
-        final accountId = catalogRepository.accountIds.first;
-        expect(
-          catalogRepository.getAccount(accountId)?.nativeCurrency,
-          CurrencyCode('USD'),
-        );
-
-        // Re-reading (cached future) must not seed a second account.
-        final again = await container.read(catalogRepositoryProvider.future);
-        expect(again.accountIds, hasLength(1));
-      },
-    );
+      expect(catalogRepository.accountIds, isEmpty);
+    });
   });
 }

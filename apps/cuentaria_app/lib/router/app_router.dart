@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../features/accounts/ui/screens/accounts_screen.dart';
 import '../features/distribution/ui/screens/cascade_editor_screen.dart';
 import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
@@ -44,6 +45,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
             (context, state) => EnvelopeEditScreen(
               envelopeId: EnvelopeId(state.pathParameters['id']!),
             ),
+      ),
+      GoRoute(
+        path: '/accounts',
+        builder: (context, state) => const AccountsScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder:

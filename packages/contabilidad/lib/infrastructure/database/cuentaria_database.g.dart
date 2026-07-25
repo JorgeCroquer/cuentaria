@@ -828,6 +828,15 @@ class $AccountsTable extends Accounts
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _metaMeta = const VerificationMeta('meta');
+  @override
+  late final GeneratedColumn<String> meta = GeneratedColumn<String>(
+    'meta',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -836,6 +845,7 @@ class $AccountsTable extends Accounts
     provider,
     isArchived,
     updatedAt,
+    meta,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -895,6 +905,12 @@ class $AccountsTable extends Accounts
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('meta')) {
+      context.handle(
+        _metaMeta,
+        meta.isAcceptableOrUnknown(data['meta']!, _metaMeta),
+      );
+    }
     return context;
   }
 
@@ -933,6 +949,10 @@ class $AccountsTable extends Accounts
             DriftSqlType.int,
             data['${effectivePrefix}updated_at'],
           )!,
+      meta: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}meta'],
+      ),
     );
   }
 
@@ -949,6 +969,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
   final String? provider;
   final bool isArchived;
   final int updatedAt;
+  final String? meta;
   const AccountRow({
     required this.id,
     required this.name,
@@ -956,6 +977,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
     this.provider,
     required this.isArchived,
     required this.updatedAt,
+    this.meta,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -968,6 +990,9 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
     }
     map['is_archived'] = Variable<bool>(isArchived);
     map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || meta != null) {
+      map['meta'] = Variable<String>(meta);
+    }
     return map;
   }
 
@@ -982,6 +1007,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
               : Value(provider),
       isArchived: Value(isArchived),
       updatedAt: Value(updatedAt),
+      meta: meta == null && nullToAbsent ? const Value.absent() : Value(meta),
     );
   }
 
@@ -997,6 +1023,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
       provider: serializer.fromJson<String?>(json['provider']),
       isArchived: serializer.fromJson<bool>(json['isArchived']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      meta: serializer.fromJson<String?>(json['meta']),
     );
   }
   @override
@@ -1009,6 +1036,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
       'provider': serializer.toJson<String?>(provider),
       'isArchived': serializer.toJson<bool>(isArchived),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'meta': serializer.toJson<String?>(meta),
     };
   }
 
@@ -1019,6 +1047,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
     Value<String?> provider = const Value.absent(),
     bool? isArchived,
     int? updatedAt,
+    Value<String?> meta = const Value.absent(),
   }) => AccountRow(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1026,6 +1055,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
     provider: provider.present ? provider.value : this.provider,
     isArchived: isArchived ?? this.isArchived,
     updatedAt: updatedAt ?? this.updatedAt,
+    meta: meta.present ? meta.value : this.meta,
   );
   AccountRow copyWithCompanion(AccountsCompanion data) {
     return AccountRow(
@@ -1039,6 +1069,7 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
       isArchived:
           data.isArchived.present ? data.isArchived.value : this.isArchived,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      meta: data.meta.present ? data.meta.value : this.meta,
     );
   }
 
@@ -1050,14 +1081,22 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
           ..write('nativeCurrency: $nativeCurrency, ')
           ..write('provider: $provider, ')
           ..write('isArchived: $isArchived, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('meta: $meta')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, name, nativeCurrency, provider, isArchived, updatedAt);
+  int get hashCode => Object.hash(
+    id,
+    name,
+    nativeCurrency,
+    provider,
+    isArchived,
+    updatedAt,
+    meta,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1067,7 +1106,8 @@ class AccountRow extends DataClass implements Insertable<AccountRow> {
           other.nativeCurrency == this.nativeCurrency &&
           other.provider == this.provider &&
           other.isArchived == this.isArchived &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.meta == this.meta);
 }
 
 class AccountsCompanion extends UpdateCompanion<AccountRow> {
@@ -1077,6 +1117,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
   final Value<String?> provider;
   final Value<bool> isArchived;
   final Value<int> updatedAt;
+  final Value<String?> meta;
   final Value<int> rowid;
   const AccountsCompanion({
     this.id = const Value.absent(),
@@ -1085,6 +1126,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
     this.provider = const Value.absent(),
     this.isArchived = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.meta = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   AccountsCompanion.insert({
@@ -1094,6 +1136,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
     this.provider = const Value.absent(),
     required bool isArchived,
     required int updatedAt,
+    this.meta = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        name = Value(name),
@@ -1107,6 +1150,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
     Expression<String>? provider,
     Expression<bool>? isArchived,
     Expression<int>? updatedAt,
+    Expression<String>? meta,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1116,6 +1160,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
       if (provider != null) 'provider': provider,
       if (isArchived != null) 'is_archived': isArchived,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (meta != null) 'meta': meta,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1127,6 +1172,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
     Value<String?>? provider,
     Value<bool>? isArchived,
     Value<int>? updatedAt,
+    Value<String?>? meta,
     Value<int>? rowid,
   }) {
     return AccountsCompanion(
@@ -1136,6 +1182,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
       provider: provider ?? this.provider,
       isArchived: isArchived ?? this.isArchived,
       updatedAt: updatedAt ?? this.updatedAt,
+      meta: meta ?? this.meta,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1161,6 +1208,9 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (meta.present) {
+      map['meta'] = Variable<String>(meta.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1176,6 +1226,7 @@ class AccountsCompanion extends UpdateCompanion<AccountRow> {
           ..write('provider: $provider, ')
           ..write('isArchived: $isArchived, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('meta: $meta, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2520,6 +2571,7 @@ typedef $$AccountsTableCreateCompanionBuilder =
       Value<String?> provider,
       required bool isArchived,
       required int updatedAt,
+      Value<String?> meta,
       Value<int> rowid,
     });
 typedef $$AccountsTableUpdateCompanionBuilder =
@@ -2530,6 +2582,7 @@ typedef $$AccountsTableUpdateCompanionBuilder =
       Value<String?> provider,
       Value<bool> isArchived,
       Value<int> updatedAt,
+      Value<String?> meta,
       Value<int> rowid,
     });
 
@@ -2569,6 +2622,11 @@ class $$AccountsTableFilterComposer
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get meta => $composableBuilder(
+    column: $table.meta,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2611,6 +2669,11 @@ class $$AccountsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get meta => $composableBuilder(
+    column: $table.meta,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$AccountsTableAnnotationComposer
@@ -2643,6 +2706,9 @@ class $$AccountsTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get meta =>
+      $composableBuilder(column: $table.meta, builder: (column) => column);
 }
 
 class $$AccountsTableTableManager
@@ -2682,6 +2748,7 @@ class $$AccountsTableTableManager
                 Value<String?> provider = const Value.absent(),
                 Value<bool> isArchived = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
+                Value<String?> meta = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion(
                 id: id,
@@ -2690,6 +2757,7 @@ class $$AccountsTableTableManager
                 provider: provider,
                 isArchived: isArchived,
                 updatedAt: updatedAt,
+                meta: meta,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2700,6 +2768,7 @@ class $$AccountsTableTableManager
                 Value<String?> provider = const Value.absent(),
                 required bool isArchived,
                 required int updatedAt,
+                Value<String?> meta = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => AccountsCompanion.insert(
                 id: id,
@@ -2708,6 +2777,7 @@ class $$AccountsTableTableManager
                 provider: provider,
                 isArchived: isArchived,
                 updatedAt: updatedAt,
+                meta: meta,
                 rowid: rowid,
               ),
           withReferenceMapper:

@@ -6,7 +6,6 @@ import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 
-import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
@@ -35,21 +34,33 @@ Widget? _envelopeLeading(PatrimonioEnvelope envelope) {
 /// [patrimonioSnapshotProvider] — the engine, not the widget tree, does the
 /// valuation math. Shows a guidance empty state when the catalog has no
 /// accounts, rather than a spinner or a bare zero.
+///
+/// The empty-state check reads [patrimonioSnapshotProvider] rather than
+/// [catalogRepositoryProvider] directly: the latter resolves once to a
+/// mutable repository instance and never re-emits when an Account is added
+/// to it, so a check against it would freeze on the empty state forever
+/// after the first build. The snapshot provider already re-subscribes to
+/// ledger Transactions and is explicitly invalidated by the Accounts screen
+/// (#94) on every catalog mutation, so it reflects new Accounts reactively.
 class PatrimonioScreen extends ConsumerWidget {
   const PatrimonioScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final catalogAsync = ref.watch(catalogRepositoryProvider);
+    final snapshotAsync = ref.watch(patrimonioSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [_ManageEnvelopesAction(), _RecordRatesAction()],
+        actions: const [
+          _ManageAccountsAction(),
+          _ManageEnvelopesAction(),
+          _RecordRatesAction(),
+        ],
       ),
-      body: catalogAsync.when(
-        data: (catalog) {
-          if (catalog.accounts.isEmpty) {
+      body: snapshotAsync.when(
+        data: (snapshot) {
+          if (snapshot.accountGroups.isEmpty) {
             return const _EmptyState();
           }
           return const _PatrimonioBody();
@@ -284,6 +295,22 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+}
+
+/// Entry point to the Accounts catalog (#94), reached from Patrimonio so
+/// users can create, edit and archive Accounts without a dedicated tab.
+class _ManageAccountsAction extends StatelessWidget {
+  const _ManageAccountsAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('manageAccountsAction'),
+      icon: const Icon(Icons.account_balance_wallet_outlined),
+      tooltip: 'Manage accounts',
+      onPressed: () => context.push('/accounts'),
     );
   }
 }

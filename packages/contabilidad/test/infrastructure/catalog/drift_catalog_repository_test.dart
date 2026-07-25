@@ -162,6 +162,24 @@ void main() {
       expect(repo2.getEnvelope(EnvelopeId('env-del')), isNull);
     });
 
+    test('saveAccount persists meta JSON; fresh hydration sees it', () async {
+      final acc = Account(
+        id: AccountId('acc-color'),
+        name: 'Bancamiga',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.utc(2024, 6, 1),
+        meta: {'color': '#FF5500'},
+      );
+      await repo.saveAccount(acc);
+
+      expect(repo.getAccount(AccountId('acc-color'))?.colorHex, '#FF5500');
+
+      final repo2 = DriftCatalogRepository(db);
+      await repo2.hydrate();
+      expect(repo2.getAccount(AccountId('acc-color'))?.colorHex, '#FF5500');
+    });
+
     test('system envelope rename visible after fresh hydration', () async {
       final stageId = repo.getSystemEnvelope(EnvelopeRole.stage);
       final orig = repo.getEnvelope(stageId)!;
