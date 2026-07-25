@@ -62,14 +62,19 @@ class CreateAccount {
     );
 
     if (isOpeningNonZero) {
-      await _recordOpening(
-        eventId: eventId,
-        deviceId: deviceId,
-        accountId: id,
-        nativeAmount: openingBalance,
-        amountUsd: openingBalanceUsd,
-        rate: openingBalanceRate,
-      );
+      try {
+        await _recordOpening(
+          eventId: eventId,
+          deviceId: deviceId,
+          accountId: id,
+          nativeAmount: openingBalance,
+          amountUsd: openingBalanceUsd,
+          rate: openingBalanceRate,
+        );
+      } catch (_) {
+        await _catalog.deleteAccount(id);
+        rethrow;
+      }
     }
 
     return id;

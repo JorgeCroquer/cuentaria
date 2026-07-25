@@ -14,5 +14,6 @@ abstract class CatalogRepository {
   /// Writes are async to allow Drift persistence (F2-10).
   Future<void> saveAccount(Account account);
   Future<void> saveEnvelope(Envelope envelope);
+  Future<void> deleteAccount(AccountId id);
   Future<void> deleteEnvelope(EnvelopeId id);
 }

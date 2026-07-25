@@ -244,6 +244,32 @@ void _runContractSuite(
     });
 
     // -----------------------------------------------------------------------
+    // deleteAccount
+    // -----------------------------------------------------------------------
+
+    group('deleteAccount', () {
+      final t0 = DateTime.utc(2024, 1, 1);
+
+      test('account can be deleted', () async {
+        final acc = Account(
+          id: AccountId('del-acc-1'),
+          name: 'Temp',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: t0,
+        );
+        await repo.saveAccount(acc);
+        await repo.deleteAccount(AccountId('del-acc-1'));
+        expect(repo.getAccount(AccountId('del-acc-1')), isNull);
+      });
+
+      test('unknown id is a no-op', () async {
+        await repo.deleteAccount(AccountId('no-such-acc'));
+        expect(repo.getAccount(AccountId('no-such-acc')), isNull);
+      });
+    });
+
+    // -----------------------------------------------------------------------
     // deleteEnvelope
     // -----------------------------------------------------------------------
 

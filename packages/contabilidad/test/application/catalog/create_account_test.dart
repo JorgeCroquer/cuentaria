@@ -4,12 +4,31 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
+import 'package:contabilidad/domain/ports/event_store.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/ports/log_filters.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:test/test.dart';
+
+class _ThrowingEventStore implements EventStore {
+  @override
+  Future<bool> append(Transaction event) async {
+    throw StateError('simulated event store failure');
+  }
+
+  @override
+  Future<Transaction?> get(EventId id) async => null;
+
+  @override
+  Future<bool> hasReversal(EventId originalId) async => false;
+
+  @override
+  Future<List<Transaction>> queryLog({LogFilters? filters}) async => [];
+}
 
 void main() {
   group('CreateAccount', () {
@@ -136,6 +155,42 @@ void main() {
 
       expect(catalog.accounts, isEmpty);
       expect(store.events, isEmpty);
+    });
+
+    test('a RecordOpening failure after the account is saved compensates by '
+        'deleting the account and re-throws', () async {
+      final throwingStore = _ThrowingEventStore();
+      final throwingRecordTransaction = RecordTransaction(
+        store: throwingStore,
+        projections: projections,
+        eventBus: SyncEventBus(),
+        validator: ReferentialIntegrityValidator(catalog),
+      );
+      final throwingRecordOpening = RecordOpening(
+        record: throwingRecordTransaction,
+        catalog: catalog,
+        projections: projections,
+      );
+      final createAccountWithFailingOpening = CreateAccount(
+        catalog: catalog,
+        recordOpening: throwingRecordOpening,
+      );
+
+      await expectLater(
+        () => createAccountWithFailingOpening(
+          name: 'Bancamiga',
+          nativeCurrency: CurrencyCode('USD'),
+          openingBalance: Money(
+            amount: BigInt.from(20000),
+            currency: CurrencyCode('USD'),
+          ),
+          eventId: EventId('evt-create-fail'),
+          deviceId: 'dev-1',
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(catalog.accounts, isEmpty);
     });
   });
 }

@@ -57,6 +57,29 @@ void main() {
     expect(find.text('USD'), findsOneWidget);
   });
 
+  testWidgets('creates a USDT account and lists it with the USDT badge', (
+    tester,
+  ) async {
+    await pumpAccountsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('accountNameField')),
+      'Binance',
+    );
+    await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('USDT').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('saveAccountButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Binance'), findsOneWidget);
+    expect(find.text('USDT'), findsOneWidget);
+  });
+
   testWidgets('a non-zero opening balance posts to the Apertura envelope', (
     tester,
   ) async {

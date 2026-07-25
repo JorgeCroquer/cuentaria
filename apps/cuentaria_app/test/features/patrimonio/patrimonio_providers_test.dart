@@ -296,6 +296,17 @@ void main() {
         final deviceId = await container.read(deviceIdProvider.future);
         final recordIncome = await container.read(recordIncomeProvider.future);
 
+        final accountId = AccountId('test-acc');
+        await catalog.saveAccount(
+          Account(
+            id: accountId,
+            name: 'Test Account',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
         final mercado = EnvelopeId('mercado');
         await catalog.saveEnvelope(
           Envelope(
@@ -310,7 +321,7 @@ void main() {
         await recordIncome(
           eventId: EventId('evt-mercado'),
           deviceId: deviceId,
-          accountId: catalog.accountIds.first,
+          accountId: accountId,
           envelopeId: mercado,
           amount: Money(
             amount: BigInt.from(4000),
