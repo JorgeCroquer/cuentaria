@@ -19,11 +19,43 @@ String _formatDate(DateTime date) {
   return '$year-$month-$day';
 }
 
-String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+String _formatUsdCents(int cents) {
+  final sign = cents < 0 ? '-' : '';
+  return '$sign\$${(cents.abs() / 100).toStringAsFixed(2)}';
+}
 
-int _netUsd(Transaction transaction) => transaction.postings
-    .where((p) => p.amountUsd > 0)
-    .fold(0, (sum, p) => sum + p.amountUsd);
+/// True for an inter-account move (Transfer, AcquisitionConversion): every
+/// posting is on the Account dimension, none on Envelope. The self-balancing
+/// invariant in [Transaction.create] then forces the Account postings to net
+/// to zero, since there is no Envelope side to balance against.
+bool _isInterAccountMove(Transaction transaction) =>
+    transaction.postings.every((p) => p.dimension == Dimension.account);
+
+/// USD amount to show on a movement row.
+///
+/// For most families this is the net moved on the Account dimension only —
+/// the same `sumAccounts` the self-balancing invariant already computes in
+/// [Transaction.create]. Summing every posting regardless of dimension
+/// double-counts (an Income's Account and Envelope legs carry the same
+/// signed amount) and zeroes out Expenses (both legs are negative, so a
+/// `> 0` filter drops them all).
+///
+/// For an inter-account move that net is always zero by the invariant above
+/// — accounting-correct (no wealth was created) but reads as a bug in the
+/// list ("Mover — $0.00" for a real $100 transfer). So for this family we
+/// show the moved amount (the receiving leg) instead; net wealth is
+/// unaffected, this only changes what the row displays.
+int _netUsd(Transaction transaction) {
+  final accountPostings = transaction.postings.where(
+    (p) => p.dimension == Dimension.account,
+  );
+  if (_isInterAccountMove(transaction)) {
+    return accountPostings
+        .map((p) => p.amountUsd)
+        .reduce((a, b) => a > b ? a : b);
+  }
+  return accountPostings.fold(0, (sum, p) => sum + p.amountUsd);
+}
 
 /// Icon/color for a movement row (#99): the appearance of the first user
 /// Envelope it touches, matching the tagging users already did in the
