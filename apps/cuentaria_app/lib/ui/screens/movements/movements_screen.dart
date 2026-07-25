@@ -19,10 +19,18 @@ String _formatDate(DateTime date) {
   return '$year-$month-$day';
 }
 
-String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+String _formatUsdCents(int cents) {
+  final sign = cents < 0 ? '-' : '';
+  return '$sign\$${(cents.abs() / 100).toStringAsFixed(2)}';
+}
 
+/// Net USD moved, from the Account dimension only — the same `sumAccounts`
+/// the self-balancing invariant already computes in [Transaction.create].
+/// Summing every posting regardless of dimension double-counts (an Income's
+/// Account and Envelope legs carry the same signed amount) and zeroes out
+/// Expenses (both legs are negative, so a `> 0` filter drops them all).
 int _netUsd(Transaction transaction) => transaction.postings
-    .where((p) => p.amountUsd > 0)
+    .where((p) => p.dimension == Dimension.account)
     .fold(0, (sum, p) => sum + p.amountUsd);
 
 /// Icon/color for a movement row (#99): the appearance of the first user

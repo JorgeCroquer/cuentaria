@@ -1,6 +1,7 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
+import 'package:contabilidad/application/ledger/factories/record_income.dart';
 import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
@@ -76,6 +77,40 @@ Future<void> _recordExpense(
   );
 }
 
+Future<void> _recordIncome(
+  ProviderContainer container, {
+  required String eventId,
+  required int amountCents,
+}) async {
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  final store = await container.read(eventStoreProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final eventBus = container.read(eventBusProvider);
+  final deviceId = await container.read(deviceIdProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  final recordIncome = RecordIncome(
+    record: recordTransaction,
+    catalog: catalog,
+  );
+
+  await recordIncome(
+    eventId: EventId(eventId),
+    deviceId: deviceId,
+    accountId: AccountId('acc-usd'),
+    amount: Money(
+      amount: BigInt.from(amountCents),
+      currency: CurrencyCode('USD'),
+    ),
+    source: 'Cliente X',
+  );
+}
+
 Future<ProviderContainer> _seededContainer() async {
   final container = ProviderContainer(
     overrides: [isWebProvider.overrideWithValue(true)],
@@ -139,6 +174,35 @@ void main() {
         expect(icon.icon, AppIcons.iconFor('restaurant'));
       },
     );
+
+    testWidgets('shows the signed USD amount actually moved per Account (not a '
+        'double count across Account+Envelope postings)', (tester) async {
+      final container = await _seededContainer();
+      addTearDown(container.dispose);
+      await _recordIncome(container, eventId: 'evt-income', amountCents: 50000);
+      await _recordExpense(
+        container,
+        eventId: 'evt-expense',
+        memo: 'Groceries',
+      );
+
+      await _pumpWithRouter(tester, container);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-income')),
+          matching: find.text('\$500.00'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-expense')),
+          matching: find.text('-\$12.00'),
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets(
       'tapping a movement opens its detail with postings and a Reversar '

@@ -5,6 +5,7 @@ import 'package:cuentaria_app/ui/screens/movements/movements_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_kernel/shared_kernel.dart';
 
 Future<void> _tapDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
@@ -298,6 +299,38 @@ void main() {
               .singleWhere((t) => t.metadata.type == 'ForeignCurrencyExpense')
               .metadata
               .eventId;
+
+      // -- Movements amounts (#99 bugfix): each row shows what actually
+      // moved on the Account dimension, not a double count of the
+      // Account+Envelope legs — in insertion (chronological) order:
+      // Opening Bancamiga, Opening Binance, Distribution (Apertura),
+      // Income, Distribution (Stage), AcquisitionConversion (Mover),
+      // ForeignCurrencyExpense. --------------------------------------
+      expect(log[0].metadata.type, 'Opening');
+      expect(log[1].metadata.type, 'Opening');
+      expect(log[2].metadata.type, 'Distribution');
+      expect(log[3].metadata.type, 'Income');
+      expect(log[4].metadata.type, 'Distribution');
+      expect(log[5].metadata.type, 'AcquisitionConversion');
+      expect(log[6].metadata.type, 'ForeignCurrencyExpense');
+
+      void expectRowAmount(EventId eventId, String amount) {
+        expect(
+          find.descendant(
+            of: find.byKey(Key('movement_${eventId.value}')),
+            matching: find.text(amount),
+          ),
+          findsOneWidget,
+        );
+      }
+
+      expectRowAmount(log[0].metadata.eventId, '\$200.00'); // Bancamiga open
+      expectRowAmount(log[1].metadata.eventId, '\$150.00'); // Binance open
+      expectRowAmount(log[2].metadata.eventId, '\$0.00'); // Apertura split
+      expectRowAmount(log[3].metadata.eventId, '\$500.00'); // Income
+      expectRowAmount(log[4].metadata.eventId, '\$0.00'); // Stage split
+      expectRowAmount(log[5].metadata.eventId, '\$0.00'); // Mover (own accts)
+      expectRowAmount(expenseEventId, '-\$50.00'); // BdV expense
 
       await tester.tap(find.byKey(Key('movement_${expenseEventId.value}')));
       await tester.pumpAndSettle();
