@@ -457,7 +457,7 @@ void main() {
       await recordOpening(
         eventId: EventId('evt-opening-nav'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: await _ensureTestAccount(catalog),
         nativeAmount: Money(
           amount: BigInt.from(800),
           currency: CurrencyCode('USD'),
@@ -474,4 +474,22 @@ void main() {
       expect(find.text('Distribuir Apertura'), findsOneWidget);
     },
   );
+}
+
+/// The bootstrap no longer seeds a default Account (#94 removed the "Efectivo"
+/// seed once accounts became creatable from the UI), so a test that needs one
+/// creates it itself instead of reaching for `accountIds.first`.
+Future<AccountId> _ensureTestAccount(CatalogRepository catalog) async {
+  if (catalog.accountIds.isNotEmpty) return catalog.accountIds.first;
+  final id = AccountId('test-acc');
+  await catalog.saveAccount(
+    Account(
+      id: id,
+      name: 'Test Account',
+      nativeCurrency: CurrencyCode('USD'),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  return id;
 }

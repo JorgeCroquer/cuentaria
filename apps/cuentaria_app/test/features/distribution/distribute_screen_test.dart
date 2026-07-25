@@ -1,3 +1,4 @@
+import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/cascade/cascade.dart';
 import 'package:contabilidad/application/cascade/cascade_step.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
@@ -141,7 +142,7 @@ void main() {
       await recordOpening(
         eventId: EventId('evt-open-1'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: await _ensureTestAccount(catalog),
         nativeAmount: Money(
           amount: BigInt.from(1500),
           currency: CurrencyCode('USD'),
@@ -214,7 +215,7 @@ void main() {
     await recordIncome(
       eventId: EventId('evt-edit-preview'),
       deviceId: deviceId,
-      accountId: catalog.accountIds.first,
+      accountId: await _ensureTestAccount(catalog),
       amount: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')),
       source: 'Manual entry',
     );
@@ -273,4 +274,22 @@ void main() {
     expect(find.text('Vacaciones'), findsOneWidget);
     expect(find.text('\$50.00'), findsOneWidget);
   });
+}
+
+/// The bootstrap no longer seeds a default Account (#94 removed the "Efectivo"
+/// seed once accounts became creatable from the UI), so a test that needs one
+/// creates it itself instead of reaching for `accountIds.first`.
+Future<AccountId> _ensureTestAccount(CatalogRepository catalog) async {
+  if (catalog.accountIds.isNotEmpty) return catalog.accountIds.first;
+  final id = AccountId('test-acc');
+  await catalog.saveAccount(
+    Account(
+      id: id,
+      name: 'Test Account',
+      nativeCurrency: CurrencyCode('USD'),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  return id;
 }
