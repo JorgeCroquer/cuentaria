@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
@@ -226,6 +227,89 @@ void main() {
       final metadata = envelope.metadata as GoalLineMetadata;
       expect(metadata.progressPercent, 40);
     });
+
+    test('maps a user envelope\'s icon/color appearance through', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+
+      final mercado = EnvelopeId('mercado');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: mercado,
+          name: 'Mercado',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withAppearance(
+          const EnvelopeAppearance(iconId: 'shopping_cart', colorIndex: 1),
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      final envelope = snapshot.envelopes.singleWhere((e) => e.id == mercado);
+      expect(envelope.iconId, 'shopping_cart');
+      expect(envelope.colorIndex, 1);
+    });
+
+    test(
+      'excludes an archived user envelope from the snapshot and its totals',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final deviceId = await container.read(deviceIdProvider.future);
+        final recordIncome = await container.read(recordIncomeProvider.future);
+
+        final mercado = EnvelopeId('mercado');
+        await catalog.saveEnvelope(
+          Envelope(
+            id: mercado,
+            name: 'Mercado',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ).withTarget(const Cap(amountUsd: 30000)),
+        );
+
+        await recordIncome(
+          eventId: EventId('evt-mercado'),
+          deviceId: deviceId,
+          accountId: catalog.accountIds.first,
+          envelopeId: mercado,
+          amount: Money(
+            amount: BigInt.from(4000),
+            currency: CurrencyCode('USD'),
+          ),
+          source: 'Manual entry',
+        );
+
+        final before = await container.read(patrimonioSnapshotProvider.future);
+        expect(before.envelopes.where((e) => e.id == mercado), isNotEmpty);
+
+        final existing = catalog.getEnvelope(mercado)!;
+        await catalog.saveEnvelope(
+          Envelope(
+            id: mercado,
+            name: existing.name,
+            role: existing.role,
+            isArchived: true,
+            updatedAt: DateTime.now(),
+            meta: existing.meta,
+          ),
+        );
+        container.invalidate(patrimonioSnapshotProvider);
+
+        final after = await container.read(patrimonioSnapshotProvider.future);
+        expect(after.envelopes.where((e) => e.id == mercado), isEmpty);
+      },
+    );
 
     test('Stage is surfaced as "Sin asignar" only once it has a balance; '
         'Diferencial/Ajustes never appear', () async {

@@ -1,4 +1,5 @@
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:test/test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -267,6 +268,106 @@ void main() {
         );
         expect(older.mergeWith(newer).target, const Cap(amountUsd: 99000));
         expect(newer.mergeWith(older).target, const Cap(amountUsd: 99000));
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // EnvelopeAppearance — typed access
+    // -------------------------------------------------------------------------
+
+    group('appearance', () {
+      final t0 = DateTime(2024, 1, 1);
+
+      test('defaults to none when meta is null', () {
+        final env = Envelope(
+          id: EnvelopeId('env-a1'),
+          name: 'Groceries',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        expect(env.appearance, EnvelopeAppearance.none);
+      });
+
+      test('returns appearance from meta', () {
+        final env = Envelope(
+          id: EnvelopeId('env-a2'),
+          name: 'Groceries',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {
+            'appearance': {'icon_id': 'cart', 'color_index': 3},
+          },
+        );
+        expect(
+          env.appearance,
+          const EnvelopeAppearance(iconId: 'cart', colorIndex: 3),
+        );
+      });
+
+      test('withAppearance encodes into meta and round-trips', () {
+        final env = Envelope(
+          id: EnvelopeId('env-a3'),
+          name: 'Dining',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        final updated = env.withAppearance(
+          const EnvelopeAppearance(iconId: 'home', colorIndex: 1),
+        );
+        expect(
+          updated.appearance,
+          const EnvelopeAppearance(iconId: 'home', colorIndex: 1),
+        );
+        expect(updated.id, env.id);
+        expect(updated.name, env.name);
+      });
+
+      test('withAppearance preserves other meta keys, including target', () {
+        final env = Envelope(
+          id: EnvelopeId('env-a4'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+        ).withTarget(const Cap(amountUsd: 10000));
+        final updated = env.withAppearance(
+          const EnvelopeAppearance(iconId: 'cart'),
+        );
+        expect(updated.target, const Cap(amountUsd: 10000));
+        expect(updated.appearance, const EnvelopeAppearance(iconId: 'cart'));
+      });
+
+      test('withAppearance none removes appearance key from meta', () {
+        final env = Envelope(
+          id: EnvelopeId('env-a5'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: t0,
+          meta: {
+            'appearance': {'icon_id': 'cart', 'color_index': 2},
+          },
+        );
+        final updated = env.withAppearance(EnvelopeAppearance.none);
+        expect(updated.appearance, EnvelopeAppearance.none);
+        expect(updated.meta, isNull);
+      });
+
+      test('withAppearance on system envelope throws', () {
+        final env = Envelope(
+          id: EnvelopeId('sys-stage-2'),
+          name: 'Stage',
+          role: EnvelopeRole.stage,
+          isArchived: false,
+          updatedAt: t0,
+        );
+        expect(
+          () => env.withAppearance(const EnvelopeAppearance(iconId: 'cart')),
+          throwsArgumentError,
+        );
       });
     });
   });

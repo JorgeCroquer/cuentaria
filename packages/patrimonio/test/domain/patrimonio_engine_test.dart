@@ -210,6 +210,30 @@ void main() {
       expect(result.metadata, const NoMetadata());
     });
 
+    test('appearance (icon/color) passes through unchanged', () {
+      final result = run(
+        EnvelopeView(
+          id: EnvelopeId('env-appearance'),
+          name: 'Mercado',
+          role: EnvelopeRoleView.user,
+          balanceUsd: 100,
+          target: const NoTargetView(),
+          iconId: 'cart',
+          colorIndex: 3,
+        ),
+      );
+
+      expect(result.iconId, 'cart');
+      expect(result.colorIndex, 3);
+    });
+
+    test('appearance defaults to null when not set', () {
+      final result = run(userEnvelope(balanceUsd: 100));
+
+      expect(result.iconId, isNull);
+      expect(result.colorIndex, isNull);
+    });
+
     test('goal line in progress: quota rounds up over the remaining '
         'calendar months', () {
       final result = run(

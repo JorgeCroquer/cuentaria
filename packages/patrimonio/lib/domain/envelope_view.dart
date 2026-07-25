@@ -49,6 +49,8 @@ class EnvelopeView extends Equatable {
   final EnvelopeRoleView role;
   final int balanceUsd;
   final FundingTargetView target;
+  final String? iconId;
+  final int? colorIndex;
 
   const EnvelopeView({
     required this.id,
@@ -56,8 +58,18 @@ class EnvelopeView extends Equatable {
     required this.role,
     required this.balanceUsd,
     required this.target,
+    this.iconId,
+    this.colorIndex,
   });
 
   @override
-  List<Object?> get props => [id, name, role, balanceUsd, target];
+  List<Object?> get props => [
+    id,
+    name,
+    role,
+    balanceUsd,
+    target,
+    iconId,
+    colorIndex,
+  ];
 }

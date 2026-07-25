@@ -8,9 +8,27 @@ import 'package:tasas/domain/rate_observation.dart';
 
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
+import '../../../../ui/theme/app_icons.dart';
+import '../../../../ui/theme/app_theme.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// The icon/color a user Envelope was tagged with in the management screen
+/// (#95) — `null` (no leading widget) when neither was chosen, since older
+/// Envelopes and system ones never carry appearance.
+Widget? _envelopeLeading(PatrimonioEnvelope envelope) {
+  if (envelope.iconId == null && envelope.colorIndex == null) return null;
+  final color =
+      envelope.colorIndex == null
+          ? null
+          : AppColors.palette[envelope.colorIndex! % AppColors.palette.length];
+  return Icon(
+    AppIcons.iconFor(envelope.iconId),
+    color: color,
+    key: Key('envelopeIcon_${envelope.id.value}'),
+  );
+}
 
 /// Patrimonio screen (#82): header (real cost, today's value, unrealized
 /// P&L, BCV reference) + accounts grouped by currency, driven end-to-end by
@@ -27,7 +45,7 @@ class PatrimonioScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [_RecordRatesAction()],
+        actions: const [_ManageEnvelopesAction(), _RecordRatesAction()],
       ),
       body: catalogAsync.when(
         data: (catalog) {
@@ -162,6 +180,7 @@ class _EnvelopeTile extends StatelessWidget {
       ),
       NoMetadata() => ListTile(
         key: key,
+        leading: _envelopeLeading(envelope),
         title: Text(envelope.name),
         trailing: Text(_formatUsdCents(envelope.balanceUsd)),
       ),
@@ -182,6 +201,7 @@ class _GoalLineEnvelopeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      leading: _envelopeLeading(envelope),
       title: Text(envelope.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,6 +235,7 @@ class _CapEnvelopeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      leading: _envelopeLeading(envelope),
       title: Text(envelope.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,6 +283,22 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+}
+
+/// Entry point into the Envelopes management screen (U1 slice 2, #95) — the
+/// only place from which user Envelopes can be created, edited or archived.
+class _ManageEnvelopesAction extends StatelessWidget {
+  const _ManageEnvelopesAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('manageEnvelopesAction'),
+      icon: const Icon(Icons.category_outlined),
+      tooltip: 'Manage envelopes',
+      onPressed: () => context.push('/envelopes'),
     );
   }
 }
