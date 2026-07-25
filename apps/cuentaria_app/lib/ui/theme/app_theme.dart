@@ -38,6 +38,22 @@ class AppColors {
   ];
 }
 
+/// Reusable spacing scale for layout rhythm, mirroring [AppColors] as a
+/// single source of truth later slices can import instead of hardcoding
+/// their own gaps and padding.
+class AppSpacing {
+  const AppSpacing._();
+
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 24;
+  static const double xxl = 32;
+
+  static const scale = <double>[xs, sm, md, lg, xl, xxl];
+}
+
 ThemeData _appTheme(Brightness brightness) {
   final colorScheme = ColorScheme.fromSeed(
     seedColor: _seedColor,
@@ -53,13 +69,19 @@ ThemeData _appTheme(Brightness brightness) {
       centerTitle: true,
     ),
     cardTheme: const CardThemeData(
-      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.sm,
+      ),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.xl,
+          vertical: AppSpacing.md,
+        ),
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
+          borderRadius: BorderRadius.all(Radius.circular(AppSpacing.md)),
         ),
       ),
     ),

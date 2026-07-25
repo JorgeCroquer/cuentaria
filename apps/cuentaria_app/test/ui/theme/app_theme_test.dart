@@ -35,4 +35,17 @@ void main() {
       expect(AppColors.palette.toSet(), hasLength(12)); // all distinct
     },
   );
+
+  test(
+    'AppSpacing exposes a reusable spacing scale for later slices to pick from',
+    () {
+      expect(AppSpacing.scale, hasLength(greaterThanOrEqualTo(6)));
+      expect(AppSpacing.scale.toSet(), hasLength(AppSpacing.scale.length));
+      expect(
+        AppSpacing.scale,
+        orderedEquals(List.of(AppSpacing.scale)..sort()),
+      );
+      expect(AppSpacing.md, 12);
+    },
+  );
 }
