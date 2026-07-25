@@ -138,7 +138,10 @@ class _LedgerScreenState extends ConsumerState<LedgerScreen> {
               ),
               const SizedBox(height: 8),
               if (_error != null)
-                Text(_error!, style: const TextStyle(color: Colors.red)),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
               ElevatedButton(
                 key: const Key('recordButton'),
                 onPressed: _isRecording ? null : () => _record(catalog),

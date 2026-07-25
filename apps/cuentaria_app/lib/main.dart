@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'router/app_router.dart';
+import 'ui/theme/app_theme.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -15,10 +16,9 @@ class MyApp extends ConsumerWidget {
     final goRouter = ref.watch(goRouterProvider);
     return MaterialApp.router(
       title: 'Cuentaria MVP',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
-      ),
+      theme: appLightTheme(),
+      darkTheme: appDarkTheme(),
+      themeMode: ThemeMode.system,
       routerConfig: goRouter,
     );
   }
