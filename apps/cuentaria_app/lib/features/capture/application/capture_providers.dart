@@ -1,8 +1,11 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
 import 'package:contabilidad/application/ledger/factories/record_realization.dart';
+import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 import 'package:contabilidad/application/ledger/quick_add_defaults.dart';
+import 'package:contabilidad/application/ledger/quick_add_mover_use_case.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,6 +54,31 @@ final quickAddExpenseUseCaseProvider = FutureProvider<QuickAddExpenseUseCase>((
   );
 });
 
+final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
+  ref,
+) async {
+  final store = await ref.watch(eventStoreProvider.future);
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  final projections = ref.watch(ledgerProjectionsProvider);
+  final eventBus = ref.watch(eventBusProvider);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+
+  return QuickAddMoverUseCase(
+    recordTransfer: RecordTransfer(record: recordTransaction, catalog: catalog),
+    recordAcquisitionConversion: RecordAcquisitionConversion(
+      record: recordTransaction,
+      catalog: catalog,
+    ),
+    catalog: catalog,
+  );
+});
+
 /// Everything the quick-add sheet needs to render its chips with smart
 /// defaults, precomputed once so the widget only deals with a single
 /// [AsyncValue].
@@ -58,11 +86,15 @@ class QuickAddCaptureContext {
   final List<Account> accounts;
   final List<Envelope> envelopes;
   final AccountId? lastUsedAccountId;
+  final List<String> previousIncomeSources;
+  final MoverPair? lastUsedMoverPair;
 
   QuickAddCaptureContext({
     required this.accounts,
     required this.envelopes,
     required this.lastUsedAccountId,
+    required this.previousIncomeSources,
+    required this.lastUsedMoverPair,
   });
 }
 
@@ -90,5 +122,7 @@ final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
     accounts: accounts,
     envelopes: envelopes,
     lastUsedAccountId: await defaults.lastUsedAccount(),
+    previousIncomeSources: await defaults.previousIncomeSources(),
+    lastUsedMoverPair: await defaults.lastUsedMoverPair(),
   );
 });
