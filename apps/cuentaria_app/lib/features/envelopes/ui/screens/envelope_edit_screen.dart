@@ -25,8 +25,10 @@ String _targetKindLabel(_TargetKind kind) => switch (kind) {
 /// (curated subset, [AppIcons]), color ([AppColors] palette) and an optional
 /// Funding Target — none / Cap / GoalLine. `envelopeId == null` is create
 /// mode; otherwise the existing Envelope is loaded and updated in place.
-/// System Envelopes are never reachable here — [Envelope.withAppearance]/
-/// [Envelope.withTarget] already guard against setting either on one.
+/// No app UI links to a System Envelope here, but a direct/deep link still
+/// could — [build] guards that case by refusing to render the form for any
+/// hydrated Envelope with `role != EnvelopeRole.none`, so it can't be saved
+/// over and corrupt the system Envelope's name/meta.
 class EnvelopeEditScreen extends ConsumerStatefulWidget {
   const EnvelopeEditScreen({super.key, this.envelopeId});
 
@@ -153,10 +155,26 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
             if (existing != null) _hydrate(existing);
             _hydrated = true;
           }
+          if (_existing != null && _existing!.role != EnvelopeRole.none) {
+            return _buildSystemEnvelopeNotice();
+          }
           return _buildForm(catalog);
         },
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stackTrace) => Center(child: Text('Error: $error')),
+      ),
+    );
+  }
+
+  Widget _buildSystemEnvelopeNotice() {
+    return const Center(
+      key: Key('systemEnvelopeNotice'),
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Text(
+          'System envelopes cannot be edited.',
+          textAlign: TextAlign.center,
+        ),
       ),
     );
   }
