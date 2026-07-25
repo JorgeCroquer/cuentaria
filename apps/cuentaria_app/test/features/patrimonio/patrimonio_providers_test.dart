@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
@@ -225,6 +226,33 @@ void main() {
       expect(envelope.role, EnvelopeRoleView.user);
       final metadata = envelope.metadata as GoalLineMetadata;
       expect(metadata.progressPercent, 40);
+    });
+
+    test('maps a user envelope\'s icon/color appearance through', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+
+      final mercado = EnvelopeId('mercado');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: mercado,
+          name: 'Mercado',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withAppearance(
+          const EnvelopeAppearance(iconId: 'shopping_cart', colorIndex: 1),
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      final envelope = snapshot.envelopes.singleWhere((e) => e.id == mercado);
+      expect(envelope.iconId, 'shopping_cart');
+      expect(envelope.colorIndex, 1);
     });
 
     test('Stage is surfaced as "Sin asignar" only once it has a balance; '

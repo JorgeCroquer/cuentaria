@@ -154,6 +154,8 @@ class PatrimonioEnvelope extends Equatable {
   final int balanceUsd;
   final FundingTargetView target;
   final EnvelopeMetadata metadata;
+  final String? iconId;
+  final int? colorIndex;
 
   const PatrimonioEnvelope({
     required this.id,
@@ -162,8 +164,19 @@ class PatrimonioEnvelope extends Equatable {
     required this.balanceUsd,
     required this.target,
     required this.metadata,
+    this.iconId,
+    this.colorIndex,
   });
 
   @override
-  List<Object?> get props => [id, name, role, balanceUsd, target, metadata];
+  List<Object?> get props => [
+    id,
+    name,
+    role,
+    balanceUsd,
+    target,
+    metadata,
+    iconId,
+    colorIndex,
+  ];
 }
