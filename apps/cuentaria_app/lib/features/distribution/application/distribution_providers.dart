@@ -1,5 +1,7 @@
+import 'package:contabilidad/application/cascade/cascade.dart';
 import 'package:contabilidad/application/cascade/distribute_from_stage.dart';
 import 'package:contabilidad/application/cascade/distribution_proposal.dart';
+import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
@@ -38,11 +40,20 @@ final distributeFromStageProvider = FutureProvider<DistributeFromStage>((
   );
 });
 
-/// Previews the saved cascade run over the current Stage balance — null
-/// when no cascade has been saved yet.
-final distributionPreviewProvider = FutureProvider<DistributionProposal?>((
-  ref,
-) async {
-  final useCase = await ref.watch(distributeFromStageProvider.future);
-  return useCase.preview();
+/// Previews the saved cascade run over the current [sourceRole] balance —
+/// null when no cascade has been saved yet. [sourceRole] is Stage or
+/// Apertura (`EnvelopeRole.opening`, #96) — same cascade either way.
+final distributionPreviewProvider =
+    FutureProvider.family<DistributionProposal?, EnvelopeRole>((
+      ref,
+      sourceRole,
+    ) async {
+      final useCase = await ref.watch(distributeFromStageProvider.future);
+      return useCase.preview(sourceRole: sourceRole);
+    });
+
+/// The saved cascade plan (#96 cascade editor), or null if none exists yet.
+final savedCascadeProvider = FutureProvider<Cascade?>((ref) async {
+  final repo = await ref.watch(cascadeRepositoryProvider.future);
+  return repo.load();
 });

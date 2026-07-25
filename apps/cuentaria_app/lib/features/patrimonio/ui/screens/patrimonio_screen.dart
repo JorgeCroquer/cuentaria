@@ -163,6 +163,7 @@ class _EnvelopeTile extends StatelessWidget {
           key: Key('openingBalanceNotice'),
         ),
         trailing: Text(_formatUsdCents(envelope.balanceUsd)),
+        onTap: () => context.push('/distribute?source=apertura'),
       );
     }
 
