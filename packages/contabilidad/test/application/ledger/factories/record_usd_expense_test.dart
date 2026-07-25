@@ -173,5 +173,75 @@ void main() {
 
       expect(store.events.isEmpty, isTrue);
     });
+
+    test('persists the memo when a note is provided', () async {
+      final accountId = AccountId('acc-usd');
+      catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'USD Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final envelopeId = EnvelopeId('env-1');
+      catalog.saveEnvelope(
+        Envelope(
+          id: envelopeId,
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await recordUsdExpense(
+        eventId: EventId('evt-5'),
+        deviceId: 'dev-1',
+        accountId: accountId,
+        envelopeId: envelopeId,
+        amount: Money(amount: BigInt.from(500), currency: CurrencyCode('USD')),
+        memo: 'Lunch with the team',
+      );
+
+      expect(store.events.single.metadata.memo, 'Lunch with the team');
+    });
+
+    test('does not persist an empty memo', () async {
+      final accountId = AccountId('acc-usd');
+      catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'USD Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final envelopeId = EnvelopeId('env-1');
+      catalog.saveEnvelope(
+        Envelope(
+          id: envelopeId,
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await recordUsdExpense(
+        eventId: EventId('evt-6'),
+        deviceId: 'dev-1',
+        accountId: accountId,
+        envelopeId: envelopeId,
+        amount: Money(amount: BigInt.from(500), currency: CurrencyCode('USD')),
+        memo: '',
+      );
+
+      expect(store.events.single.metadata.memo, isNull);
+    });
   });
 }

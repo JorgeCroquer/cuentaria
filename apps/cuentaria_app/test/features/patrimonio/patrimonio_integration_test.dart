@@ -173,6 +173,76 @@ void main() {
   );
 
   testWidgets(
+    'saving a quick-add expense from the FAB refreshes Patrimonio figures '
+    'reactively, with no manual reload or cross-invalidation (#97)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            isWebProvider.overrideWithValue(true),
+            _seededCatalogOverride,
+          ],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PatrimonioScreen)),
+      );
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$0.00',
+      );
+
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+      await recordIncome(
+        eventId: EventId('evt-fab-refresh-income'),
+        deviceId: deviceId,
+        accountId: AccountId('test-acc'),
+        amount: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')),
+        source: 'Manual entry',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$50.00',
+      );
+
+      await tester.tap(find.byKey(const Key('quickAddExpenseFab')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('keypadDigit_2')));
+      await tester.tap(find.byKey(const Key('keypadDigit_0')));
+      await tester.tap(find.byKey(const Key('keypadDigit_0')));
+      await tester.tap(find.byKey(const Key('keypadDigit_0')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('numericKeypad')), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$30.00',
+      );
+    },
+  );
+
+  testWidgets(
     'faithful e2e: records income and rates through real use cases and '
     'shows the exact header, account and envelope figures on screen (#84)',
     (tester) async {
