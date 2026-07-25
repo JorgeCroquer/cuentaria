@@ -185,5 +185,117 @@ void main() {
         );
       },
     );
+
+    group('the three combinations reachable from the UI (#98 fix, U1-15)', () {
+      setUp(() {
+        addAccount('facebank', 'USD');
+        addAccount('zinli', 'USD');
+        addAccount('binance', 'USD');
+        addAccount('bdv', 'VES');
+      });
+
+      test('USD -> USD (Facebank -> Zinli) posts a Transfer', () async {
+        await useCase(
+          eventId: EventId('evt-usd-usd'),
+          deviceId: 'dev-1',
+          sourceAccountId: usdAccountId('facebank'),
+          destinationAccountId: usdAccountId('zinli'),
+          givenAmount: Money(
+            amount: BigInt.from(10000),
+            currency: CurrencyCode('USD'),
+          ),
+        );
+
+        final log = await store.queryLog();
+        expect(log.single.metadata.type, 'Transfer');
+        expect(projections.accountBalance(AccountId('facebank')).usd, -10000);
+        expect(projections.accountBalance(AccountId('zinli')).usd, 10000);
+      });
+
+      test(
+        'USD -> non-USD (Binance -> BdV) posts an AcquisitionConversion',
+        () async {
+          await useCase(
+            eventId: EventId('evt-usd-ves'),
+            deviceId: 'dev-1',
+            sourceAccountId: usdAccountId('binance'),
+            destinationAccountId: usdAccountId('bdv'),
+            givenAmount: Money(
+              amount: BigInt.from(10000),
+              currency: CurrencyCode('USD'),
+            ),
+            rate: Decimal.parse('40'),
+          );
+
+          final log = await store.queryLog();
+          expect(log.single.metadata.type, 'AcquisitionConversion');
+          expect(projections.accountBalance(AccountId('binance')).usd, -10000);
+          expect(
+            projections.accountBalance(AccountId('bdv')).native.amount,
+            BigInt.from(400000),
+          );
+        },
+      );
+
+      test(
+        'non-USD -> USD (BdV -> Binance) is not modeled by the P2P/FX '
+        'conversion factories (U1-15 defers real crypto/foreign-currency '
+        'holdings to S3/S4) — it throws UsdOnlyOperation and posts nothing',
+        () async {
+          await expectLater(
+            () => useCase(
+              eventId: EventId('evt-ves-usd'),
+              deviceId: 'dev-1',
+              sourceAccountId: usdAccountId('bdv'),
+              destinationAccountId: usdAccountId('binance'),
+              givenAmount: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              rate: Decimal.parse('40'),
+            ),
+            throwsA(isA<UsdOnlyOperation>()),
+          );
+
+          expect(await store.queryLog(), isEmpty);
+        },
+      );
+
+      test('every account pair reachable from the UI selectors either posts '
+          'or throws a typed exception the capture sheet already catches and '
+          'displays — never an unhandled crash', () async {
+        final accountIds = ['facebank', 'zinli', 'binance', 'bdv'];
+
+        for (final sourceId in accountIds) {
+          for (final destinationId in accountIds) {
+            if (sourceId == destinationId) continue;
+
+            final source = catalog.getAccount(AccountId(sourceId))!;
+
+            try {
+              await useCase(
+                eventId: EventId('evt-$sourceId-$destinationId'),
+                deviceId: 'dev-1',
+                sourceAccountId: usdAccountId(sourceId),
+                destinationAccountId: usdAccountId(destinationId),
+                givenAmount: Money(
+                  amount: BigInt.from(100),
+                  currency: source.nativeCurrency,
+                ),
+                rate: Decimal.parse('40'),
+              );
+            } catch (e) {
+              expect(
+                e,
+                isA<UsdOnlyOperation>(),
+                reason:
+                    '$sourceId -> $destinationId threw an unexpected, '
+                    'unexplained exception: $e',
+              );
+            }
+          }
+        }
+      });
+    });
   });
 }

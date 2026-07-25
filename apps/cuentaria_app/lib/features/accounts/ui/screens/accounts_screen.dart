@@ -10,7 +10,7 @@ import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/account_providers.dart';
 import '../account_form_validators.dart';
 
-const _availableCurrencies = ['USD', 'VES', 'EUR', 'USDT'];
+const _availableCurrencies = ['USD', 'VES', 'EUR'];
 
 String _colorToHex(Color color) =>
     '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
