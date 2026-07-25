@@ -95,6 +95,56 @@ void main() {
     expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
   });
 
+  testWidgets('requires an exchange rate for a non-USD opening balance', (
+    tester,
+  ) async {
+    await pumpAccountsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+    await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VES').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('openingBalanceField')), '350');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('saveAccountButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Exchange rate is required'), findsOneWidget);
+    expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
+  });
+
+  testWidgets('a non-USD opening balance with an exchange rate posts the '
+      'USD-equivalent to the Apertura envelope', (tester) async {
+    final container = await pumpAccountsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+    await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VES').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('openingBalanceField')), '350');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('openingBalanceRateField')),
+      '3.5',
+    );
+    await tester.tap(find.byKey(const Key('saveAccountButton')));
+    await tester.pumpAndSettle();
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final projections = container.read(ledgerProjectionsProvider);
+    final account = catalog.accounts.singleWhere((a) => a.name == 'BdV');
+
+    expect(projections.accountBalance(account.id).usd, 10000);
+  });
+
   testWidgets('rejects a decimal opening balance', (tester) async {
     await pumpAccountsScreen(tester);
 

@@ -1,4 +1,5 @@
 import 'package:contabilidad/application/catalog/create_account.dart';
+import 'package:decimal/decimal.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
@@ -95,6 +96,45 @@ void main() {
         deviceId: 'dev-1',
       );
 
+      expect(store.events, isEmpty);
+    });
+
+    test('a non-USD opening balance with a rate posts the USD-equivalent to '
+        'the Apertura envelope', () async {
+      final id = await createAccount(
+        name: 'BdV',
+        nativeCurrency: CurrencyCode('VES'),
+        openingBalance: Money(
+          amount: BigInt.from(35000),
+          currency: CurrencyCode('VES'),
+        ),
+        openingBalanceRate: Decimal.parse('3.5'),
+        eventId: EventId('evt-create-5'),
+        deviceId: 'dev-1',
+      );
+
+      final openingEnvelope = catalog.getSystemEnvelope(EnvelopeRole.opening);
+      expect(projections.accountBalance(id).usd, 10000);
+      expect(projections.envelopeUsdBalance(openingEnvelope), 10000);
+    });
+
+    test('a non-USD opening balance without a rate is rejected before the '
+        'account is persisted', () async {
+      expect(
+        () => createAccount(
+          name: 'BdV',
+          nativeCurrency: CurrencyCode('VES'),
+          openingBalance: Money(
+            amount: BigInt.from(35000),
+            currency: CurrencyCode('VES'),
+          ),
+          eventId: EventId('evt-create-6'),
+          deviceId: 'dev-1',
+        ),
+        throwsArgumentError,
+      );
+
+      expect(catalog.accounts, isEmpty);
       expect(store.events, isEmpty);
     });
   });

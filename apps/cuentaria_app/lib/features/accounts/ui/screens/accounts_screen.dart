@@ -1,4 +1,5 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -9,7 +10,7 @@ import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/account_providers.dart';
 import '../account_form_validators.dart';
 
-const _availableCurrencies = ['USD', 'VES', 'EUR'];
+const _availableCurrencies = ['USD', 'VES', 'EUR', 'USDT'];
 
 String _colorToHex(Color color) =>
     '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
@@ -167,6 +168,7 @@ class _AccountFormDialog extends ConsumerStatefulWidget {
 class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _openingBalanceController;
+  late final TextEditingController _openingBalanceRateController;
   late String _currency;
   String? _colorHex;
   String? _error;
@@ -178,6 +180,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? '');
     _openingBalanceController = TextEditingController();
+    _openingBalanceRateController = TextEditingController();
     _currency = existing?.nativeCurrency.value ?? _availableCurrencies.first;
     _colorHex = existing?.colorHex;
   }
@@ -186,7 +189,16 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
   void dispose() {
     _nameController.dispose();
     _openingBalanceController.dispose();
+    _openingBalanceRateController.dispose();
     super.dispose();
+  }
+
+  /// The rate field only makes sense for a non-USD account with a non-zero
+  /// opening balance — matches [validateOpeningBalanceRate]'s own condition.
+  bool get _needsOpeningBalanceRate {
+    if (widget.isEdit || _currency == 'USD') return false;
+    final balance = int.tryParse(_openingBalanceController.text.trim()) ?? 0;
+    return balance != 0;
   }
 
   Future<void> _save() async {
@@ -201,6 +213,18 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
             : validateOpeningBalance(_openingBalanceController.text);
     if (balanceError != null) {
       setState(() => _error = balanceError);
+      return;
+    }
+    final rateError =
+        widget.isEdit
+            ? null
+            : validateOpeningBalanceRate(
+              currency: _currency,
+              openingBalanceText: _openingBalanceController.text,
+              rateText: _openingBalanceRateController.text,
+            );
+    if (rateError != null) {
+      setState(() => _error = rateError);
       return;
     }
 
@@ -224,6 +248,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
           _openingBalanceController.text.trim(),
         );
         final currency = CurrencyCode(_currency);
+        final trimmedRate = _openingBalanceRateController.text.trim();
 
         await createAccount(
           name: _nameController.text.trim(),
@@ -236,6 +261,8 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                     currency: currency,
                   )
                   : null,
+          openingBalanceRate:
+              trimmedRate.isEmpty ? null : Decimal.parse(trimmedRate),
           eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
           deviceId: deviceId,
         );
@@ -312,7 +339,21 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                 decoration: const InputDecoration(
                   labelText: 'Opening balance (optional, whole units)',
                 ),
+                onChanged: (_) => setState(() {}),
               ),
+              if (_needsOpeningBalanceRate) ...[
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('openingBalanceRateField'),
+                  controller: _openingBalanceRateController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: 'Exchange rate ($_currency per USD)',
+                  ),
+                ),
+              ],
             ],
             if (_error != null) ...[
               const SizedBox(height: 8),

@@ -10,6 +10,10 @@ import '../ledger/factories/record_opening.dart';
 /// posts it against the Apertura system envelope through the existing
 /// [RecordOpening] factory (#94) — never invents money, only wires an
 /// account creation to the ledger's own opening path.
+///
+/// A non-USD opening balance requires [openingBalanceUsd] or
+/// [openingBalanceRate]; this is checked before the account is saved so a
+/// missing rate can never leave an orphan account behind.
 class CreateAccount {
   final CatalogRepository _catalog;
   final RecordOpening _recordOpening;
@@ -33,6 +37,18 @@ class CreateAccount {
     required EventId eventId,
     required String deviceId,
   }) async {
+    final isOpeningNonZero =
+        openingBalance != null && openingBalance.amount != BigInt.zero;
+    if (isOpeningNonZero &&
+        nativeCurrency != CurrencyCode('USD') &&
+        openingBalanceUsd == null &&
+        openingBalanceRate == null) {
+      throw ArgumentError(
+        'Foreign currency accounts require either amountUsd or rate for '
+        'the opening balance.',
+      );
+    }
+
     final id = AccountId(_uuid.v4());
     await _catalog.saveAccount(
       Account(
@@ -45,7 +61,7 @@ class CreateAccount {
       ),
     );
 
-    if (openingBalance != null && openingBalance.amount != BigInt.zero) {
+    if (isOpeningNonZero) {
       await _recordOpening(
         eventId: eventId,
         deviceId: deviceId,
