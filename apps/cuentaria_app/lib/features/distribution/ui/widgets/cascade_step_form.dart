@@ -77,18 +77,23 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
     final CascadeStep step;
     switch (_kind) {
       case _StepKind.fixed:
-        final dollars = double.tryParse(_amountController.text) ?? 0;
+        final dollars =
+            Decimal.tryParse(_amountController.text) ?? Decimal.zero;
         step = CascadeStep.fixed(
           envelopeId: envelopeId,
-          amountUsd: (dollars * 100).round(),
+          amountUsd:
+              (dollars * Decimal.fromInt(100)).round().toBigInt().toInt(),
         );
       case _StepKind.fillToCap:
         step = CascadeStep.fillToCap(envelopeId: envelopeId);
       case _StepKind.percentOfRemainder:
-        final pct = double.tryParse(_percentController.text) ?? 0;
+        // Straight to Decimal, never via double (money/rate values are never
+        // double, per the ledger's hard rule) — `double.tryParse` here
+        // corrupted most real-world inputs (e.g. 99.99 -> 0.9998999...).
+        final pct = Decimal.tryParse(_percentController.text) ?? Decimal.zero;
         step = CascadeStep.percentOfRemainder(
           envelopeId: envelopeId,
-          percent: Decimal.parse((pct / 100).toString()),
+          percent: pct * Decimal.parse('0.01'),
           base: PercentBase.remainder,
         );
       case _StepKind.catchAll:
