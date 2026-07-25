@@ -36,3 +36,9 @@ A single `remaining` counter consumed in priority order, with a universal `min(a
 - C2 = pure engine + value objects (`Cascade`, `CascadeStep`, `DistributionProposal`, `FundingTarget`) + `CascadeRepository` (Drift + in-memory, contract-tested) + a thin orchestrator, all in `contabilidad/application/`. `domain/` is untouched; no new bounded context.
 - `FundingTarget` (sealed: `NoTarget | Cap | GoalLine`) rides in the existing `meta` JSON column — no Drift migration. Not to be confused with `EnvelopeTarget` in `domain/posting_target.dart` (posting dimension).
 - The orchestrator runs the engine over the **Stage** balance (explicit `amount`, default = current Stage, guarded `≤ Stage`), previews a `DistributionProposal` (per-application skippable steps), and applies it via C1's `RecordDistribution`; residue without a catch-all stays in Stage.
+
+### Addendum (2026-07-25, slice 3 #96) — Apertura as an alternate source
+
+The orchestrator (`DistributeFromStage`) also accepts Apertura (`EnvelopeRole.opening`) as the source envelope via a `sourceRole` parameter on `preview`/`apply`/`applySkipping` — same cascade, same preview/skip/apply mechanics, just reading and debiting a different system Envelope's balance. This makes opening balances distributable through the same editor and flow, with no new orchestrator, no Adjustment/reconciliation event, and no change to the invariants above: residue without a catch-all still stays in the source envelope (Apertura, in this case) rather than being force-zeroed.
+
+Slice 3 also ships the previously-deferred cascade editor (an ordered, drag-reorderable list of steps against `CascadeRepository`), surfacing `CascadeValidator`'s existing edit-time errors — no new validation rules.

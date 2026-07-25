@@ -359,4 +359,57 @@ void main() {
       expect(find.byKey(const Key('openingBalanceNotice')), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'tapping the Apertura notice navigates to distribute-from-Apertura '
+    '(#96)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PatrimonioScreen)),
+      );
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final eventBus = container.read(eventBusProvider);
+      final deviceId = await container.read(deviceIdProvider.future);
+
+      final recordOpening = RecordOpening(
+        record: RecordTransaction(
+          store: store,
+          projections: projections,
+          eventBus: eventBus,
+          validator: ReferentialIntegrityValidator(catalog),
+        ),
+        catalog: catalog,
+        projections: projections,
+      );
+
+      await recordOpening(
+        eventId: EventId('evt-opening-nav'),
+        deviceId: deviceId,
+        accountId: catalog.accountIds.first,
+        nativeAmount: Money(
+          amount: BigInt.from(800),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('openingBalanceNotice')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('openingBalanceNotice')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(DistributeScreen), findsOneWidget);
+      expect(find.text('Distribuir Apertura'), findsOneWidget);
+    },
+  );
 }

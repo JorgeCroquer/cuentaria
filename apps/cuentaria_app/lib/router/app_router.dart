@@ -1,7 +1,9 @@
+import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../features/distribution/ui/screens/cascade_editor_screen.dart';
 import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
 import '../features/envelopes/ui/screens/envelopes_list_screen.dart';
@@ -16,7 +18,17 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/distribute',
-        builder: (context, state) => const DistributeScreen(),
+        builder: (context, state) {
+          final source =
+              state.uri.queryParameters['source'] == 'apertura'
+                  ? EnvelopeRole.opening
+                  : EnvelopeRole.stage;
+          return DistributeScreen(source: source);
+        },
+      ),
+      GoRoute(
+        path: '/distribute/edit',
+        builder: (context, state) => const CascadeEditorScreen(),
       ),
       GoRoute(
         path: '/envelopes',

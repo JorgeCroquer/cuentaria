@@ -10,6 +10,7 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
 import 'package:contabilidad/application/ledger/factories/record_income.dart';
+import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository.dart';
@@ -61,6 +62,7 @@ EnvelopeId _addEnvelope(
 ({
   DistributeFromStage distributor,
   RecordIncome recordIncome,
+  RecordOpening recordOpening,
   InMemoryLedgerProjections projections,
   InMemoryCatalogRepository catalog,
   InMemoryCascadeRepository cascadeRepo,
@@ -81,6 +83,11 @@ _wire() {
   );
   final recordDist = RecordDistribution(record: recordTx, catalog: catalog);
   final recordIncome = RecordIncome(record: recordTx, catalog: catalog);
+  final recordOpening = RecordOpening(
+    record: recordTx,
+    catalog: catalog,
+    projections: projections,
+  );
   final distributor = DistributeFromStage(
     projections: projections,
     catalog: catalog,
@@ -91,6 +98,7 @@ _wire() {
   return (
     distributor: distributor,
     recordIncome: recordIncome,
+    recordOpening: recordOpening,
     projections: projections,
     catalog: catalog,
     cascadeRepo: cascadeRepo,
@@ -442,6 +450,158 @@ void main() {
         expect(ctx.projections.envelopeUsdBalance(stageId), equals(0));
       },
     );
+  });
+
+  group('DistributeFromStage — Apertura as source (#96)', () {
+    test('preview draws from Apertura balance, not Stage', () async {
+      final ctx = _wire();
+      final accountId = _addUsdAccount(ctx.catalog, 'acc');
+      final envA = _addEnvelope(ctx.catalog, 'env-a');
+
+      await ctx.recordOpening(
+        eventId: EventId('open-1'),
+        deviceId: 'dev',
+        accountId: accountId,
+        nativeAmount: Money(
+          amount: BigInt.from(1500),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+
+      await ctx.cascadeRepo.save(
+        Cascade(
+          steps: [CascadeStep.catchAll(envelopeId: envA)],
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final proposal = await ctx.distributor.preview(
+        sourceRole: EnvelopeRole.opening,
+      );
+
+      expect(proposal, isNotNull);
+      expect(proposal!.allocations.single.amountUsd, equals(1500));
+    });
+
+    test('apply from Apertura zeroes Apertura and credits envelopes when the '
+        'cascade ends in a catch-all', () async {
+      final ctx = _wire();
+      final accountId = _addUsdAccount(ctx.catalog, 'acc');
+      final envA = _addEnvelope(ctx.catalog, 'env-a'); // fixed 400
+      final envB = _addEnvelope(ctx.catalog, 'env-b'); // catch-all
+
+      await ctx.recordOpening(
+        eventId: EventId('open-1'),
+        deviceId: 'dev',
+        accountId: accountId,
+        nativeAmount: Money(
+          amount: BigInt.from(1000),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+
+      await ctx.cascadeRepo.save(
+        Cascade(
+          steps: [
+            CascadeStep.fixed(envelopeId: envA, amountUsd: 400),
+            CascadeStep.catchAll(envelopeId: envB),
+          ],
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await ctx.distributor.apply(
+        eventId: EventId('dist-1'),
+        deviceId: 'dev',
+        sourceRole: EnvelopeRole.opening,
+      );
+
+      final aperturaId = ctx.catalog.getSystemEnvelope(EnvelopeRole.opening);
+      expect(ctx.projections.envelopeUsdBalance(aperturaId), equals(0));
+      expect(ctx.projections.envelopeUsdBalance(envA), equals(400));
+      expect(ctx.projections.envelopeUsdBalance(envB), equals(600));
+    });
+
+    test(
+      'Stage balance is untouched when distributing from Apertura',
+      () async {
+        final ctx = _wire();
+        final accountId = _addUsdAccount(ctx.catalog, 'acc');
+        final envA = _addEnvelope(ctx.catalog, 'env-a');
+
+        await ctx.recordIncome(
+          eventId: EventId('inc-1'),
+          deviceId: 'dev',
+          accountId: accountId,
+          amount: Money(
+            amount: BigInt.from(200),
+            currency: CurrencyCode('USD'),
+          ),
+          source: 'client',
+        );
+
+        final accountId2 = _addUsdAccount(ctx.catalog, 'acc2');
+        await ctx.recordOpening(
+          eventId: EventId('open-1'),
+          deviceId: 'dev',
+          accountId: accountId2,
+          nativeAmount: Money(
+            amount: BigInt.from(500),
+            currency: CurrencyCode('USD'),
+          ),
+        );
+
+        await ctx.cascadeRepo.save(
+          Cascade(
+            steps: [CascadeStep.catchAll(envelopeId: envA)],
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await ctx.distributor.apply(
+          eventId: EventId('dist-1'),
+          deviceId: 'dev',
+          sourceRole: EnvelopeRole.opening,
+        );
+
+        final stageId = ctx.catalog.getSystemEnvelope(EnvelopeRole.stage);
+        expect(ctx.projections.envelopeUsdBalance(stageId), equals(200));
+        expect(ctx.projections.envelopeUsdBalance(envA), equals(500));
+      },
+    );
+
+    test('guard: amount > Apertura balance throws', () async {
+      final ctx = _wire();
+      final accountId = _addUsdAccount(ctx.catalog, 'acc');
+      final envA = _addEnvelope(ctx.catalog, 'env-a');
+
+      await ctx.recordOpening(
+        eventId: EventId('open-1'),
+        deviceId: 'dev',
+        accountId: accountId,
+        nativeAmount: Money(
+          amount: BigInt.from(100),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+
+      await ctx.cascadeRepo.save(
+        Cascade(
+          steps: [CascadeStep.catchAll(envelopeId: envA)],
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await expectLater(
+        () => ctx.distributor.apply(
+          eventId: EventId('dist-1'),
+          deviceId: 'dev',
+          sourceRole: EnvelopeRole.opening,
+          amount: 9999,
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+    });
   });
 
   group('DistributeFromStage — accumulative grocery buffer (2-month)', () {
