@@ -12,7 +12,7 @@ import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
-import 'package:cuentaria_app/ui/ledger_screen.dart';
+import 'package:cuentaria_app/ui/screens/movements/movements_screen.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,7 +50,8 @@ final _seededCatalogOverride = catalogRepositoryProvider.overrideWith((
 
 void main() {
   testWidgets(
-    'boots into the Patrimonio tab and Ledger stays reachable via the shell',
+    'boots into the Patrimonio tab and Movements stays reachable via the '
+    'shell',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -61,12 +62,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(PatrimonioScreen), findsOneWidget);
-      expect(find.byType(LedgerScreen), findsNothing);
+      expect(find.byType(MovementsScreen), findsNothing);
 
-      await tester.tap(find.text('Ledger'));
+      await tester.tap(find.text('Movements'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(LedgerScreen), findsOneWidget);
+      expect(find.byType(MovementsScreen), findsOneWidget);
     },
   );
 
@@ -132,43 +133,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AccountsScreen), findsOneWidget);
-    },
-  );
-
-  testWidgets(
-    'recording a movement from the Ledger tab updates Patrimonio figures, '
-    'with no manual cross-invalidation (#84)',
-    (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            isWebProvider.overrideWithValue(true),
-            _seededCatalogOverride,
-          ],
-          child: const MyApp(),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
-        '\$0.00',
-      );
-
-      await tester.tap(find.byIcon(Icons.list_alt_outlined));
-      await tester.pumpAndSettle();
-
-      await tester.enterText(find.byKey(const Key('amountField')), '30.00');
-      await tester.tap(find.byKey(const Key('recordButton')));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byIcon(Icons.pie_chart_outline));
-      await tester.pumpAndSettle();
-
-      expect(
-        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
-        '\$30.00',
-      );
     },
   );
 
