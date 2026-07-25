@@ -1,7 +1,9 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
+import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
 import 'package:contabilidad/application/ledger/factories/record_income.dart';
+import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
@@ -111,6 +113,71 @@ Future<void> _recordIncome(
   );
 }
 
+Future<void> _recordTransfer(
+  ProviderContainer container, {
+  required String eventId,
+}) async {
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  final store = await container.read(eventStoreProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final eventBus = container.read(eventBusProvider);
+  final deviceId = await container.read(deviceIdProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  final recordTransfer = RecordTransfer(
+    record: recordTransaction,
+    catalog: catalog,
+  );
+
+  await recordTransfer(
+    eventId: EventId(eventId),
+    deviceId: deviceId,
+    sourceAccountId: AccountId('acc-usd'),
+    destinationAccountId: AccountId('acc-usd-2'),
+    amount: Money(amount: BigInt.from(10000), currency: CurrencyCode('USD')),
+  );
+}
+
+Future<void> _recordAcquisitionConversion(
+  ProviderContainer container, {
+  required String eventId,
+}) async {
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  final store = await container.read(eventStoreProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final eventBus = container.read(eventBusProvider);
+  final deviceId = await container.read(deviceIdProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  final recordAcquisitionConversion = RecordAcquisitionConversion(
+    record: recordTransaction,
+    catalog: catalog,
+  );
+
+  await recordAcquisitionConversion(
+    eventId: EventId(eventId),
+    deviceId: deviceId,
+    sourceUsdAccountId: AccountId('acc-usd'),
+    destinationForeignAccountId: AccountId('acc-ves'),
+    usdAmount: Money(amount: BigInt.from(15000), currency: CurrencyCode('USD')),
+    foreignAmountReceived: Money(
+      amount: BigInt.from(750000),
+      currency: CurrencyCode('VES'),
+    ),
+    rateRef: '50.00 VES/USD',
+  );
+}
+
 Future<ProviderContainer> _seededContainer() async {
   final container = ProviderContainer(
     overrides: [isWebProvider.overrideWithValue(true)],
@@ -121,6 +188,24 @@ Future<ProviderContainer> _seededContainer() async {
       id: AccountId('acc-usd'),
       name: 'Wallet',
       nativeCurrency: CurrencyCode('USD'),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  await catalog.saveAccount(
+    Account(
+      id: AccountId('acc-usd-2'),
+      name: 'Savings',
+      nativeCurrency: CurrencyCode('USD'),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  await catalog.saveAccount(
+    Account(
+      id: AccountId('acc-ves'),
+      name: 'Bs Wallet',
+      nativeCurrency: CurrencyCode('VES'),
       isArchived: false,
       updatedAt: DateTime.now(),
     ),
@@ -203,6 +288,49 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+      'shows the moved amount for a same-currency Transfer between own '
+      'accounts, not the \$0.00 net',
+      (tester) async {
+        final container = await _seededContainer();
+        addTearDown(container.dispose);
+        await _recordTransfer(container, eventId: 'evt-transfer');
+
+        await _pumpWithRouter(tester, container);
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('movement_evt-transfer')),
+            matching: find.text('\$100.00'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'shows the moved amount for a cross-currency AcquisitionConversion '
+      'between own accounts, not the \$0.00 net',
+      (tester) async {
+        final container = await _seededContainer();
+        addTearDown(container.dispose);
+        await _recordAcquisitionConversion(
+          container,
+          eventId: 'evt-conversion',
+        );
+
+        await _pumpWithRouter(tester, container);
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('movement_evt-conversion')),
+            matching: find.text('\$150.00'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets(
       'tapping a movement opens its detail with postings and a Reversar '

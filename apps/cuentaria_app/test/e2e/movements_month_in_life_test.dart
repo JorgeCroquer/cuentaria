@@ -305,7 +305,9 @@ void main() {
       // Account+Envelope legs — in insertion (chronological) order:
       // Opening Bancamiga, Opening Binance, Distribution (Apertura),
       // Income, Distribution (Stage), AcquisitionConversion (Mover),
-      // ForeignCurrencyExpense. --------------------------------------
+      // ForeignCurrencyExpense. The Mover is an inter-account move (no
+      // Envelope leg), so its net is zero by the self-balancing invariant;
+      // the row shows the moved amount instead of that $0.00. -----------
       expect(log[0].metadata.type, 'Opening');
       expect(log[1].metadata.type, 'Opening');
       expect(log[2].metadata.type, 'Distribution');
@@ -329,7 +331,7 @@ void main() {
       expectRowAmount(log[2].metadata.eventId, '\$0.00'); // Apertura split
       expectRowAmount(log[3].metadata.eventId, '\$500.00'); // Income
       expectRowAmount(log[4].metadata.eventId, '\$0.00'); // Stage split
-      expectRowAmount(log[5].metadata.eventId, '\$0.00'); // Mover (own accts)
+      expectRowAmount(log[5].metadata.eventId, '\$100.00'); // Mover (moved amt)
       expectRowAmount(expenseEventId, '-\$50.00'); // BdV expense
 
       await tester.tap(find.byKey(Key('movement_${expenseEventId.value}')));
