@@ -197,6 +197,33 @@ void main() {
       );
     });
 
+    test('persists the note as the memo on the recorded transaction', () async {
+      await useCase(
+        eventId: EventId('evt-memo-1'),
+        deviceId: 'dev-1',
+        accountId: usdAccountId,
+        envelopeId: envelopeId,
+        amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
+        note: 'Coffee with a client',
+      );
+
+      final log = await store.queryLog();
+      expect(log.single.metadata.memo, 'Coffee with a client');
+    });
+
+    test('does not persist an empty memo when no note is given', () async {
+      await useCase(
+        eventId: EventId('evt-memo-2'),
+        deviceId: 'dev-1',
+        accountId: usdAccountId,
+        envelopeId: envelopeId,
+        amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
+      );
+
+      final log = await store.queryLog();
+      expect(log.single.metadata.memo, isNull);
+    });
+
     test(
       'throws RateNotAvailable when the Bs account has no parallel rate observed',
       () async {

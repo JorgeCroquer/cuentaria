@@ -104,6 +104,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           currency: account.nativeCurrency,
         ),
         occurredAt: DomainTimestamp(_date.toUtc()),
+        note: _noteController.text.trim(),
       );
 
       if (mounted) Navigator.of(context).pop();

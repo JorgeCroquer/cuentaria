@@ -45,6 +45,7 @@ class QuickAddExpenseUseCase {
     required EnvelopeId envelopeId,
     required Money amount,
     DomainTimestamp? occurredAt,
+    String? note,
   }) async {
     final account = _catalog.getAccount(accountId);
     if (account == null) {
@@ -59,6 +60,7 @@ class QuickAddExpenseUseCase {
         envelopeId: envelopeId,
         amount: amount,
         occurredAt: occurredAt,
+        memo: note,
       );
       return;
     }
@@ -81,6 +83,7 @@ class QuickAddExpenseUseCase {
       nativeAmount: amount,
       currentRate: observation.nativePerUsd,
       occurredAt: occurredAt,
+      memo: note,
     );
   }
 }
