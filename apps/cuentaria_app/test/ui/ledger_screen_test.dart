@@ -1,23 +1,39 @@
+import 'package:contabilidad/application/catalog/models/account.dart';
+import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/ledger_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_kernel/shared_kernel.dart';
 
 void main() {
   Future<void> pumpLedgerScreen(WidgetTester tester) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [isWebProvider.overrideWithValue(true)],
+        overrides: [
+          isWebProvider.overrideWithValue(true),
+          catalogRepositoryProvider.overrideWith((ref) async {
+            final repository = InMemoryCatalogRepository();
+            await repository.saveAccount(
+              Account(
+                id: AccountId('test-acc'),
+                name: 'Efectivo',
+                nativeCurrency: CurrencyCode('USD'),
+                isArchived: false,
+                updatedAt: DateTime.now(),
+              ),
+            );
+            return repository;
+          }),
+        ],
         child: const MaterialApp(home: LedgerScreen()),
       ),
     );
     await tester.pumpAndSettle();
   }
 
-  testWidgets('renders the default account with a zero balance', (
-    tester,
-  ) async {
+  testWidgets('renders the seeded account with a zero balance', (tester) async {
     await pumpLedgerScreen(tester);
 
     expect(find.text('Efectivo'), findsOneWidget);

@@ -82,5 +82,47 @@ void main() {
 
       expect(() => acc1.mergeWith(acc2), throwsArgumentError);
     });
+
+    test('colorHex reads the "color" key from meta', () {
+      final withColor = Account(
+        id: AccountId('acc-1'),
+        name: 'Name 1',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'color': '#FF5500'},
+      );
+      expect(withColor.colorHex, '#FF5500');
+
+      final withoutColor = Account(
+        id: AccountId('acc-2'),
+        name: 'Name 2',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+      );
+      expect(withoutColor.colorHex, isNull);
+    });
+
+    test('mergeWith carries meta from the winning side', () {
+      final older = Account(
+        id: AccountId('acc-1'),
+        name: 'Older',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'color': '#OLD'},
+      );
+      final newer = Account(
+        id: AccountId('acc-1'),
+        name: 'Newer',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 2),
+        isArchived: false,
+        meta: {'color': '#NEW'},
+      );
+
+      expect(older.mergeWith(newer).colorHex, '#NEW');
+    });
   });
 }

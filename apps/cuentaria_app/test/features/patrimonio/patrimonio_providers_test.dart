@@ -28,7 +28,16 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
-      final liveAccountId = catalog.accountIds.first;
+      final liveAccountId = AccountId('live-1');
+      await catalog.saveAccount(
+        Account(
+          id: liveAccountId,
+          name: 'Live wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       final archivedAccount = Account(
         id: AccountId('archived-1'),
@@ -72,11 +81,21 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       await recordIncome(
         eventId: EventId('evt-reactive'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         amount: Money(amount: BigInt.from(1500), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );
@@ -197,6 +216,16 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       final vacaciones = EnvelopeId('vacaciones');
       await catalog.saveEnvelope(
@@ -212,7 +241,7 @@ void main() {
       await recordIncome(
         eventId: EventId('evt-envelope-goal'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         envelopeId: vacaciones,
         amount: Money(amount: BigInt.from(4000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
@@ -327,11 +356,21 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       await recordIncome(
         eventId: EventId('evt-stage'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );

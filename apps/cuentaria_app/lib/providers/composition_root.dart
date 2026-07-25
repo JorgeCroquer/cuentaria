@@ -1,6 +1,5 @@
 import 'package:contabilidad/application/cascade/cascade_repository.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
-import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/infrastructure/cascade/drift_cascade_repository.dart';
@@ -15,7 +14,6 @@ import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_kernel/shared_kernel.dart';
 
 import '../infrastructure/persistence/encryption_key_provider.dart';
 import '../infrastructure/persistence/open_app_database_stub.dart'
@@ -54,35 +52,14 @@ final eventStoreProvider = FutureProvider<EventStore>((ref) async {
 final catalogRepositoryProvider = FutureProvider<CatalogRepository>((
   ref,
 ) async {
-  final CatalogRepository repository;
   if (ref.watch(isWebProvider)) {
-    repository = InMemoryCatalogRepository();
-  } else {
-    final db = await ref.watch(databaseProvider.future);
-    final driftRepository = DriftCatalogRepository(db);
-    await driftRepository.hydrate();
-    repository = driftRepository;
+    return InMemoryCatalogRepository();
   }
-  await _ensureDefaultAccount(repository);
-  return repository;
+  final db = await ref.watch(databaseProvider.future);
+  final driftRepository = DriftCatalogRepository(db);
+  await driftRepository.hydrate();
+  return driftRepository;
 });
-
-/// The ledger screen (#74) needs at least one Account to record movements
-/// against; none is seeded by migrations (only the system envelopes are), so
-/// this creates a single default USD account the first time the catalog is
-/// empty.
-Future<void> _ensureDefaultAccount(CatalogRepository repository) async {
-  if (repository.accountIds.isNotEmpty) return;
-  await repository.saveAccount(
-    Account(
-      id: AccountId('default'),
-      name: 'Efectivo',
-      nativeCurrency: CurrencyCode('USD'),
-      isArchived: false,
-      updatedAt: DateTime.now(),
-    ),
-  );
-}
 
 final ledgerProjectionsProvider = Provider<LedgerProjections>((ref) {
   return InMemoryLedgerProjections();

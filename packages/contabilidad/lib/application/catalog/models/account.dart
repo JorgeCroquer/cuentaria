@@ -8,6 +8,7 @@ class Account extends Equatable {
   final String? provider;
   final bool isArchived;
   final DateTime updatedAt;
+  final Map<String, dynamic>? meta;
 
   const Account({
     required this.id,
@@ -16,7 +17,12 @@ class Account extends Equatable {
     this.provider,
     required this.isArchived,
     required this.updatedAt,
+    this.meta,
   });
+
+  /// Theme swatch hex string tagged onto this account, stored in [meta]
+  /// under the `"color"` key (FundingTarget pattern, ADR-0015).
+  String? get colorHex => meta?['color'] as String?;
 
   /// Merges this account with another using Last-Write-Wins based on [updatedAt].
   /// If timestamps are exactly equal, the current instance is kept.
@@ -39,5 +45,6 @@ class Account extends Equatable {
     provider,
     isArchived,
     updatedAt,
+    meta,
   ];
 }

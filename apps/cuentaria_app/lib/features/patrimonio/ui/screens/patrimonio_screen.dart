@@ -45,7 +45,11 @@ class PatrimonioScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [_ManageEnvelopesAction(), _RecordRatesAction()],
+        actions: const [
+          _ManageAccountsAction(),
+          _ManageEnvelopesAction(),
+          _RecordRatesAction(),
+        ],
       ),
       body: catalogAsync.when(
         data: (catalog) {
@@ -284,6 +288,22 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+}
+
+/// Entry point to the Accounts catalog (#94), reached from Patrimonio so
+/// users can create, edit and archive Accounts without a dedicated tab.
+class _ManageAccountsAction extends StatelessWidget {
+  const _ManageAccountsAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('manageAccountsAction'),
+      icon: const Icon(Icons.account_balance_wallet_outlined),
+      tooltip: 'Manage accounts',
+      onPressed: () => context.push('/accounts'),
     );
   }
 }

@@ -1,8 +1,11 @@
+import 'package:contabilidad/application/catalog/catalog_repository.dart';
+import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
+import 'package:cuentaria_app/features/accounts/ui/screens/accounts_screen.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/main.dart';
@@ -15,6 +18,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+
+/// #94 removed the bootstrap-seeded default account — these integration
+/// tests exercise flows that need at least one Account to record against,
+/// so they seed one explicitly instead of relying on auto-creation.
+Future<AccountId> _seedTestAccount(CatalogRepository catalog) async {
+  final accountId = AccountId('test-acc');
+  await catalog.saveAccount(
+    Account(
+      id: accountId,
+      name: 'Test Account',
+      nativeCurrency: CurrencyCode('USD'),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  return accountId;
+}
+
+/// Overrides [catalogRepositoryProvider] with a catalog that already has one
+/// Account — needed by tests that assert on Patrimonio's populated body
+/// (which renders an empty-state guidance screen instead when the catalog
+/// has no accounts) before the test gets a chance to seed one itself.
+final _seededCatalogOverride = catalogRepositoryProvider.overrideWith((
+  ref,
+) async {
+  final repository = InMemoryCatalogRepository();
+  await _seedTestAccount(repository);
+  return repository;
+});
 
 void main() {
   testWidgets(
@@ -43,7 +75,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [isWebProvider.overrideWithValue(true)],
+          overrides: [
+            isWebProvider.overrideWithValue(true),
+            _seededCatalogOverride,
+          ],
           child: const MyApp(),
         ),
       );
@@ -57,14 +92,13 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(PatrimonioScreen)),
       );
-      final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
 
       await recordIncome(
         eventId: EventId('evt-integration-1'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: AccountId('test-acc'),
         amount: Money(amount: BigInt.from(2500), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );
@@ -83,12 +117,34 @@ void main() {
   );
 
   testWidgets(
+    'tapping "manage accounts" from Patrimonio opens the Accounts screen '
+    '(#94)',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [isWebProvider.overrideWithValue(true)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('manageAccountsAction')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AccountsScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'recording a movement from the Ledger tab updates Patrimonio figures, '
     'with no manual cross-invalidation (#84)',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [isWebProvider.overrideWithValue(true)],
+          overrides: [
+            isWebProvider.overrideWithValue(true),
+            _seededCatalogOverride,
+          ],
           child: const MyApp(),
         ),
       );
@@ -122,7 +178,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [isWebProvider.overrideWithValue(true)],
+          overrides: [
+            isWebProvider.overrideWithValue(true),
+            _seededCatalogOverride,
+          ],
           child: const MyApp(),
         ),
       );
@@ -131,14 +190,13 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(PatrimonioScreen)),
       );
-      final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
 
       await recordIncome(
         eventId: EventId('evt-faithful-income'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: AccountId('test-acc'),
         amount: Money(
           amount: BigInt.from(10000),
           currency: CurrencyCode('USD'),
@@ -245,7 +303,10 @@ void main() {
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [isWebProvider.overrideWithValue(true)],
+          overrides: [
+            isWebProvider.overrideWithValue(true),
+            _seededCatalogOverride,
+          ],
           child: const MyApp(),
         ),
       );
@@ -254,14 +315,13 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(PatrimonioScreen)),
       );
-      final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
 
       await recordIncome(
         eventId: EventId('evt-stage-nav'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: AccountId('test-acc'),
         amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );
@@ -287,6 +347,7 @@ void main() {
       addTearDown(container.dispose);
 
       final catalog = await container.read(catalogRepositoryProvider.future);
+      await _seedTestAccount(catalog);
       final vacaciones = EnvelopeId('vacaciones');
       await catalog.saveEnvelope(
         Envelope(
@@ -326,6 +387,7 @@ void main() {
       final projections = container.read(ledgerProjectionsProvider);
       final eventBus = container.read(eventBusProvider);
       final deviceId = await container.read(deviceIdProvider.future);
+      final accountId = await _seedTestAccount(catalog);
 
       final recordOpening = RecordOpening(
         record: RecordTransaction(
@@ -341,7 +403,7 @@ void main() {
       await recordOpening(
         eventId: EventId('evt-opening-1'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         nativeAmount: Money(
           amount: BigInt.from(1500),
           currency: CurrencyCode('USD'),

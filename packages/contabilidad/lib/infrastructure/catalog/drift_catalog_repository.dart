@@ -142,6 +142,10 @@ class DriftCatalogRepository implements CatalogRepository {
     provider: row.provider,
     isArchived: row.isArchived,
     updatedAt: DateTime.fromMicrosecondsSinceEpoch(row.updatedAt, isUtc: true),
+    meta:
+        (row.meta != null && row.meta!.isNotEmpty)
+            ? (jsonDecode(row.meta!) as Map<String, dynamic>)
+            : null,
   );
 
   AccountsCompanion _accountToCompanion(Account a) => AccountsCompanion(
@@ -151,6 +155,7 @@ class DriftCatalogRepository implements CatalogRepository {
     provider: Value(a.provider),
     isArchived: Value(a.isArchived),
     updatedAt: Value(a.updatedAt.microsecondsSinceEpoch),
+    meta: Value(a.meta != null ? jsonEncode(a.meta) : null),
   );
 
   Envelope _envelopeFromRow(EnvelopeRow row) {

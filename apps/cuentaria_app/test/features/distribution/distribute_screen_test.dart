@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/cascade/cascade.dart';
 import 'package:contabilidad/application/cascade/cascade_step.dart';
+import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
@@ -28,6 +29,17 @@ void main() {
       final projections = container.read(ledgerProjectionsProvider);
       final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
 
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
       final ahorros = EnvelopeId('ahorros');
       await catalog.saveEnvelope(
         Envelope(
@@ -54,7 +66,7 @@ void main() {
       await recordIncome(
         eventId: EventId('evt-fund-stage'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         amount: Money(amount: BigInt.from(5000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );
