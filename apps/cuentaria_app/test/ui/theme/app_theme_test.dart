@@ -20,13 +20,19 @@ void main() {
   });
 
   test('both themes share the same seed color', () {
-    expect(appLightTheme().colorScheme.primary, isNot(appDarkTheme().colorScheme.primary));
+    expect(
+      appLightTheme().colorScheme.primary,
+      isNot(appDarkTheme().colorScheme.primary),
+    );
     expect(appLightTheme().colorScheme.brightness, Brightness.light);
     expect(appDarkTheme().colorScheme.brightness, Brightness.dark);
   });
 
-  test('AppColors exposes a fixed catalog palette for later slices to pick from', () {
-    expect(AppColors.palette, hasLength(12));
-    expect(AppColors.palette.toSet(), hasLength(12)); // all distinct
-  });
+  test(
+    'AppColors exposes a fixed catalog palette for later slices to pick from',
+    () {
+      expect(AppColors.palette, hasLength(12));
+      expect(AppColors.palette.toSet(), hasLength(12)); // all distinct
+    },
+  );
 }
