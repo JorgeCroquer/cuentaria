@@ -159,6 +159,49 @@ void main() {
         expect(find.byType(DistributeScreen), findsOneWidget);
       },
     );
+
+    testWidgets(
+      'income mode never surfaces an envelope selector — income always '
+      'targets Stage by design (#98/#99)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'acc-usd', 'USD');
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveEnvelope(
+          Envelope(
+            id: EnvelopeId('env-food'),
+            name: 'Food',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        // Sanity check: Gasto mode does show an envelope chip for this
+        // envelope, proving the finder below would catch one if Ingreso had
+        // it too.
+        expect(find.byKey(const Key('envelopeChip_env-food')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('captureModeIngreso')));
+        await tester.pump();
+
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget.key is ValueKey<String> &&
+                (widget.key! as ValueKey<String>).value.startsWith(
+                  'envelopeChip_',
+                ),
+          ),
+          findsNothing,
+        );
+      },
+    );
   });
 
   group('QuickAddExpenseSheet — Mover', () {
