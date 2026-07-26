@@ -903,5 +903,147 @@ void main() {
       );
       expect(pDifferential.amountUsd, 1500000); // gain
     });
+
+    test('foreignCurrencyExpense persists the memo when provided', () async {
+      final bsAccountId = AccountId('acc-bs-memo');
+      final destinationEnvelopeId = EnvelopeId('env-destination-memo');
+
+      catalog.saveAccount(
+        Account(
+          id: bsAccountId,
+          name: 'Bs Memo',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveEnvelope(
+        Envelope(
+          id: destinationEnvelopeId,
+          name: 'Expenses Memo',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-init-memo'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(bsAccountId),
+            amountNative: Money(
+              amount: BigInt.from(10000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: 500,
+          ),
+          Posting(
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
+            amountNative: Money(
+              amount: BigInt.from(500),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 500,
+          ),
+        ],
+      );
+      projections.apply(initialEvent);
+
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-memo'),
+        deviceId: 'dev-memo',
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
+          amount: BigInt.from(5000),
+          currency: CurrencyCode('VES'),
+        ),
+        currentRate: Decimal.parse('40.00'),
+        memo: 'Taxi',
+      );
+
+      expect(store.events.last.metadata.memo, 'Taxi');
+    });
+
+    test('foreignCurrencyExpense does not persist an empty memo', () async {
+      final bsAccountId = AccountId('acc-bs-empty-memo');
+      final destinationEnvelopeId = EnvelopeId('env-destination-empty-memo');
+
+      catalog.saveAccount(
+        Account(
+          id: bsAccountId,
+          name: 'Bs Empty Memo',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveEnvelope(
+        Envelope(
+          id: destinationEnvelopeId,
+          name: 'Expenses Empty Memo',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-init-empty-memo'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(bsAccountId),
+            amountNative: Money(
+              amount: BigInt.from(10000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: 500,
+          ),
+          Posting(
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
+            amountNative: Money(
+              amount: BigInt.from(500),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 500,
+          ),
+        ],
+      );
+      projections.apply(initialEvent);
+
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-empty-memo'),
+        deviceId: 'dev-memo',
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
+          amount: BigInt.from(5000),
+          currency: CurrencyCode('VES'),
+        ),
+        currentRate: Decimal.parse('40.00'),
+        memo: '',
+      );
+
+      expect(store.events.last.metadata.memo, isNull);
+    });
   });
 }

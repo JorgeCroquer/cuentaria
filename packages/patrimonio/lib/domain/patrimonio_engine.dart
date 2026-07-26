@@ -117,6 +117,8 @@ class PatrimonioEngine {
               balanceUsd: envelope.balanceUsd,
               target: envelope.target,
               metadata: const NoMetadata(),
+              iconId: envelope.iconId,
+              colorIndex: envelope.colorIndex,
             ),
           );
         case EnvelopeRoleView.user:
@@ -132,6 +134,8 @@ class PatrimonioEngine {
                 envelope.balanceUsd,
                 today,
               ),
+              iconId: envelope.iconId,
+              colorIndex: envelope.colorIndex,
             ),
           );
       }

@@ -15,9 +15,21 @@ void main() {
     test('throws ArgumentError if code is not 3 uppercase letters', () {
       expect(() => CurrencyCode('usd'), throwsArgumentError);
       expect(() => CurrencyCode('US'), throwsArgumentError);
-      expect(() => CurrencyCode('USDA'), throwsArgumentError);
+      expect(() => CurrencyCode('USDT'), throwsArgumentError);
       expect(() => CurrencyCode('U\$D'), throwsArgumentError);
       expect(() => CurrencyCode(''), throwsArgumentError);
     });
+
+    for (final code in ['USD', 'VES']) {
+      test('accepts $code', () {
+        expect(() => CurrencyCode(code), returnsNormally);
+      });
+    }
+
+    for (final code in ['US', 'USDT', 'usd', 'US1']) {
+      test('rejects $code', () {
+        expect(() => CurrencyCode(code), throwsArgumentError);
+      });
+    }
   });
 }

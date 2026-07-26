@@ -1,5 +1,7 @@
+import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
 import '../../../../providers/composition_root.dart';
@@ -9,19 +11,36 @@ import '../../application/distribution_providers.dart';
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 /// The distribute flow (C2), reached from Patrimonio's "Sin asignar" (S2,
-/// #83): previews the saved cascade over the current Stage balance and
-/// applies it on confirmation via the existing [DistributeFromStage]
-/// orchestrator — no new domain logic, this is wiring only.
+/// #83) or from the Apertura notice (#96, `source=apertura`): previews the
+/// saved cascade over the current [source] balance and applies it on
+/// confirmation via the existing [DistributeFromStage] orchestrator — no new
+/// domain logic, this is wiring only. Same cascade for either source.
 class DistributeScreen extends ConsumerWidget {
-  const DistributeScreen({super.key});
+  const DistributeScreen({super.key, this.source = EnvelopeRole.stage});
+
+  final EnvelopeRole source;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final previewAsync = ref.watch(distributionPreviewProvider);
+    final previewAsync = ref.watch(distributionPreviewProvider(source));
     final catalogAsync = ref.watch(catalogRepositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Distribuir Stage')),
+      appBar: AppBar(
+        title: Text(
+          source == EnvelopeRole.opening
+              ? 'Distribuir Apertura'
+              : 'Distribuir Stage',
+        ),
+        actions: [
+          IconButton(
+            key: const Key('editCascadeAction'),
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Edit cascade',
+            onPressed: () => context.push('/distribute/edit'),
+          ),
+        ],
+      ),
       body: previewAsync.when(
         data: (proposal) {
           if (proposal == null) {
@@ -80,6 +99,7 @@ class DistributeScreen extends ConsumerWidget {
     await useCase.apply(
       eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
       deviceId: deviceId,
+      sourceRole: source,
     );
 
     ref.invalidate(patrimonioSnapshotProvider);

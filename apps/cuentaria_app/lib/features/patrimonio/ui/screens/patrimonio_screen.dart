@@ -6,32 +6,61 @@ import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 
-import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
+import '../../../../ui/theme/app_icons.dart';
+import '../../../../ui/theme/app_theme.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// The icon/color a user Envelope was tagged with in the management screen
+/// (#95) — `null` (no leading widget) when neither was chosen, since older
+/// Envelopes and system ones never carry appearance.
+Widget? _envelopeLeading(PatrimonioEnvelope envelope) {
+  if (envelope.iconId == null && envelope.colorIndex == null) return null;
+  final color =
+      envelope.colorIndex == null
+          ? null
+          : AppColors.palette[envelope.colorIndex! % AppColors.palette.length];
+  return Icon(
+    AppIcons.iconFor(envelope.iconId),
+    color: color,
+    key: Key('envelopeIcon_${envelope.id.value}'),
+  );
+}
 
 /// Patrimonio screen (#82): header (real cost, today's value, unrealized
 /// P&L, BCV reference) + accounts grouped by currency, driven end-to-end by
 /// [patrimonioSnapshotProvider] — the engine, not the widget tree, does the
 /// valuation math. Shows a guidance empty state when the catalog has no
 /// accounts, rather than a spinner or a bare zero.
+///
+/// The empty-state check reads [patrimonioSnapshotProvider] rather than
+/// [catalogRepositoryProvider] directly: the latter resolves once to a
+/// mutable repository instance and never re-emits when an Account is added
+/// to it, so a check against it would freeze on the empty state forever
+/// after the first build. The snapshot provider already re-subscribes to
+/// ledger Transactions and is explicitly invalidated by the Accounts screen
+/// (#94) on every catalog mutation, so it reflects new Accounts reactively.
 class PatrimonioScreen extends ConsumerWidget {
   const PatrimonioScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final catalogAsync = ref.watch(catalogRepositoryProvider);
+    final snapshotAsync = ref.watch(patrimonioSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [_RecordRatesAction()],
+        actions: const [
+          _ManageAccountsAction(),
+          _ManageEnvelopesAction(),
+          _RecordRatesAction(),
+        ],
       ),
-      body: catalogAsync.when(
-        data: (catalog) {
-          if (catalog.accounts.isEmpty) {
+      body: snapshotAsync.when(
+        data: (snapshot) {
+          if (snapshot.accountGroups.isEmpty) {
             return const _EmptyState();
           }
           return const _PatrimonioBody();
@@ -145,6 +174,7 @@ class _EnvelopeTile extends StatelessWidget {
           key: Key('openingBalanceNotice'),
         ),
         trailing: Text(_formatUsdCents(envelope.balanceUsd)),
+        onTap: () => context.push('/distribute?source=apertura'),
       );
     }
 
@@ -162,6 +192,7 @@ class _EnvelopeTile extends StatelessWidget {
       ),
       NoMetadata() => ListTile(
         key: key,
+        leading: _envelopeLeading(envelope),
         title: Text(envelope.name),
         trailing: Text(_formatUsdCents(envelope.balanceUsd)),
       ),
@@ -182,6 +213,7 @@ class _GoalLineEnvelopeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      leading: _envelopeLeading(envelope),
       title: Text(envelope.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,6 +247,7 @@ class _CapEnvelopeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      leading: _envelopeLeading(envelope),
       title: Text(envelope.name),
       subtitle: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -262,6 +295,38 @@ class _EmptyState extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
       ),
+    );
+  }
+}
+
+/// Entry point to the Accounts catalog (#94), reached from Patrimonio so
+/// users can create, edit and archive Accounts without a dedicated tab.
+class _ManageAccountsAction extends StatelessWidget {
+  const _ManageAccountsAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('manageAccountsAction'),
+      icon: const Icon(Icons.account_balance_wallet_outlined),
+      tooltip: 'Manage accounts',
+      onPressed: () => context.push('/accounts'),
+    );
+  }
+}
+
+/// Entry point into the Envelopes management screen (U1 slice 2, #95) — the
+/// only place from which user Envelopes can be created, edited or archived.
+class _ManageEnvelopesAction extends StatelessWidget {
+  const _ManageEnvelopesAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('manageEnvelopesAction'),
+      icon: const Icon(Icons.category_outlined),
+      tooltip: 'Manage envelopes',
+      onPressed: () => context.push('/envelopes'),
     );
   }
 }
@@ -373,7 +438,10 @@ class _RecordRatesDialogState extends ConsumerState<_RecordRatesDialog> {
           ),
           if (_error != null) ...[
             const SizedBox(height: 8),
-            Text(_error!, style: const TextStyle(color: Colors.red)),
+            Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ],
         ],
       ),

@@ -37,7 +37,7 @@ docs/                 CONTEXT.md · ARCHITECTURE.md · adr/
 
 - Environment: **WSL2**; repo in `~/projects/cuentaria` (ext4). For **Windows desktop** target builds use the Windows host or CI — do not compile from WSL.
 - Commands: `melos bootstrap`, `melos run analyze`, `melos run test`.
-- Before considering a task finished: `melos run analyze` and `melos run test` passing green.
+- Before considering a task finished: `dart format .` applied, then `melos run analyze` and `melos run test` passing green. CI runs `dart format --output=none --set-exit-if-changed .` — an unformatted file fails the build even when every test is green, so format **before** committing.
 - Changes crossing contexts or touching invariants → review relevant ADR and add a new one if needed.
 
 ## Planning (pipeline)

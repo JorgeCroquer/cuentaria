@@ -85,6 +85,8 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
           role: _mapRole(envelope.role),
           balanceUsd: projections.envelopeUsdBalance(envelope.id),
           target: _mapTarget(envelope.target),
+          iconId: envelope.appearance.iconId,
+          colorIndex: envelope.appearance.colorIndex,
         ),
   ];
 

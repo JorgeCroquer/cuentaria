@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
@@ -27,7 +28,16 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
-      final liveAccountId = catalog.accountIds.first;
+      final liveAccountId = AccountId('live-1');
+      await catalog.saveAccount(
+        Account(
+          id: liveAccountId,
+          name: 'Live wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       final archivedAccount = Account(
         id: AccountId('archived-1'),
@@ -71,11 +81,21 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       await recordIncome(
         eventId: EventId('evt-reactive'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         amount: Money(amount: BigInt.from(1500), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );
@@ -196,6 +216,16 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       final vacaciones = EnvelopeId('vacaciones');
       await catalog.saveEnvelope(
@@ -211,7 +241,7 @@ void main() {
       await recordIncome(
         eventId: EventId('evt-envelope-goal'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         envelopeId: vacaciones,
         amount: Money(amount: BigInt.from(4000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
@@ -226,6 +256,100 @@ void main() {
       final metadata = envelope.metadata as GoalLineMetadata;
       expect(metadata.progressPercent, 40);
     });
+
+    test('maps a user envelope\'s icon/color appearance through', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+
+      final mercado = EnvelopeId('mercado');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: mercado,
+          name: 'Mercado',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withAppearance(
+          const EnvelopeAppearance(iconId: 'shopping_cart', colorIndex: 1),
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      final envelope = snapshot.envelopes.singleWhere((e) => e.id == mercado);
+      expect(envelope.iconId, 'shopping_cart');
+      expect(envelope.colorIndex, 1);
+    });
+
+    test(
+      'excludes an archived user envelope from the snapshot and its totals',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final deviceId = await container.read(deviceIdProvider.future);
+        final recordIncome = await container.read(recordIncomeProvider.future);
+
+        final accountId = AccountId('test-acc');
+        await catalog.saveAccount(
+          Account(
+            id: accountId,
+            name: 'Test Account',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        final mercado = EnvelopeId('mercado');
+        await catalog.saveEnvelope(
+          Envelope(
+            id: mercado,
+            name: 'Mercado',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ).withTarget(const Cap(amountUsd: 30000)),
+        );
+
+        await recordIncome(
+          eventId: EventId('evt-mercado'),
+          deviceId: deviceId,
+          accountId: accountId,
+          envelopeId: mercado,
+          amount: Money(
+            amount: BigInt.from(4000),
+            currency: CurrencyCode('USD'),
+          ),
+          source: 'Manual entry',
+        );
+
+        final before = await container.read(patrimonioSnapshotProvider.future);
+        expect(before.envelopes.where((e) => e.id == mercado), isNotEmpty);
+
+        final existing = catalog.getEnvelope(mercado)!;
+        await catalog.saveEnvelope(
+          Envelope(
+            id: mercado,
+            name: existing.name,
+            role: existing.role,
+            isArchived: true,
+            updatedAt: DateTime.now(),
+            meta: existing.meta,
+          ),
+        );
+        container.invalidate(patrimonioSnapshotProvider);
+
+        final after = await container.read(patrimonioSnapshotProvider.future);
+        expect(after.envelopes.where((e) => e.id == mercado), isEmpty);
+      },
+    );
 
     test('Stage is surfaced as "Sin asignar" only once it has a balance; '
         'Diferencial/Ajustes never appear', () async {
@@ -243,11 +367,21 @@ void main() {
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);
       final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = AccountId('test-acc');
+      await catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Test Account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
 
       await recordIncome(
         eventId: EventId('evt-stage'),
         deviceId: deviceId,
-        accountId: catalog.accountIds.first,
+        accountId: accountId,
         amount: Money(amount: BigInt.from(2000), currency: CurrencyCode('USD')),
         source: 'Manual entry',
       );

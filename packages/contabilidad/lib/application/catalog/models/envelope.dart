@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import 'envelope_appearance.dart';
 import 'funding_target.dart';
 
 enum EnvelopeRole { stage, differential, adjustments, opening, none }
@@ -44,6 +45,39 @@ class Envelope extends Equatable {
       updated.remove('target');
     } else {
       updated['target'] = newTarget.toJson();
+    }
+    return Envelope(
+      id: id,
+      name: name,
+      role: role,
+      isArchived: isArchived,
+      updatedAt: updatedAt,
+      meta: updated.isEmpty ? null : updated,
+    );
+  }
+
+  /// Typed icon/color decoded from [meta]. Defaults to [EnvelopeAppearance.none].
+  EnvelopeAppearance get appearance {
+    final raw = meta?['appearance'];
+    if (raw == null) return EnvelopeAppearance.none;
+    return EnvelopeAppearance.fromJson(raw as Map<String, dynamic>);
+  }
+
+  /// Returns a copy with [newAppearance] encoded into [meta].
+  ///
+  /// Throws [ArgumentError] if [role] != [EnvelopeRole.none] — system
+  /// envelopes must never carry an appearance (mirrors [withTarget]).
+  Envelope withAppearance(EnvelopeAppearance newAppearance) {
+    if (role != EnvelopeRole.none) {
+      throw ArgumentError(
+        'Cannot set an appearance on a system envelope (role=$role)',
+      );
+    }
+    final updated = Map<String, dynamic>.from(meta ?? {});
+    if (newAppearance.isEmpty) {
+      updated.remove('appearance');
+    } else {
+      updated['appearance'] = newAppearance.toJson();
     }
     return Envelope(
       id: id,

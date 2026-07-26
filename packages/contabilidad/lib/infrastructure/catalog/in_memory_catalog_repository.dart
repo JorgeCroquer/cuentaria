@@ -95,6 +95,11 @@ class InMemoryCatalogRepository implements CatalogRepository {
   }
 
   @override
+  Future<void> deleteAccount(AccountId id) async {
+    _accounts.remove(id);
+  }
+
+  @override
   Future<void> deleteEnvelope(EnvelopeId id) async {
     final envelope = _envelopes[id];
     if (envelope != null && envelope.role != EnvelopeRole.none) {

@@ -7,7 +7,7 @@ class CurrencyCode extends Equatable {
 
   CurrencyCode(this.value) {
     if (!_pattern.hasMatch(value)) {
-      throw ArgumentError('Currency code must be exactly 3 uppercase letters');
+      throw ArgumentError('Currency code must be 3 uppercase letters');
     }
   }
 

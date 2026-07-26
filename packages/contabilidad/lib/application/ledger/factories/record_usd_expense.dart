@@ -24,6 +24,7 @@ class RecordUsdExpense {
     required EnvelopeId envelopeId,
     required Money amount,
     DomainTimestamp? occurredAt,
+    String? memo,
   }) async {
     final account = _catalog.getAccount(accountId);
     if (account == null) {
@@ -67,6 +68,7 @@ class RecordUsdExpense {
       recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
       schemaVersion: 1,
+      memo: memo == null || memo.isEmpty ? null : memo,
     );
 
     await _record(postings: postings, metadata: metadata);

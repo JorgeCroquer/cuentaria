@@ -12,13 +12,15 @@ import '../ledger/factories/record_distribution.dart';
 import '../../domain/ports/ledger_projections.dart';
 
 /// Orchestrates a cascade distribution run:
-///   1. Reads Stage balance + each target envelope state.
+///   1. Reads the source envelope's balance + each target envelope state.
 ///   2. Runs [CascadeEngine] over the saved cascade.
 ///   3. Exposes the [DistributionProposal] for preview / skip.
 ///   4. On apply, translates to [RecordDistribution] entries (Σ = 0).
 ///
-/// Guard: amount ≤ Stage balance (never pushes Stage negative).
-/// Residue without catchAll stays in Stage (no entry generated for it).
+/// Source defaults to Stage but also accepts Apertura ([sourceRole]) — same
+/// cascade, same preview/skip/apply mechanics (#96). Guard: amount ≤ source
+/// balance (never pushes it negative). Residue without catchAll stays in the
+/// source envelope (no entry generated for it).
 /// ADR-0015 C2-6, Model A.
 class DistributeFromStage {
   final LedgerProjections _projections;
@@ -38,13 +40,16 @@ class DistributeFromStage {
 
   // -- Public API ---------------------------------------------------------
 
-  /// Returns a [DistributionProposal] using the full cascade and current
-  /// Stage balance as amount, without posting anything.
+  /// Returns a [DistributionProposal] using the full cascade and the current
+  /// [sourceRole] balance as amount, without posting anything.
   /// Returns null if no cascade is saved yet.
-  Future<DistributionProposal?> preview({int? amount}) async {
+  Future<DistributionProposal?> preview({
+    int? amount,
+    EnvelopeRole sourceRole = EnvelopeRole.stage,
+  }) async {
     final cascade = await _cascadeRepo.load();
     if (cascade == null) return null;
-    return _run(steps: cascade.steps, amount: amount);
+    return _run(steps: cascade.steps, amount: amount, sourceRole: sourceRole);
   }
 
   /// Applies the full cascade to the ledger.
@@ -52,6 +57,7 @@ class DistributeFromStage {
     required EventId eventId,
     required String deviceId,
     int? amount,
+    EnvelopeRole sourceRole = EnvelopeRole.stage,
   }) async {
     final cascade = await _cascadeRepo.load();
     if (cascade == null) return;
@@ -60,6 +66,7 @@ class DistributeFromStage {
       amount: amount,
       eventId: eventId,
       deviceId: deviceId,
+      sourceRole: sourceRole,
     );
   }
 
@@ -70,6 +77,7 @@ class DistributeFromStage {
     required EventId eventId,
     required String deviceId,
     int? amount,
+    EnvelopeRole sourceRole = EnvelopeRole.stage,
   }) async {
     final cascade = await _cascadeRepo.load();
     if (cascade == null) return;
@@ -82,14 +90,15 @@ class DistributeFromStage {
       amount: amount,
       eventId: eventId,
       deviceId: deviceId,
+      sourceRole: sourceRole,
     );
   }
 
   // -- Private ------------------------------------------------------------
 
-  int _stageBalance() {
-    final stageId = _catalog.getSystemEnvelope(EnvelopeRole.stage);
-    return _projections.envelopeUsdBalance(stageId);
+  int _sourceBalance(EnvelopeRole sourceRole) {
+    final sourceId = _catalog.getSystemEnvelope(sourceRole);
+    return _projections.envelopeUsdBalance(sourceId);
   }
 
   Map<EnvelopeId, EnvelopeState> _buildStates(List<CascadeStep> steps) {
@@ -110,9 +119,13 @@ class DistributeFromStage {
     return states;
   }
 
-  DistributionProposal _run({required List<CascadeStep> steps, int? amount}) {
-    final stageBalance = _stageBalance();
-    final effectiveAmount = amount ?? stageBalance;
+  DistributionProposal _run({
+    required List<CascadeStep> steps,
+    int? amount,
+    EnvelopeRole sourceRole = EnvelopeRole.stage,
+  }) {
+    final sourceBalance = _sourceBalance(sourceRole);
+    final effectiveAmount = amount ?? sourceBalance;
     return CascadeEngine.run(
       amount: effectiveAmount,
       steps: steps,
@@ -125,29 +138,34 @@ class DistributeFromStage {
     required EventId eventId,
     required String deviceId,
     int? amount,
+    EnvelopeRole sourceRole = EnvelopeRole.stage,
   }) async {
-    final stageBalance = _stageBalance();
-    final effectiveAmount = amount ?? stageBalance;
+    final sourceBalance = _sourceBalance(sourceRole);
+    final effectiveAmount = amount ?? sourceBalance;
 
-    if (effectiveAmount > stageBalance) {
+    if (effectiveAmount > sourceBalance) {
       throw ArgumentError(
-        'amount ($effectiveAmount) exceeds Stage balance ($stageBalance); '
-        'Stage must never go negative.',
+        'amount ($effectiveAmount) exceeds ${sourceRole.name} balance '
+        '($sourceBalance); ${sourceRole.name} must never go negative.',
       );
     }
 
     if (effectiveAmount == 0) return; // nothing to distribute
 
-    final proposal = _run(steps: steps, amount: effectiveAmount);
+    final proposal = _run(
+      steps: steps,
+      amount: effectiveAmount,
+      sourceRole: sourceRole,
+    );
 
     final nonZero = proposal.allocations.where((a) => a.amountUsd > 0).toList();
     if (nonZero.isEmpty) return; // no-op
 
-    final stageId = _catalog.getSystemEnvelope(EnvelopeRole.stage);
+    final sourceId = _catalog.getSystemEnvelope(sourceRole);
     final totalAllocated = nonZero.fold(0, (s, a) => s + a.amountUsd);
 
     final entries = [
-      DistributionEntry(envelopeId: stageId, amountUsd: -totalAllocated),
+      DistributionEntry(envelopeId: sourceId, amountUsd: -totalAllocated),
       ...nonZero.map(
         (a) =>
             DistributionEntry(envelopeId: a.envelopeId, amountUsd: a.amountUsd),

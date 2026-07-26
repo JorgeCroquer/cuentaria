@@ -1,3 +1,4 @@
+import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
@@ -16,7 +17,16 @@ void main() {
         addTearDown(container.dispose);
 
         final catalog = await container.read(catalogRepositoryProvider.future);
-        final accountId = catalog.accountIds.first;
+        final accountId = AccountId('test-acc');
+        await catalog.saveAccount(
+          Account(
+            id: accountId,
+            name: 'Test Account',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
         final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
 
         final recordIncome = await container.read(recordIncomeProvider.future);

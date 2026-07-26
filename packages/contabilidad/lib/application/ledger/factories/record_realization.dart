@@ -32,6 +32,7 @@ class RecordRealization {
     required Money nativeAmount,
     required Decimal currentRate,
     DomainTimestamp? occurredAt,
+    String? memo,
   }) async {
     final account = _catalog.getAccount(accountId);
     if (account == null) {
@@ -79,6 +80,7 @@ class RecordRealization {
         rateRef: rateRef,
       ),
       occurredAt: occurredAt,
+      memo: memo,
     );
   }
 
@@ -208,6 +210,7 @@ class RecordRealization {
     required int observedUsdValue,
     required Posting destinationPosting,
     DomainTimestamp? occurredAt,
+    String? memo,
   }) async {
     final differentialEnvelopeId = _catalog.getSystemEnvelope(
       EnvelopeRole.differential,
@@ -244,6 +247,7 @@ class RecordRealization {
       recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
       schemaVersion: 1,
+      memo: memo == null || memo.isEmpty ? null : memo,
     );
 
     await _record(postings: postings, metadata: metadata);

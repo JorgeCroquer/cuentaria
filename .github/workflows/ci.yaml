@@ -16,6 +16,11 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          # Pinned to the Flutter in the Conuco sandbox image: CI and the AFK
+          # build gate must run the same toolchain, or analyze diverges (a member
+          # deprecated upstream fails CI while the sandbox still accepts it).
+          # Bump deliberately, together with the image.
+          flutter-version: '3.29.1'
           cache: true
 
       - name: Install Melos
