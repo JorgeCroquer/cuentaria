@@ -161,6 +161,43 @@ void main() {
     );
 
     testWidgets(
+      'income account chips show currency so accounts with the same name '
+      'are distinguishable (#118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-ves'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeIngreso')));
+        await tester.pump();
+
+        expect(find.text('Bancamiga · USD'), findsOneWidget);
+        expect(find.text('Bancamiga · VES'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'income mode never surfaces an envelope selector — income always '
       'targets Stage by design (#98/#99)',
       (tester) async {
@@ -212,6 +249,34 @@ void main() {
 
       expect(find.byKey(const Key('moverStep1')), findsOneWidget);
     });
+
+    testWidgets(
+      'mover source/destination chips show currency, and the amount shows '
+      'the source account currency (#118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'binance', 'USD');
+        await _saveAccount(container, 'bdv', 'VES');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        expect(find.text('binance · USD'), findsNWidgets(2));
+        expect(find.text('bdv · VES'), findsNWidgets(2));
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
+        await tester.pump();
+
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
+          'USD',
+        );
+      },
+    );
 
     testWidgets(
       'Facebank -> Zinli (USD -> USD) shows one amount field and posts a '
