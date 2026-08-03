@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/ledger/exceptions.dart' as ledger;
 import 'package:contabilidad/domain/rate_calculator.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/ledger_providers.dart';
 import '../../application/capture_providers.dart';
+import '../../application/quick_add_expense_use_case.dart';
 import '../amount_input_controller.dart';
 import '../widgets/numeric_keypad.dart';
 
@@ -31,6 +33,25 @@ String _formatDate(DateTime date) {
 }
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Maps domain exceptions to Spanish, user-actionable copy so the capture
+/// UI never surfaces a raw `toString()` of a domain type (#121). Technical
+/// detail stays in the debug log, not on screen.
+String _userFacingErrorMessage(Object error) {
+  if (error is RateNotAvailable) {
+    return 'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
+        '(icono de tasas) y vuelve a intentar.';
+  }
+  if (error is ledger.UsdOnlyOperation) {
+    return 'Esta operación aún no está disponible para cuentas en esta '
+        'moneda.';
+  }
+  if (error is ledger.InsufficientBalance) {
+    return 'El monto supera el saldo registrado de la cuenta.';
+  }
+  debugPrint('QuickAddExpenseSheet: unmapped error: $error');
+  return 'No se pudo guardar el movimiento.';
+}
 
 enum _CaptureMode { gasto, ingreso, mover }
 
@@ -159,7 +180,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -204,7 +225,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         });
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -310,7 +331,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
