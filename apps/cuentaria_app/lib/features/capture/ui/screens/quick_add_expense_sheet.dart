@@ -276,6 +276,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       _moverDestinationAccountId,
     );
     if (source == null || destination == null) return false;
+    if (source.id == destination.id) return false;
     if (!_moverGivenAmount.isValid) return false;
     if (source.nativeCurrency == destination.nativeCurrency) return true;
     return _explicitReceivedAmount(destination) != null ||

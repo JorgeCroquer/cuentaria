@@ -37,6 +37,10 @@ class RecordTransfer {
       );
     }
 
+    if (sourceAccountId == destinationAccountId) {
+      throw ArgumentError('Source and destination accounts must differ.');
+    }
+
     if (source.nativeCurrency != destination.nativeCurrency) {
       throw CrossCurrencyTransfer();
     }
