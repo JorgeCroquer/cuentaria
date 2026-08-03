@@ -46,8 +46,9 @@ void main() {
         ),
       );
 
-      final cascadeRepo =
-          await container.read(cascadeRepositoryProvider.future);
+      final cascadeRepo = await container.read(
+        cascadeRepositoryProvider.future,
+      );
       await cascadeRepo.save(
         Cascade(
           steps: [CascadeStep.catchAll(envelopeId: ahorros)],
@@ -69,13 +70,15 @@ void main() {
           ),
           GoRoute(
             path: '/accounts',
-            builder: (context, state) =>
-                const Scaffold(body: Text('Accounts Screen')),
+            builder:
+                (context, state) =>
+                    const Scaffold(body: Text('Accounts Screen')),
           ),
           GoRoute(
             path: '/envelopes',
-            builder: (context, state) =>
-                const Scaffold(body: Text('Envelopes Screen')),
+            builder:
+                (context, state) =>
+                    const Scaffold(body: Text('Envelopes Screen')),
           ),
         ],
       );
@@ -90,8 +93,11 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify: Stage row is not visible (zero balance hidden by engine)
-      expect(find.text('Sin asignar'), findsNothing,
-          reason: 'Stage row should not render with zero balance');
+      expect(
+        find.text('Sin asignar'),
+        findsNothing,
+        reason: 'Stage row should not render with zero balance',
+      );
 
       // Verify: AppBar actions are all visible
       expect(find.byKey(const Key('manageAccountsAction')), findsOneWidget);
@@ -104,9 +110,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify: navigated to cascade editor
-      expect(find.byType(CascadeEditorScreen), findsOneWidget,
-          reason:
-              'Should navigate to cascade editor even with zero pending balance');
+      expect(
+        find.byType(CascadeEditorScreen),
+        findsOneWidget,
+        reason:
+            'Should navigate to cascade editor even with zero pending balance',
+      );
     },
   );
 }
