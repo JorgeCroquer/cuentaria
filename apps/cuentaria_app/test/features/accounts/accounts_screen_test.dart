@@ -101,6 +101,43 @@ void main() {
     expect(projections.accountBalance(account.id).usd, 20000);
   });
 
+  testWidgets(
+    'shows each account\'s current balance in its native currency (#114)',
+    (tester) async {
+      final container = await pumpAccountsScreen(tester);
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceField')),
+        '1000',
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceRateField')),
+        '100',
+      );
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = catalog.accounts.singleWhere((a) => a.name == 'BdV');
+
+      expect(
+        tester
+            .widget<Text>(find.byKey(Key('accountBalance_${account.id.value}')))
+            .data,
+        '1000.00 VES',
+      );
+    },
+  );
+
   testWidgets('rejects an empty name without creating an account', (
     tester,
   ) async {

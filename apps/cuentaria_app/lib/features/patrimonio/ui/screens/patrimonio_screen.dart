@@ -13,6 +13,12 @@ import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
+String _formatNativeAmount(BigInt minorAmount, CurrencyCode currency) {
+  final decimal =
+      (Decimal.fromBigInt(minorAmount) / Decimal.fromInt(100)).toDecimal();
+  return '${decimal.toStringAsFixed(2)} ${currency.value}';
+}
+
 /// The icon/color a user Envelope was tagged with in the management screen
 /// (#95) — `null` (no leading widget) when neither was chosen, since older
 /// Envelopes and system ones never carry appearance.
@@ -272,10 +278,20 @@ class _AccountGroupTile extends StatelessWidget {
     return ListTile(
       key: Key('accountGroup_${group.currency.value}'),
       title: Text(group.currency.value),
-      subtitle: Text(
-        'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
-        "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
-        '${group.hasRate ? '' : ' (sin tasa)'}',
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _formatNativeAmount(group.nativeMinorAmount, group.currency),
+            key: Key('accountGroupNativeAmount_${group.currency.value}'),
+          ),
+          Text(
+            'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
+            "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
+            '${group.hasRate ? '' : ' (sin tasa)'}',
+          ),
+        ],
       ),
     );
   }
