@@ -10,6 +10,7 @@ import '../../../features/movements/application/movements_providers.dart';
 import '../../../providers/composition_root.dart';
 import '../../theme/app_icons.dart';
 import '../../theme/app_theme.dart';
+import 'movement_labels.dart';
 
 String _formatDate(DateTime date) {
   final local = date.toLocal();
@@ -143,7 +144,7 @@ class _MovementTile extends StatelessWidget {
     return ListTile(
       key: Key('movement_${transaction.metadata.eventId.value}'),
       leading: Icon(visual.icon, color: visual.color),
-      title: Text(transaction.metadata.type),
+      title: Text(humanMovementLabel(transaction.metadata.type)),
       subtitle: Text(
         note == null
             ? _formatDate(transaction.metadata.occurredAt.value)
