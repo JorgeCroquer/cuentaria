@@ -361,5 +361,138 @@ void main() {
       expect(tx.metadata.type, 'ForeignCurrencyExpense');
       expect(tx.postings.length, 3);
     });
+
+    testWidgets('shows a human message, not the raw exception, when no '
+        'parallel rate is registered for the Bs account (#112)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('RateNotAvailable'), findsNothing);
+      expect(
+        find.text(
+          'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
+          '(icono de tasas) y vuelve a intentar.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows a human message, not the raw exception, when '
+        'recording income for a non-USD account (#119)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('UsdOnlyOperation'), findsNothing);
+      expect(
+        find.text(
+          'Esta operación aún no está disponible para cuentas en esta '
+          'moneda.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows a human message, not the raw exception, when a Bs '
+        'expense exceeds the account balance (#113)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('20.00'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      // No opening balance was funded, so any positive amount overdraws it.
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('InsufficientBalance'), findsNothing);
+      expect(
+        find.text('El monto supera el saldo registrado de la cuenta.'),
+        findsOneWidget,
+      );
+    });
   });
 }
