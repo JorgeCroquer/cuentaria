@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/capture/ui/screens/quick_add_expense_sheet.dart';
+import 'ephemeral_mode_banner.dart';
 
 /// Bottom-navigation shell over the app's two tabs (#79): Patrimonio and
 /// Movements (#99, formerly Ledger). `StatefulShellRoute.indexedStack` keeps
@@ -19,7 +20,12 @@ class PatrimonioShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const EphemeralModeBanner(),
+          Expanded(child: navigationShell),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         key: const Key('quickAddExpenseFab'),
         onPressed: () => showQuickAddExpenseSheet(context),
