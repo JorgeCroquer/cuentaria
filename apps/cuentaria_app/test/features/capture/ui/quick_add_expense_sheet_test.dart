@@ -195,6 +195,88 @@ void main() {
       expect(frequentChipCenter.dx, lessThan(rareChipCenter.dx));
     });
 
+    testWidgets(
+      'account chips show currency so accounts with the same name are '
+      'distinguishable (e.g. two "Bancamiga" accounts in different '
+      'currencies, #118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-ves'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        expect(find.text('Bancamiga · USD'), findsOneWidget);
+        expect(find.text('Bancamiga · VES'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'amount display shows the selected account currency, updating live '
+      'as the account chip selection changes (#118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'USD wallet',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-ves'),
+            name: 'Bs wallet',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        await tester.tap(find.byKey(const Key('accountChip_acc-usd')));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
+          'USD',
+        );
+
+        await tester.tap(find.byKey(const Key('accountChip_acc-ves')));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
+          'VES',
+        );
+      },
+    );
+
     testWidgets('date defaults to today', (tester) async {
       final container = ProviderContainer(
         overrides: [isWebProvider.overrideWithValue(true)],
