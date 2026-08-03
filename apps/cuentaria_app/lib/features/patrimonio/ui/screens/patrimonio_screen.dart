@@ -61,6 +61,7 @@ class PatrimonioScreen extends ConsumerWidget {
         actions: const [
           _ManageAccountsAction(),
           _ManageEnvelopesAction(),
+          _EditCascadeAction(),
           _RecordRatesAction(),
         ],
       ),
@@ -343,6 +344,24 @@ class _ManageEnvelopesAction extends StatelessWidget {
       icon: const Icon(Icons.category_outlined),
       tooltip: 'Manage envelopes',
       onPressed: () => context.push('/envelopes'),
+    );
+  }
+}
+
+/// Entry point to the cascade editor (#111): always available from Patrimonio,
+/// independent of Stage/Opening balance. The cascade is the configuration that
+/// decides where money goes; it should be editable in cold, not just when
+/// distributing.
+class _EditCascadeAction extends StatelessWidget {
+  const _EditCascadeAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('editCascadeAction'),
+      icon: const Icon(Icons.waterfall_chart_outlined),
+      tooltip: 'Edit cascade',
+      onPressed: () => context.push('/distribute/edit'),
     );
   }
 }
