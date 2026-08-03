@@ -304,6 +304,36 @@ void main() {
       },
     );
 
+    testWidgets(
+      'selecting the same account for Desde and Hacia keeps Save disabled',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'facebank', 'USD');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_facebank')));
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const Key('moverDestinationChip_facebank')),
+        );
+        await tester.pump();
+
+        await _enterAmount(tester, '2000');
+
+        await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+        final saveButton = tester.widget<ElevatedButton>(
+          find.byKey(const Key('quickAddSaveButton')),
+        );
+        expect(saveButton.onPressed, isNull);
+      },
+    );
+
     testWidgets('toggling to rate mode pre-fills the derived rate, preserving '
         'consistency', (tester) async {
       final container = ProviderContainer(
