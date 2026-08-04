@@ -27,21 +27,20 @@ String? validateOpeningBalance(String value) {
   return null;
 }
 
-/// The opening-balance exchange rate (native-per-USD) is required whenever
-/// the account's currency isn't USD and it carries a non-zero opening
-/// balance — ADR-0006 freezes the real cost at the rate of the opening fact,
-/// so there is no fallback rate to infer it from.
+/// The exchange rate (native-per-USD) is required whenever the account's
+/// currency isn't USD — with an opening balance it freezes the real cost of
+/// the opening fact (ADR-0006); without one, it's the first parallel-rate
+/// observation the app needs to price a Bs expense (#112), asked for once,
+/// during account creation, instead of surfacing as a later error.
 String? validateOpeningBalanceRate({
   required String currency,
-  required String openingBalanceText,
   required String rateText,
 }) {
-  final openingBalance = int.tryParse(openingBalanceText.trim()) ?? 0;
-  if (currency == 'USD' || openingBalance == 0) return null;
+  if (currency == 'USD') return null;
 
   final trimmedRate = rateText.trim();
   if (trimmedRate.isEmpty) {
-    return 'Exchange rate is required for opening balance in $currency.';
+    return 'Exchange rate is required for $currency accounts.';
   }
 
   final rate = Decimal.tryParse(trimmedRate);

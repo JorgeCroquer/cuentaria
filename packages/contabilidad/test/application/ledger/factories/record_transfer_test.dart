@@ -165,6 +165,36 @@ void main() {
       expect(store.events.isEmpty, isTrue);
     });
 
+    test('rejects transfer to the same account', () async {
+      final accountId = AccountId('acc-usd-1');
+
+      catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'USD Account 1',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await expectLater(
+        () => recordTransfer(
+          eventId: EventId('evt-same'),
+          deviceId: 'dev-1',
+          sourceAccountId: accountId,
+          destinationAccountId: accountId,
+          amount: Money(
+            amount: BigInt.from(3000),
+            currency: CurrencyCode('USD'),
+          ),
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+
+      expect(store.events.isEmpty, isTrue);
+    });
+
     test('transfer rejects negative or zero amount', () async {
       final sourceId = AccountId('acc-usd-1');
       final destinationId = AccountId('acc-usd-2');

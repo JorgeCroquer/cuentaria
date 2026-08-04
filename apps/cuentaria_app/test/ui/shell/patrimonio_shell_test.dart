@@ -45,4 +45,26 @@ void main() {
       expect(find.byKey(const Key('quickAddExpenseFab')), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'the ephemeral-mode warning stays visible across both tabs on web (#122)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: const MyApp()),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ephemeralModeWarning')), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.list_alt_outlined));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('ephemeralModeWarning')), findsOneWidget);
+    },
+  );
 }

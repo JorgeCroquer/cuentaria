@@ -3,7 +3,6 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
-import 'package:contabilidad/application/ledger/exceptions.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
@@ -52,12 +51,14 @@ class RecordRealization {
     }
 
     final balance = _projections.accountBalance(accountId);
-    if (nativeAmount.amount > balance.native.amount) {
-      throw InsufficientBalance('Amount to dispose exceeds account balance');
-    }
+    final split = _splitDisposal(balance, nativeAmount.amount);
 
     final decAmount = Decimal.fromBigInt(nativeAmount.amount);
     final marketValue = (decAmount / currentRate).round().toInt();
+    final excessCost =
+        split.excess == BigInt.zero
+            ? 0
+            : (Decimal.fromBigInt(split.excess) / currentRate).round().toInt();
     final rateRef =
         '${currentRate.toStringAsFixed(2)} ${nativeAmount.currency.value}/USD';
 
@@ -67,7 +68,7 @@ class RecordRealization {
       type: 'ForeignCurrencyExpense',
       sourceAccountId: accountId,
       nativeAmount: nativeAmount,
-      costBasis: balance.baseCostOf(nativeAmount.amount),
+      costBasis: balance.baseCostOf(split.covered) + excessCost,
       observedUsdValue: marketValue,
       destinationPosting: Posting(
         target: EnvelopeTarget(destinationEnvelopeId),
@@ -117,11 +118,18 @@ class RecordRealization {
     }
 
     final balance = _projections.accountBalance(sourceForeignAccountId);
-    if (nativeAmount.amount > balance.native.amount) {
-      throw InsufficientBalance('Amount to dispose exceeds account balance');
-    }
-
+    final split = _splitDisposal(balance, nativeAmount.amount);
     final observedValue = usdAmountReceived.amount.toInt();
+    // No explicit rate is passed here — the observed proceeds already imply
+    // one (ADR-0017): excess cost = excess * (usdAmountReceived / nativeAmount).
+    final excessCost =
+        split.excess == BigInt.zero
+            ? 0
+            : ((Decimal.fromBigInt(split.excess) *
+                        Decimal.fromInt(observedValue)) /
+                    Decimal.fromBigInt(nativeAmount.amount))
+                .round()
+                .toInt();
 
     await _performDisposal(
       eventId: eventId,
@@ -129,7 +137,7 @@ class RecordRealization {
       type: 'DisposalConversion',
       sourceAccountId: sourceForeignAccountId,
       nativeAmount: nativeAmount,
-      costBasis: balance.baseCostOf(nativeAmount.amount),
+      costBasis: balance.baseCostOf(split.covered) + excessCost,
       observedUsdValue: observedValue,
       destinationPosting: Posting(
         target: AccountTarget(destinationUsdAccountId),
@@ -172,11 +180,18 @@ class RecordRealization {
     }
 
     final balance = _projections.accountBalance(cryptoAccountId);
-    if (quantity.amount > balance.native.amount) {
-      throw InsufficientBalance('Quantity to sell exceeds account balance');
-    }
-
+    final split = _splitDisposal(balance, quantity.amount);
     final observedValue = usdAmountReceived.amount.toInt();
+    // Same as disposalConversion: the observed proceeds imply the execution
+    // rate, so the excess is valued proportionally to them (ADR-0017).
+    final excessCost =
+        split.excess == BigInt.zero
+            ? 0
+            : ((Decimal.fromBigInt(split.excess) *
+                        Decimal.fromInt(observedValue)) /
+                    Decimal.fromBigInt(quantity.amount))
+                .round()
+                .toInt();
 
     await _performDisposal(
       eventId: eventId,
@@ -184,7 +199,7 @@ class RecordRealization {
       type: 'CryptoSale',
       sourceAccountId: cryptoAccountId,
       nativeAmount: quantity,
-      costBasis: balance.baseCostOf(quantity.amount),
+      costBasis: balance.baseCostOf(split.covered) + excessCost,
       observedUsdValue: observedValue,
       destinationPosting: Posting(
         target: AccountTarget(destinationUsdAccountId),
@@ -195,6 +210,21 @@ class RecordRealization {
       ),
       occurredAt: occurredAt,
     );
+  }
+
+  /// Splits a disposal against the known balance (ADR-0017): [covered] keeps
+  /// its frozen average base cost; [excess] — money the app didn't know it
+  /// had — gets no historical cost basis. A negative balance covers nothing.
+  ({BigInt covered, BigInt excess}) _splitDisposal(
+    AccountBalance balance,
+    BigInt disposedAmount,
+  ) {
+    final available =
+        balance.native.amount < BigInt.zero
+            ? BigInt.zero
+            : balance.native.amount;
+    final covered = disposedAmount < available ? disposedAmount : available;
+    return (covered: covered, excess: disposedAmount - covered);
   }
 
   /// Single implementation shared by all three public faces.

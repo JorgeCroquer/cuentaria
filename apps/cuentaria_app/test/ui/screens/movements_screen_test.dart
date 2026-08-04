@@ -247,7 +247,8 @@ void main() {
         await _pumpWithRouter(tester, container);
 
         expect(find.byKey(const Key('movement_evt-1')), findsOneWidget);
-        expect(find.text('Expense'), findsOneWidget);
+        expect(find.text('Gasto'), findsOneWidget);
+        expect(find.text('Expense'), findsNothing);
         expect(find.textContaining('Groceries'), findsOneWidget);
 
         final icon = tester.widget<Icon>(
@@ -345,6 +346,8 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.byType(MovementDetailScreen), findsOneWidget);
+        expect(find.text('Gasto'), findsOneWidget);
+        expect(find.text('Expense'), findsNothing);
         expect(find.textContaining('Wallet'), findsOneWidget);
         expect(find.textContaining('Food'), findsOneWidget);
         expect(find.byKey(const Key('reverseButton')), findsOneWidget);

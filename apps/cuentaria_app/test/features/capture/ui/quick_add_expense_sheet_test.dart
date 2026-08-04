@@ -195,6 +195,88 @@ void main() {
       expect(frequentChipCenter.dx, lessThan(rareChipCenter.dx));
     });
 
+    testWidgets(
+      'account chips show currency so accounts with the same name are '
+      'distinguishable (e.g. two "Bancamiga" accounts in different '
+      'currencies, #118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-ves'),
+            name: 'Bancamiga',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        expect(find.text('Bancamiga · USD'), findsOneWidget);
+        expect(find.text('Bancamiga · VES'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'amount display shows the selected account currency, updating live '
+      'as the account chip selection changes (#118)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'USD wallet',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-ves'),
+            name: 'Bs wallet',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        await tester.tap(find.byKey(const Key('accountChip_acc-usd')));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
+          'USD',
+        );
+
+        await tester.tap(find.byKey(const Key('accountChip_acc-ves')));
+        await tester.pump();
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
+          'VES',
+        );
+      },
+    );
+
     testWidgets('date defaults to today', (tester) async {
       final container = ProviderContainer(
         overrides: [isWebProvider.overrideWithValue(true)],
@@ -360,6 +442,158 @@ void main() {
       final tx = log.last;
       expect(tx.metadata.type, 'ForeignCurrencyExpense');
       expect(tx.postings.length, 3);
+    });
+
+    testWidgets('shows a human message, not the raw exception, when no '
+        'parallel rate is registered for the Bs account (#112)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('RateNotAvailable'), findsNothing);
+      expect(
+        find.text(
+          'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
+          '(icono de tasas) y vuelve a intentar.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('shows a human message, not the raw exception, when '
+        'recording income for a non-USD account (#119)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('UsdOnlyOperation'), findsNothing);
+      expect(
+        find.text(
+          'Esta operación aún no está disponible para cuentas en esta '
+          'moneda.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a Bs expense exceeding the account balance is recorded, '
+        'not rejected, and leaves a negative balance (#113)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('20.00'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      // No opening balance was funded, so any positive amount overdraws it —
+      // it should post anyway (ADR-0017), not be rejected.
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pump();
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('numericKeypad')), findsNothing);
+
+      final projections = container.read(ledgerProjectionsProvider);
+      expect(
+        projections.accountBalance(account.id).native.amount < BigInt.zero,
+        isTrue,
+      );
+
+      final store = await container.read(eventStoreProvider.future);
+      final log = await store.queryLog();
+      final tx = log.last;
+      expect(tx.metadata.type, 'ForeignCurrencyExpense');
+      expect(tx.postings.length, 3);
+
+      // The whole disposed amount is excess (no known balance to cover it),
+      // valued at execution rate ⇒ zero differential.
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
+      final differentialPosting = tx.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(differentialPosting.amountUsd, 0);
     });
   });
 }

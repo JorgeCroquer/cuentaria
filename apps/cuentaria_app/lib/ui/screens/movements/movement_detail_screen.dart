@@ -7,6 +7,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 import '../../../features/movements/application/movements_providers.dart';
 import '../../../providers/composition_root.dart';
+import 'movement_labels.dart';
 
 String _formatDate(DateTime date) {
   final local = date.toLocal();
@@ -123,7 +124,10 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text(metadata.type, style: Theme.of(context).textTheme.titleLarge),
+        Text(
+          humanMovementLabel(metadata.type),
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
         Text(
           _formatDate(metadata.occurredAt.value),
           key: const Key('movementDate'),

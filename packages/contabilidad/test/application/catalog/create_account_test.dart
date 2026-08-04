@@ -157,6 +157,26 @@ void main() {
       expect(store.events, isEmpty);
     });
 
+    test('a retroactive opening records the transaction at the fact date, '
+        'not now', () async {
+      final pastDate = DomainTimestamp(DateTime.utc(2026, 7, 1));
+
+      await createAccount(
+        name: 'BdV',
+        nativeCurrency: CurrencyCode('VES'),
+        openingBalance: Money(
+          amount: BigInt.from(35000),
+          currency: CurrencyCode('VES'),
+        ),
+        openingBalanceRate: Decimal.parse('3.5'),
+        eventId: EventId('evt-create-retroactive'),
+        deviceId: 'dev-1',
+        occurredAt: pastDate,
+      );
+
+      expect(store.events.single.metadata.occurredAt, pastDate);
+    });
+
     test('a RecordOpening failure after the account is saved compensates by '
         'deleting the account and re-throws', () async {
       final throwingStore = _ThrowingEventStore();

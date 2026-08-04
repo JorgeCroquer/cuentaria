@@ -108,6 +108,9 @@ One ordered entry in a Cascade, targeting a user Envelope with a funding type: `
 **Distribution Proposal**
 The Cascade engine's output: a previewable, per-Envelope list of allocations for a given amount, before anything is posted. Applying it becomes a single self-balancing Distribution transaction (`Σ = 0`); steps can be skipped before applying. See [ADR-0015](adr/ADR-0015-cascada-distribucion.md) §C2-6.
 
+**Sobregiro (overdraft)**
+The legal ledger state in which an Account's native balance goes negative after a disposal exceeds what the app knew it had. Not an error — the domain never rejects a real disposal. It signals a missing income entry, surfaced in the UI (Patrimony, Accounts) rather than hidden. The excess portion (beyond the known balance) gets no frozen Average Base Cost; it is valued at the disposal's own execution rate, posting **zero differential** on that portion — the ledger declares ignorance instead of inventing a gain or loss. Reconciliation (C3) is what later reconstructs the history once the missing income appears. See [ADR-0017](adr/ADR-0017-sobregiro-registrable.md).
+
 ## Relationships
 
 - A **Command** on an **Aggregate** produces one or more **Domain Events**.

@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/ledger/exceptions.dart' as ledger;
 import 'package:contabilidad/domain/rate_calculator.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/ledger_providers.dart';
 import '../../application/capture_providers.dart';
+import '../../application/quick_add_expense_use_case.dart';
 import '../amount_input_controller.dart';
 import '../widgets/numeric_keypad.dart';
 
@@ -31,6 +33,22 @@ String _formatDate(DateTime date) {
 }
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Maps domain exceptions to Spanish, user-actionable copy so the capture
+/// UI never surfaces a raw `toString()` of a domain type (#121). Technical
+/// detail stays in the debug log, not on screen.
+String _userFacingErrorMessage(Object error) {
+  if (error is RateNotAvailable) {
+    return 'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
+        '(icono de tasas) y vuelve a intentar.';
+  }
+  if (error is ledger.UsdOnlyOperation) {
+    return 'Esta operación aún no está disponible para cuentas en esta '
+        'moneda.';
+  }
+  debugPrint('QuickAddExpenseSheet: unmapped error: $error');
+  return 'No se pudo guardar el movimiento.';
+}
 
 enum _CaptureMode { gasto, ingreso, mover }
 
@@ -121,6 +139,12 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return null;
   }
 
+  /// Same-named accounts in different currencies (e.g. two "Bancamiga"
+  /// wallets) render as identical chips without this — the currency is the
+  /// only thing that disambiguates them on screen (#118).
+  String _accountChipLabel(Account account) =>
+      '${account.name} · ${account.nativeCurrency.value}';
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -159,7 +183,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -204,7 +228,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         });
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -276,6 +300,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       _moverDestinationAccountId,
     );
     if (source == null || destination == null) return false;
+    if (source.id == destination.id) return false;
     if (!_moverGivenAmount.isValid) return false;
     if (source.nativeCurrency == destination.nativeCurrency) return true;
     return _explicitReceivedAmount(destination) != null ||
@@ -310,7 +335,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _userFacingErrorMessage(e));
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
@@ -472,6 +497,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   }
 
   Widget _buildGastoBody(QuickAddCaptureContext captureContext) {
+    final selectedAccount = _accountById(captureContext, _selectedAccountId);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -479,10 +505,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           child: AnimatedBuilder(
             animation: _amount,
             builder:
-                (context, _) => Text(
-                  _amount.displayText,
-                  key: const Key('amountDisplay'),
-                  style: Theme.of(context).textTheme.headlineLarge,
+                (context, _) => _AmountDisplay(
+                  text: _amount.displayText,
+                  currency: selectedAccount?.nativeCurrency,
                 ),
           ),
         ),
@@ -498,7 +523,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               for (final account in captureContext.accounts)
                 ChoiceChip(
                   key: Key('accountChip_${account.id.value}'),
-                  label: Text(account.name),
+                  label: Text(_accountChipLabel(account)),
                   selected: account.id == _selectedAccountId,
                   onSelected:
                       (_) => setState(() => _selectedAccountId = account.id),
@@ -527,6 +552,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   }
 
   Widget _buildIngresoBody(QuickAddCaptureContext captureContext) {
+    final selectedAccount = _accountById(
+      captureContext,
+      _selectedIncomeAccountId,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -548,10 +577,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           child: AnimatedBuilder(
             animation: _amount,
             builder:
-                (context, _) => Text(
-                  _amount.displayText,
-                  key: const Key('amountDisplay'),
-                  style: Theme.of(context).textTheme.headlineLarge,
+                (context, _) => _AmountDisplay(
+                  text: _amount.displayText,
+                  currency: selectedAccount?.nativeCurrency,
                 ),
           ),
         ),
@@ -588,7 +616,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               for (final account in captureContext.accounts)
                 ChoiceChip(
                   key: Key('incomeAccountChip_${account.id.value}'),
-                  label: Text(account.name),
+                  label: Text(_accountChipLabel(account)),
                   selected: account.id == _selectedIncomeAccountId,
                   onSelected:
                       (_) =>
@@ -624,7 +652,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               for (final account in captureContext.accounts)
                 ChoiceChip(
                   key: Key('moverSourceChip_${account.id.value}'),
-                  label: Text(account.name),
+                  label: Text(_accountChipLabel(account)),
                   selected: account.id == _moverSourceAccountId,
                   onSelected:
                       (_) => setState(() => _moverSourceAccountId = account.id),
@@ -642,7 +670,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               for (final account in captureContext.accounts)
                 ChoiceChip(
                   key: Key('moverDestinationChip_${account.id.value}'),
-                  label: Text(account.name),
+                  label: Text(_accountChipLabel(account)),
                   selected: account.id == _moverDestinationAccountId,
                   onSelected:
                       (_) => setState(
@@ -656,10 +684,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           child: AnimatedBuilder(
             animation: _moverGivenAmount,
             builder:
-                (context, _) => Text(
-                  _moverGivenAmount.displayText,
-                  key: const Key('amountDisplay'),
-                  style: Theme.of(context).textTheme.headlineLarge,
+                (context, _) => _AmountDisplay(
+                  text: _moverGivenAmount.displayText,
+                  currency: sourceAccount?.nativeCurrency,
                 ),
           ),
         ),
@@ -721,6 +748,40 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 child: Text(label, key: const Key('moverDerivedPreview')),
               );
             },
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// The typed amount next to the currency it's being entered in (#118) — the
+/// same digits mean a different amount depending on the selected account's
+/// currency, so the sheet must always show which one is in play.
+class _AmountDisplay extends StatelessWidget {
+  const _AmountDisplay({required this.text, required this.currency});
+
+  final String text;
+  final CurrencyCode? currency;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          text,
+          key: const Key('amountDisplay'),
+          style: Theme.of(context).textTheme.headlineLarge,
+        ),
+        if (currency != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            currency!.value,
+            key: const Key('amountCurrency'),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ],
       ],

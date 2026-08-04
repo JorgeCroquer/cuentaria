@@ -22,6 +22,12 @@ Color? _hexToColor(String? hex) {
   return Color(0xFF000000 | parsed);
 }
 
+String _formatBalance(Money balance) {
+  final decimal =
+      (Decimal.fromBigInt(balance.amount) / Decimal.fromInt(100)).toDecimal();
+  return '${decimal.toStringAsFixed(2)} ${balance.currency.value}';
+}
+
 /// Accounts catalog (#94): create, edit and archive Accounts, reachable
 /// from Patrimonio. Editing/archiving mutate the same [CatalogRepository]
 /// instance Patrimonio reads, so this screen rebuilds itself locally after
@@ -62,6 +68,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
+    final projections = ref.watch(ledgerProjectionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cuentas')),
@@ -77,6 +84,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               for (final account in accounts)
                 _AccountTile(
                   account: account,
+                  balance: projections.accountBalance(account.id).native,
                   onEdit: () => _openEditDialog(account),
                   onArchive: () => _archive(account),
                 ),
@@ -98,11 +106,13 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
+    required this.balance,
     required this.onEdit,
     required this.onArchive,
   });
 
   final Account account;
+  final Money balance;
   final VoidCallback onEdit;
   final VoidCallback onArchive;
 
@@ -110,6 +120,7 @@ class _AccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         _hexToColor(account.colorHex) ?? Theme.of(context).colorScheme.primary;
+    final isNegative = balance.amount < BigInt.zero;
     return ListTile(
       key: Key('account_${account.id.value}'),
       leading: CircleAvatar(backgroundColor: color, radius: 12),
@@ -118,6 +129,30 @@ class _AccountTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isNegative)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: 'Saldo negativo — ¿falta registrar un ingreso?',
+                child: Icon(
+                  Icons.error_outline,
+                  key: Key('negativeBalanceIndicator_${account.id.value}'),
+                  color: Theme.of(context).colorScheme.error,
+                  size: 18,
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Text(
+              _formatBalance(balance),
+              key: Key('accountBalance_${account.id.value}'),
+              style:
+                  isNegative
+                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      : null,
+            ),
+          ),
           IconButton(
             key: Key('editAccount_${account.id.value}'),
             icon: const Icon(Icons.edit_outlined),
@@ -193,12 +228,13 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
     super.dispose();
   }
 
-  /// The rate field only makes sense for a non-USD account with a non-zero
-  /// opening balance — matches [validateOpeningBalanceRate]'s own condition.
+  /// A non-USD account always needs a rate — with an opening balance it
+  /// freezes the real cost of the opening fact; without one, it's the first
+  /// parallel-rate observation the app needs (#112), asked for once instead
+  /// of surfacing as a later error. Matches [validateOpeningBalanceRate].
   bool get _needsOpeningBalanceRate {
-    if (widget.isEdit || _currency == 'USD') return false;
-    final balance = int.tryParse(_openingBalanceController.text.trim()) ?? 0;
-    return balance != 0;
+    if (widget.isEdit) return false;
+    return _currency != 'USD';
   }
 
   Future<void> _save() async {
@@ -220,7 +256,6 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
             ? null
             : validateOpeningBalanceRate(
               currency: _currency,
-              openingBalanceText: _openingBalanceController.text,
               rateText: _openingBalanceRateController.text,
             );
     if (rateError != null) {
