@@ -13,6 +13,7 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:cuentaria_app/features/capture/application/quick_add_expense_use_case.dart';
+import 'package:cuentaria_app/features/capture/application/rate_exceptions.dart';
 import 'package:decimal/decimal.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:flutter_test/flutter_test.dart';

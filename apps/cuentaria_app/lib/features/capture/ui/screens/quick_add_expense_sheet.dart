@@ -7,11 +7,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 import '../../../../providers/composition_root.dart';
-import '../../../../providers/ledger_providers.dart';
+import '../../../../providers/tasas_providers.dart';
+import '../../../patrimonio/ui/screens/patrimonio_screen.dart';
 import '../../application/capture_providers.dart';
-import '../../application/quick_add_expense_use_case.dart';
+import '../../application/rate_exceptions.dart';
 import '../amount_input_controller.dart';
 import '../widgets/numeric_keypad.dart';
 
@@ -35,8 +37,10 @@ String _formatDate(DateTime date) {
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 /// Maps domain exceptions to Spanish, user-actionable copy so the capture
-/// UI never surfaces a raw `toString()` of a domain type (#121). Technical
-/// detail stays in the debug log, not on screen.
+/// UI never surfaces a raw `toString()` of a domain type (#121). This is a
+/// safety net, not the primary path: the Save button is gated on
+/// [latestParaleloRateProvider] so a missing rate is caught before the tap,
+/// not after (#119).
 String _userFacingErrorMessage(Object error) {
   if (error is RateNotAvailable) {
     return 'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
@@ -48,6 +52,31 @@ String _userFacingErrorMessage(Object error) {
   }
   debugPrint('QuickAddExpenseSheet: unmapped error: $error');
   return 'No se pudo guardar el movimiento.';
+}
+
+const _monthAbbreviations = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+String _formatShortDate(DateTime date) =>
+    '${date.day} ${_monthAbbreviations[date.month - 1]}';
+
+bool _isToday(DateTime date) {
+  final now = DateTime.now();
+  return date.year == now.year &&
+      date.month == now.month &&
+      date.day == now.day;
 }
 
 enum _CaptureMode { gasto, ingreso, mover }
@@ -145,6 +174,26 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   String _accountChipLabel(Account account) =>
       '${account.name} · ${account.nativeCurrency.value}';
 
+  /// Whether Save must stay disabled because [currency] is foreign and no
+  /// parallel Rate Observation exists yet for it (ADR-0018 §7) — applies to
+  /// both Gasto and Ingreso, since both value a foreign-currency Account
+  /// against the same observation.
+  bool _rateBlocked(CurrencyCode currency) {
+    if (currency == CurrencyCode('USD')) return false;
+    final rateAsync = ref.watch(latestParaleloRateProvider(currency));
+    return rateAsync.maybeWhen(
+      data: (observation) => observation == null,
+      orElse: () => false,
+    );
+  }
+
+  void _openRecordRatesDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (context) => const RecordRatesDialog(),
+    );
+  }
+
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -199,10 +248,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
     try {
       final catalog = await ref.read(catalogRepositoryProvider.future);
-      final recordIncome = await ref.read(recordIncomeProvider.future);
+      final useCase = await ref.read(quickAddIncomeUseCaseProvider.future);
       final deviceId = await ref.read(deviceIdProvider.future);
 
-      await recordIncome(
+      await useCase(
         eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
         deviceId: deviceId,
         accountId: account.id,
@@ -397,9 +446,13 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         !_isSaving &&
             _amount.isValid &&
             selectedAccount != null &&
-            _selectedEnvelopeId != null,
+            _selectedEnvelopeId != null &&
+            !_rateBlocked(selectedAccount.nativeCurrency),
       _CaptureMode.ingreso =>
-        !_isSaving && _amount.isValid && selectedIncomeAccount != null,
+        !_isSaving &&
+            _amount.isValid &&
+            selectedIncomeAccount != null &&
+            !_rateBlocked(selectedIncomeAccount.nativeCurrency),
       _CaptureMode.mover => !_isSaving && _moverCanSave(captureContext),
     };
 
@@ -513,6 +566,12 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         ),
         const SizedBox(height: 8),
         Center(child: NumericKeypad(controller: _amount)),
+        if (selectedAccount != null &&
+            selectedAccount.nativeCurrency != CurrencyCode('USD'))
+          _RateValuationAnnouncement(
+            currency: selectedAccount.nativeCurrency,
+            onRegisterRate: _openRecordRatesDialog,
+          ),
         const SizedBox(height: 16),
         if (captureContext.accounts.isEmpty)
           const Text('No accounts yet.')
@@ -585,6 +644,12 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         ),
         const SizedBox(height: 8),
         Center(child: NumericKeypad(controller: _amount)),
+        if (selectedAccount != null &&
+            selectedAccount.nativeCurrency != CurrencyCode('USD'))
+          _RateValuationAnnouncement(
+            currency: selectedAccount.nativeCurrency,
+            onRegisterRate: _openRecordRatesDialog,
+          ),
         const SizedBox(height: 16),
         TextField(
           key: const Key('incomeSourceField'),
@@ -785,6 +850,90 @@ class _AmountDisplay extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Shows how a foreign-currency Gasto/Ingreso will be valued (ADR-0018 §6):
+/// today's parallel rate, a warning when the latest observation is stale, or
+/// a blocking notice with a shortcut to register one when none exists at
+/// all. Purely informational when a rate exists — it never blocks Save by
+/// itself; [_QuickAddExpenseSheetState._rateBlocked] is what gates Save, and
+/// only for the "no rate at all" case.
+class _RateValuationAnnouncement extends ConsumerWidget {
+  const _RateValuationAnnouncement({
+    required this.currency,
+    required this.onRegisterRate,
+  });
+
+  final CurrencyCode currency;
+  final VoidCallback onRegisterRate;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rateAsync = ref.watch(latestParaleloRateProvider(currency));
+    return rateAsync.when(
+      data: (observation) => _build(context, observation),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _build(BuildContext context, RateObservation? observation) {
+    if (observation == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'No hay tasa registrada para ${currency.value}.',
+                key: const Key('rateUnavailableMessage'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+            TextButton(
+              key: const Key('registerRateShortcut'),
+              onPressed: onRegisterRate,
+              child: const Text('Registrar tasa'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final observedLocal = observation.observedAt.toLocal();
+    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+
+    if (_isToday(observedLocal)) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Text(
+          'Valorado a $rateText ${currency.value}/USD · hoy',
+          key: const Key('rateValuationAnnouncement'),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '⚠ Tasa del ${_formatShortDate(observedLocal)} — '
+              '¿registrar la de hoy?',
+              key: const Key('staleRateWarning'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+          TextButton(
+            key: const Key('registerRateShortcut'),
+            onPressed: onRegisterRate,
+            child: const Text('Registrar tasa'),
+          ),
+        ],
+      ),
     );
   }
 }
