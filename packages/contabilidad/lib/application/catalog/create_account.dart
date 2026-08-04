@@ -36,6 +36,7 @@ class CreateAccount {
     Decimal? openingBalanceRate,
     required EventId eventId,
     required String deviceId,
+    DomainTimestamp? occurredAt,
   }) async {
     final isOpeningNonZero =
         openingBalance != null && openingBalance.amount != BigInt.zero;
@@ -70,6 +71,7 @@ class CreateAccount {
           nativeAmount: openingBalance,
           amountUsd: openingBalanceUsd,
           rate: openingBalanceRate,
+          occurredAt: occurredAt,
         );
       } catch (_) {
         await _catalog.deleteAccount(id);

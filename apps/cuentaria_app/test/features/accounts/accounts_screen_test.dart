@@ -1,6 +1,7 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:cuentaria_app/features/accounts/ui/screens/accounts_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/tasas_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -202,6 +203,97 @@ void main() {
 
     expect(projections.accountBalance(account.id).usd, 10000);
   });
+
+  testWidgets('requires an exchange rate for a non-USD account even without an '
+      'opening balance (#112)', (tester) async {
+    await pumpAccountsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+    await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VES').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('saveAccountButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Exchange rate is required'), findsOneWidget);
+    expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
+  });
+
+  testWidgets(
+    'the opening rate is also recorded as a parallel-rate observation so a '
+    'Bs expense never hits RateNotAvailable (#112)',
+    (tester) async {
+      final container = await pumpAccountsScreen(tester);
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceField')),
+        '350',
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceRateField')),
+        '3.5',
+      );
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      final observation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'manual:paralelo',
+      );
+
+      expect(observation, isNotNull);
+      expect(observation!.nativePerUsd.toString(), '3.5');
+    },
+  );
+
+  testWidgets(
+    'a non-USD account created without an opening balance still records '
+    "today's rate as an observation (#112)",
+    (tester) async {
+      final container = await pumpAccountsScreen(tester);
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceRateField')),
+        '90',
+      );
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      expect(catalog.accounts.any((a) => a.name == 'BdV'), isTrue);
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      final observation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'manual:paralelo',
+      );
+
+      expect(observation, isNotNull);
+      expect(observation!.nativePerUsd.toString(), '90');
+    },
+  );
 
   testWidgets('rejects a decimal opening balance', (tester) async {
     await pumpAccountsScreen(tester);
