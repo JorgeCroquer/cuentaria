@@ -1,11 +1,11 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
+import 'package:contabilidad/application/ledger/factories/record_income.dart';
 import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 import 'package:contabilidad/application/ledger/quick_add_defaults.dart';
-import 'package:contabilidad/application/ledger/quick_add_mover_use_case.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +15,8 @@ import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
 import '../../envelopes/application/envelopes_providers.dart';
 import 'quick_add_expense_use_case.dart';
+import 'quick_add_income_use_case.dart';
+import 'quick_add_mover_use_case.dart';
 
 /// Last-used Account + Envelopes-by-frequency, both derived from
 /// [EventStore.queryLog] with no preferences store (U1, #97).
@@ -49,6 +51,29 @@ final quickAddExpenseUseCaseProvider = FutureProvider<QuickAddExpenseUseCase>((
       catalog: catalog,
       projections: projections,
     ),
+    catalog: catalog,
+    rateSeries: rateSeries,
+  );
+});
+
+final quickAddIncomeUseCaseProvider = FutureProvider<QuickAddIncomeUseCase>((
+  ref,
+) async {
+  final store = await ref.watch(eventStoreProvider.future);
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  final projections = ref.watch(ledgerProjectionsProvider);
+  final eventBus = ref.watch(eventBusProvider);
+  final rateSeries = await ref.watch(rateSeriesProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+
+  return QuickAddIncomeUseCase(
+    recordIncome: RecordIncome(record: recordTransaction, catalog: catalog),
     catalog: catalog,
     rateSeries: rateSeries,
   );

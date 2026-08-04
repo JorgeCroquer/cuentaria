@@ -392,20 +392,20 @@ class _RecordRatesAction extends StatelessWidget {
       onPressed:
           () => showDialog<void>(
             context: context,
-            builder: (context) => const _RecordRatesDialog(),
+            builder: (context) => const RecordRatesDialog(),
           ),
     );
   }
 }
 
-class _RecordRatesDialog extends ConsumerStatefulWidget {
-  const _RecordRatesDialog();
+class RecordRatesDialog extends ConsumerStatefulWidget {
+  const RecordRatesDialog({super.key});
 
   @override
-  ConsumerState<_RecordRatesDialog> createState() => _RecordRatesDialogState();
+  ConsumerState<RecordRatesDialog> createState() => RecordRatesDialogState();
 }
 
-class _RecordRatesDialogState extends ConsumerState<_RecordRatesDialog> {
+class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
   final _bcvController = TextEditingController();
   final _paraleloController = TextEditingController();
   String? _error;
@@ -452,6 +452,11 @@ class _RecordRatesDialogState extends ConsumerState<_RecordRatesDialog> {
       );
 
       ref.invalidate(patrimonioSnapshotProvider);
+      // Not rateSeriesProvider itself: on web it constructs a fresh, empty
+      // InMemoryRateSeries — invalidating it would discard every previously
+      // recorded observation. Re-reading the lookup provider is enough,
+      // since it re-queries the same (still-cached) RateSeries instance.
+      ref.invalidate(latestParaleloRateProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() => _error = e.toString());
