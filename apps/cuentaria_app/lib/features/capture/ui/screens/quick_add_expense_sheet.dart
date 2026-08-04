@@ -307,39 +307,86 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return Decimal.tryParse(_rateFieldController.text.trim());
   }
 
+  bool _sourceIsUsd(Account sourceAccount) =>
+      sourceAccount.nativeCurrency == CurrencyCode('USD');
+
+  /// The non-USD side of the pair — the rate is always quoted
+  /// native-per-USD (CONTEXT.md Hard Rule), and "native" is whichever
+  /// Account isn't USD, not necessarily the destination (#116).
+  CurrencyCode _foreignCurrencyOfPair(
+    Account sourceAccount,
+    Account destinationAccount,
+  ) =>
+      _sourceIsUsd(sourceAccount)
+          ? destinationAccount.nativeCurrency
+          : sourceAccount.nativeCurrency;
+
   /// The value the other field would show, derived live (U1, #98) — powers
   /// the inline preview and pre-fills the field when the toggle switches,
-  /// so switching modes never loses information.
-  String? _deriveOtherFieldText(Account destinationAccount) {
+  /// so switching modes never loses information. Which side is USD depends
+  /// on the direction of the Mover (#116): USD -> foreign treats given as
+  /// USD and received as native; foreign -> USD treats given as native and
+  /// received as USD, so the roles — not the field positions — pick the
+  /// [RateCalculator] call.
+  String? _deriveOtherFieldText(
+    Account sourceAccount,
+    Account destinationAccount,
+  ) {
     if (!_moverGivenAmount.isValid) return null;
+    final sourceIsUsd = _sourceIsUsd(sourceAccount);
     if (_rateInputMode == _RateInputMode.receivedAmount) {
       final received = _explicitReceivedAmount(destinationAccount);
       if (received == null) return null;
-      final rate = RateCalculator.deriveRate(
-        usdCents: _moverGivenAmount.amountMinorUnits,
-        nativeCents: received.amount,
-      );
+      final rate =
+          sourceIsUsd
+              ? RateCalculator.deriveRate(
+                usdCents: _moverGivenAmount.amountMinorUnits,
+                nativeCents: received.amount,
+              )
+              : RateCalculator.deriveRate(
+                usdCents: received.amount,
+                nativeCents: _moverGivenAmount.amountMinorUnits,
+              );
       return rate.toStringAsFixed(2);
     }
     final rate = _explicitRate();
     if (rate == null) return null;
-    final nativeCents = RateCalculator.deriveNativeCents(
-      usdCents: _moverGivenAmount.amountMinorUnits,
+    if (sourceIsUsd) {
+      final nativeCents = RateCalculator.deriveNativeCents(
+        usdCents: _moverGivenAmount.amountMinorUnits,
+        rate: rate,
+      );
+      return _formatCentsAsAmount(nativeCents);
+    }
+    final usdCents = RateCalculator.deriveUsdCents(
+      nativeCents: _moverGivenAmount.amountMinorUnits,
       rate: rate,
     );
-    return _formatCentsAsAmount(nativeCents);
+    return _formatCentsAsAmount(usdCents);
   }
 
   void _toggleRateInputMode(
     _RateInputMode newMode,
+    Account sourceAccount,
     Account destinationAccount,
   ) {
     if (newMode == _rateInputMode) return;
-    final derived = _deriveOtherFieldText(destinationAccount);
+    final derived = _deriveOtherFieldText(sourceAccount, destinationAccount);
     setState(() {
       _rateInputMode = newMode;
       _rateFieldController.text = derived ?? '';
     });
+  }
+
+  /// Whether [candidate] can be picked as the Mover destination given the
+  /// current [source]: a foreign source paired with a *different* foreign
+  /// destination isn't modeled by any factory (ADR-0018 §5), so that chip
+  /// is disabled rather than left to fail after Save (#116).
+  bool _moverDestinationSelectable(Account? source, Account candidate) {
+    if (source == null) return true;
+    if (_sourceIsUsd(source)) return true;
+    if (candidate.nativeCurrency == CurrencyCode('USD')) return true;
+    return candidate.nativeCurrency == source.nativeCurrency;
   }
 
   bool _moverCanSave(QuickAddCaptureContext captureContext) {
@@ -720,7 +767,20 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   label: Text(_accountChipLabel(account)),
                   selected: account.id == _moverSourceAccountId,
                   onSelected:
-                      (_) => setState(() => _moverSourceAccountId = account.id),
+                      (_) => setState(() {
+                        _moverSourceAccountId = account.id;
+                        final currentDestination = _accountById(
+                          captureContext,
+                          _moverDestinationAccountId,
+                        );
+                        if (currentDestination != null &&
+                            !_moverDestinationSelectable(
+                              account,
+                              currentDestination,
+                            )) {
+                          _moverDestinationAccountId = null;
+                        }
+                      }),
                 ),
             ],
           ),
@@ -738,9 +798,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   label: Text(_accountChipLabel(account)),
                   selected: account.id == _moverDestinationAccountId,
                   onSelected:
-                      (_) => setState(
-                        () => _moverDestinationAccountId = account.id,
-                      ),
+                      !_moverDestinationSelectable(sourceAccount, account)
+                          ? null
+                          : (_) => setState(
+                            () => _moverDestinationAccountId = account.id,
+                          ),
                 ),
             ],
           ),
@@ -768,6 +830,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 onSelected:
                     (_) => _toggleRateInputMode(
                       _RateInputMode.receivedAmount,
+                      sourceAccount,
                       destinationAccount,
                     ),
               ),
@@ -779,6 +842,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 onSelected:
                     (_) => _toggleRateInputMode(
                       _RateInputMode.rate,
+                      sourceAccount,
                       destinationAccount,
                     ),
               ),
@@ -794,18 +858,21 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   _rateInputMode == _RateInputMode.receivedAmount
                       ? 'Monto recibido (${destinationAccount.nativeCurrency.value})'
                       : 'Tasa aplicada '
-                          '(${destinationAccount.nativeCurrency.value}/USD)',
+                          '(${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD)',
             ),
             onChanged: (_) => setState(() {}),
           ),
           Builder(
             builder: (context) {
-              final derived = _deriveOtherFieldText(destinationAccount);
+              final derived = _deriveOtherFieldText(
+                sourceAccount,
+                destinationAccount,
+              );
               if (derived == null) return const SizedBox.shrink();
               final label =
                   _rateInputMode == _RateInputMode.receivedAmount
                       ? 'Tasa: $derived '
-                          '${destinationAccount.nativeCurrency.value}/USD'
+                          '${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD'
                       : 'Recibes: $derived '
                           '${destinationAccount.nativeCurrency.value}';
               return Padding(
