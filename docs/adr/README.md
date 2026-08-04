@@ -20,10 +20,12 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 | [0014](ADR-0014-persistencia-f2-cifrado-local.md) | F2: store cifrado solo-nativo, llave local separada del DEK (refina 0009) | Aceptada |
 | [0015](ADR-0015-cascada-distribucion.md) | Cascada de distribución + metas de Sobres (refina 0010) | Aceptada |
 | [0016](ADR-0016-tasas-manuales-valoracion-patrimonio.md) | Tasas manuales como hechos observados; el paralelo valora, el BCV informa | Aceptada |
+| [0017](ADR-0017-sobregiro-registrable.md) | Sobregiro registrable: el ledger admite saldos negativos, el exceso se valora a tasa de ejecución | Aceptada |
 
 > 0001–0011 aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
 > ADR-0014 (2026-06-15) refina el 0009 para F2. ADR-0015 (2026-06-23) refina el 0010 para C2.
 > ADR-0016 (2026-07-23) fija la valoración de S2 y adelanta el almacén de la serie del 0007.
+> ADR-0017 (2026-08-04) refina el 0006: el ledger admite saldos negativos en vez de rechazar el disposal.
 > Los números 0012/0013 quedaron reservados sin redactar (Riverpod+go_router · Doctrina B).
 
 ## Plantilla para nuevos ADRs

@@ -276,6 +276,7 @@ class _AccountGroupTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isNegative = group.nativeMinorAmount < BigInt.zero;
     return ListTile(
       key: Key('accountGroup_${group.currency.value}'),
       title: Text(group.currency.value),
@@ -286,12 +287,22 @@ class _AccountGroupTile extends StatelessWidget {
           Text(
             _formatNativeAmount(group.nativeMinorAmount, group.currency),
             key: Key('accountGroupNativeAmount_${group.currency.value}'),
+            style:
+                isNegative
+                    ? TextStyle(color: Theme.of(context).colorScheme.error)
+                    : null,
           ),
           Text(
             'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
             "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
             '${group.hasRate ? '' : ' (sin tasa)'}',
           ),
+          if (isNegative)
+            Text(
+              'Saldo negativo — ¿falta registrar un ingreso?',
+              key: Key('negativeBalanceSignal_${group.currency.value}'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
         ],
       ),
     );
