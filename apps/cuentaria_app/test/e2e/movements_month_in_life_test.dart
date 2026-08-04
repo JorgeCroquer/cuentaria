@@ -119,7 +119,15 @@ void main() {
 
       await _createAccount(tester, name: 'Bancamiga', openingBalance: '200');
       await _createAccount(tester, name: 'Binance', openingBalance: '150');
-      await _createAccount(tester, name: 'BdV', currency: 'VES');
+      // #112: a non-USD account always asks for a rate, even with no
+      // opening balance — recorded as today's parallel rate, later
+      // superseded by the explicit "record today's rates" step below.
+      await _createAccount(
+        tester,
+        name: 'BdV',
+        currency: 'VES',
+        openingBalanceRate: '1',
+      );
 
       await tester.pageBack();
       await tester.pumpAndSettle();

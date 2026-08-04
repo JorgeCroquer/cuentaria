@@ -44,86 +44,38 @@ void main() {
 
   group('validateOpeningBalanceRate', () {
     test('is not required for a USD account', () {
-      expect(
-        validateOpeningBalanceRate(
-          currency: 'USD',
-          openingBalanceText: '200',
-          rateText: '',
-        ),
-        isNull,
-      );
+      expect(validateOpeningBalanceRate(currency: 'USD', rateText: ''), isNull);
     });
 
-    test('is not required when there is no opening balance', () {
+    test('is required for a non-USD account even without an opening balance '
+        '— it doubles as the first parallel-rate observation (#112)', () {
       expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '',
-          rateText: '',
-        ),
-        isNull,
-      );
-      expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '0',
-          rateText: '',
-        ),
-        isNull,
+        validateOpeningBalanceRate(currency: 'VES', rateText: ''),
+        isNotNull,
       );
     });
-
-    test(
-      'is required for a non-USD account with a non-zero opening balance',
-      () {
-        expect(
-          validateOpeningBalanceRate(
-            currency: 'VES',
-            openingBalanceText: '50000',
-            rateText: '',
-          ),
-          isNotNull,
-        );
-      },
-    );
 
     test('rejects a non-numeric rate', () {
       expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '50000',
-          rateText: 'abc',
-        ),
+        validateOpeningBalanceRate(currency: 'VES', rateText: 'abc'),
         isNotNull,
       );
     });
 
     test('rejects a zero or negative rate', () {
       expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '50000',
-          rateText: '0',
-        ),
+        validateOpeningBalanceRate(currency: 'VES', rateText: '0'),
         isNotNull,
       );
       expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '50000',
-          rateText: '-3.5',
-        ),
+        validateOpeningBalanceRate(currency: 'VES', rateText: '-3.5'),
         isNotNull,
       );
     });
 
     test('accepts a positive rate', () {
       expect(
-        validateOpeningBalanceRate(
-          currency: 'VES',
-          openingBalanceText: '50000',
-          rateText: '3.5',
-        ),
+        validateOpeningBalanceRate(currency: 'VES', rateText: '3.5'),
         isNull,
       );
     });

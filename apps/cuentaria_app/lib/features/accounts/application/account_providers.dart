@@ -7,14 +7,21 @@ import 'package:contabilidad/application/record_transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/composition_root.dart';
+import '../../../providers/tasas_providers.dart';
+import 'create_account_with_rate.dart';
 
 /// Creates an Account and, when given an opening balance, posts it through
 /// the existing [RecordOpening] factory against the Apertura envelope (#94).
-final createAccountProvider = FutureProvider<CreateAccount>((ref) async {
+/// The opening rate is also recorded as a parallel-rate observation in tasas
+/// through [CreateAccountWithRate] — the app-shell composition seam (#112).
+final createAccountProvider = FutureProvider<CreateAccountWithRate>((
+  ref,
+) async {
   final store = await ref.watch(eventStoreProvider.future);
   final catalog = await ref.watch(catalogRepositoryProvider.future);
   final projections = ref.watch(ledgerProjectionsProvider);
   final eventBus = ref.watch(eventBusProvider);
+  final rateSeries = await ref.watch(rateSeriesProvider.future);
 
   final recordTransaction = RecordTransaction(
     store: store,
@@ -28,7 +35,13 @@ final createAccountProvider = FutureProvider<CreateAccount>((ref) async {
     projections: projections,
   );
 
-  return CreateAccount(catalog: catalog, recordOpening: recordOpening);
+  return CreateAccountWithRate(
+    createAccount: CreateAccount(
+      catalog: catalog,
+      recordOpening: recordOpening,
+    ),
+    rateSeries: rateSeries,
+  );
 });
 
 /// Updates an Account's name and/or color tag.
