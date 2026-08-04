@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/domain/posting_target.dart';
 import 'package:cuentaria_app/features/capture/ui/screens/quick_add_expense_sheet.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
@@ -366,6 +367,140 @@ void main() {
           projections.accountBalance(AccountId('bdv')).native.amount,
           BigInt.from(400000),
         );
+      },
+    );
+
+    testWidgets(
+      'BdV -> Binance (VES -> USD) unfolds two sides; typing the received '
+      'USD amount derives the rate labeled VES/USD (not USD/USD) and posts '
+      'a DisposalConversion (#116)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'bdv', 'VES');
+        await _saveAccount(container, 'binance', 'USD');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverDestinationChip_binance')));
+        await tester.pump();
+
+        await _enterAmount(tester, '400000'); // 4000.00 Bs given
+
+        expect(find.byKey(const Key('moverToggleReceived')), findsOneWidget);
+        expect(find.byKey(const Key('moverToggleRate')), findsOneWidget);
+
+        await tester.enterText(
+          find.byKey(const Key('moverRateInputField')),
+          '100', // $100.00 received
+        );
+        await tester.pump();
+
+        // Derived rate must read the foreign side of the pair (VES), not
+        // the USD destination (#116, point 3/5 of the fix).
+        expect(find.text('Tasa: 40.00 VES/USD'), findsOneWidget);
+
+        await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+        await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+        await tester.pumpAndSettle();
+
+        final store = await container.read(eventStoreProvider.future);
+        final log = await store.queryLog();
+        final tx = log.single;
+        expect(tx.metadata.type, 'DisposalConversion');
+        final destinationPosting = tx.postings.firstWhere(
+          (p) => p.target == AccountTarget(AccountId('binance')),
+        );
+        expect(destinationPosting.amountUsd, 10000);
+        expect(destinationPosting.rateRef, '40.00 VES/USD');
+
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(projections.accountBalance(AccountId('binance')).usd, 10000);
+      },
+    );
+
+    testWidgets(
+      'BdV -> Binance (VES -> USD) in rate mode labels the field VES/USD '
+      'and derives the received USD via deriveUsdCents (#116)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'bdv', 'VES');
+        await _saveAccount(container, 'binance', 'USD');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverDestinationChip_binance')));
+        await tester.pump();
+
+        await _enterAmount(tester, '400000'); // 4000.00 Bs given
+
+        await tester.ensureVisible(find.byKey(const Key('moverToggleRate')));
+        await tester.tap(find.byKey(const Key('moverToggleRate')));
+        await tester.pump();
+
+        final field = tester.widget<TextField>(
+          find.byKey(const Key('moverRateInputField')),
+        );
+        expect(field.decoration!.labelText, 'Tasa aplicada (VES/USD)');
+
+        await tester.enterText(
+          find.byKey(const Key('moverRateInputField')),
+          '40',
+        );
+        await tester.pump();
+
+        expect(find.text('Recibes: 100.00 USD'), findsOneWidget);
+
+        await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+        await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+        await tester.pumpAndSettle();
+
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(projections.accountBalance(AccountId('binance')).usd, 10000);
+      },
+    );
+
+    testWidgets(
+      'a foreign-currency source disables destination chips in a different '
+      'foreign currency — that pair cannot be formed (ADR-0018 §5, #116)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'bdv', 'VES');
+        await _saveAccount(container, 'binance', 'USD');
+        await _saveAccount(container, 'binance-eur', 'EUR');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
+        await tester.pump();
+
+        final eurChip = tester.widget<ChoiceChip>(
+          find.byKey(const Key('moverDestinationChip_binance-eur')),
+        );
+        expect(eurChip.onSelected, isNull);
+
+        final usdChip = tester.widget<ChoiceChip>(
+          find.byKey(const Key('moverDestinationChip_binance')),
+        );
+        expect(usdChip.onSelected, isNotNull);
       },
     );
 

@@ -4,27 +4,32 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
+import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/domain/rate_calculator.dart';
 
-/// Derives the right Transaction Factory from whether the two Accounts
-/// share a currency (U1, #98): same currency posts a plain transfer,
-/// different currencies post a P2P/FX conversion (ADR-0006) — the user
-/// never sees this taxonomy, only "Mover". The two-sided form lets the user
-/// type either the received amount or the executed rate; whichever is
-/// missing is derived via [RateCalculator] and only the resulting native
-/// amounts are posted — the rate itself is never stored.
+/// Derives the right Transaction Factory from the currencies of the two
+/// Accounts (U1-14, #98/#116): same currency posts a plain transfer; USD
+/// origin -> foreign destination posts a P2P/FX acquisition (ADR-0006);
+/// foreign origin -> USD destination posts a realization/disposal
+/// (ADR-0017/0018) — the user never sees this taxonomy, only "Mover". The
+/// two-sided form lets the user type either the received amount or the
+/// executed rate; whichever is missing is derived via [RateCalculator] and
+/// only the resulting amounts are posted — the rate itself is never stored.
 class QuickAddMoverUseCase {
   final RecordTransfer _recordTransfer;
   final RecordAcquisitionConversion _recordAcquisitionConversion;
+  final RecordRealization _recordRealization;
   final CatalogRepository _catalog;
 
   QuickAddMoverUseCase({
     required RecordTransfer recordTransfer,
     required RecordAcquisitionConversion recordAcquisitionConversion,
+    required RecordRealization recordRealization,
     required CatalogRepository catalog,
   }) : _recordTransfer = recordTransfer,
        _recordAcquisitionConversion = recordAcquisitionConversion,
+       _recordRealization = recordRealization,
        _catalog = catalog;
 
   Future<void> call({
@@ -60,6 +65,53 @@ class QuickAddMoverUseCase {
       return;
     }
 
+    final usdCurrency = CurrencyCode('USD');
+    if (source.nativeCurrency != usdCurrency &&
+        destination.nativeCurrency == usdCurrency) {
+      final Money resolvedReceivedUsd;
+      if (receivedAmount != null) {
+        resolvedReceivedUsd = receivedAmount;
+      } else if (rate != null) {
+        resolvedReceivedUsd = Money(
+          amount: RateCalculator.deriveUsdCents(
+            nativeCents: givenAmount.amount,
+            rate: rate,
+          ),
+          currency: usdCurrency,
+        );
+      } else {
+        throw ArgumentError(
+          'Different-currency movers require either a received amount or a '
+          'rate.',
+        );
+      }
+
+      final effectiveRate =
+          rate ??
+          RateCalculator.deriveRate(
+            usdCents: resolvedReceivedUsd.amount,
+            nativeCents: givenAmount.amount,
+          );
+
+      await _recordRealization.disposalConversion(
+        eventId: eventId,
+        deviceId: deviceId,
+        sourceForeignAccountId: sourceAccountId,
+        destinationUsdAccountId: destinationAccountId,
+        nativeAmount: givenAmount,
+        usdAmountReceived: resolvedReceivedUsd,
+        rateRef:
+            '${effectiveRate.toStringAsFixed(2)} '
+            '${source.nativeCurrency.value}/USD',
+        occurredAt: occurredAt,
+      );
+      return;
+    }
+
+    // USD origin -> foreign destination (AcquisitionConversion), or foreign
+    // -> different foreign (ADR-0018 §5, unreachable from the UI chips):
+    // RecordAcquisitionConversion rejects a non-USD source with
+    // UsdOnlyOperation before touching any amount.
     final Money resolvedReceived;
     if (receivedAmount != null) {
       resolvedReceived = receivedAmount;
