@@ -86,6 +86,7 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
   final catalog = await ref.watch(catalogRepositoryProvider.future);
   final projections = ref.watch(ledgerProjectionsProvider);
   final eventBus = ref.watch(eventBusProvider);
+  final rateSeries = await ref.watch(rateSeriesProvider.future);
 
   final recordTransaction = RecordTransaction(
     store: store,
@@ -95,7 +96,11 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
   );
 
   return QuickAddMoverUseCase(
-    recordTransfer: RecordTransfer(record: recordTransaction, catalog: catalog),
+    recordTransfer: RecordTransfer(
+      record: recordTransaction,
+      catalog: catalog,
+      projections: projections,
+    ),
     recordAcquisitionConversion: RecordAcquisitionConversion(
       record: recordTransaction,
       catalog: catalog,
@@ -106,6 +111,7 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
       projections: projections,
     ),
     catalog: catalog,
+    rateSeries: rateSeries,
   );
 });
 

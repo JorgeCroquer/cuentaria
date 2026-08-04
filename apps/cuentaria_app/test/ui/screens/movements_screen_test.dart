@@ -132,6 +132,7 @@ Future<void> _recordTransfer(
   final recordTransfer = RecordTransfer(
     record: recordTransaction,
     catalog: catalog,
+    projections: projections,
   );
 
   await recordTransfer(

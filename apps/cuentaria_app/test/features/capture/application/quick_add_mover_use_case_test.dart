@@ -19,12 +19,15 @@ import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:cuentaria_app/features/capture/application/quick_add_mover_use_case.dart';
+import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/infrastructure/in_memory/in_memory_rate_series.dart';
 
 void main() {
   group('QuickAddMoverUseCase', () {
     late InMemoryEventStore store;
     late InMemoryLedgerProjections projections;
     late InMemoryCatalogRepository catalog;
+    late InMemoryRateSeries rateSeries;
     late QuickAddMoverUseCase useCase;
 
     AccountId usdAccountId(String id) => AccountId(id);
@@ -45,6 +48,7 @@ void main() {
       store = InMemoryEventStore();
       projections = InMemoryLedgerProjections();
       catalog = InMemoryCatalogRepository();
+      rateSeries = InMemoryRateSeries();
       final eventBus = SyncEventBus();
       final validator = ReferentialIntegrityValidator(catalog);
       final record = RecordTransaction(
@@ -55,7 +59,11 @@ void main() {
       );
 
       useCase = QuickAddMoverUseCase(
-        recordTransfer: RecordTransfer(record: record, catalog: catalog),
+        recordTransfer: RecordTransfer(
+          record: record,
+          catalog: catalog,
+          projections: projections,
+        ),
         recordAcquisitionConversion: RecordAcquisitionConversion(
           record: record,
           catalog: catalog,
@@ -66,6 +74,7 @@ void main() {
           projections: projections,
         ),
         catalog: catalog,
+        rateSeries: rateSeries,
       );
     });
 
@@ -325,6 +334,140 @@ void main() {
           expect(await store.queryLog(), isEmpty);
         },
       );
+
+      group('row 8: foreign -> same foreign (BdV -> Bancamiga, both VES) posts '
+          'a Transfer valued via the latest parallel rate observation '
+          '(ADR-0018 §3)', () {
+        late AccountId bancamiga;
+
+        setUp(() {
+          bancamiga = AccountId('bancamiga');
+          addAccount('bancamiga', 'VES');
+        });
+
+        Future<void> fundBdv({
+          required BigInt nativeAmount,
+          required int usdAmount,
+        }) async {
+          final differentialId = catalog.getSystemEnvelope(
+            EnvelopeRole.differential,
+          );
+          await store.append(
+            Transaction.create(
+              metadata: TransactionMetadata(
+                eventId: EventId('evt-fund-bdv'),
+                type: 'Opening',
+                occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+                recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+                deviceId: 'dev-1',
+                schemaVersion: 1,
+              ),
+              postings: [
+                Posting(
+                  target: AccountTarget(AccountId('bdv')),
+                  amountNative: Money(
+                    amount: nativeAmount,
+                    currency: CurrencyCode('VES'),
+                  ),
+                  currency: CurrencyCode('VES'),
+                  amountUsd: usdAmount,
+                ),
+                Posting(
+                  target: EnvelopeTarget(differentialId),
+                  amountNative: Money(
+                    amount: BigInt.from(usdAmount),
+                    currency: CurrencyCode('USD'),
+                  ),
+                  currency: CurrencyCode('USD'),
+                  amountUsd: usdAmount,
+                ),
+              ],
+            ),
+          );
+          projections.apply((await store.get(EventId('evt-fund-bdv')))!);
+        }
+
+        test('a covered transfer posts without needing a rate observation at '
+            'all', () async {
+          await fundBdv(nativeAmount: BigInt.from(500000), usdAmount: 1000);
+
+          await useCase(
+            eventId: EventId('evt-row8-covered'),
+            deviceId: 'dev-1',
+            sourceAccountId: usdAccountId('bdv'),
+            destinationAccountId: bancamiga,
+            givenAmount: Money(
+              amount: BigInt.from(500000),
+              currency: CurrencyCode('VES'),
+            ),
+          );
+
+          final log = await store.queryLog();
+          expect(log.last.metadata.type, 'Transfer');
+          expect(projections.accountBalance(bancamiga).usd, 1000);
+        });
+
+        test(
+          'an excess above the balance resolves the latest '
+          'manual:paralelo observation and values the excess against it',
+          () async {
+            await fundBdv(nativeAmount: BigInt.from(500000), usdAmount: 1000);
+            await rateSeries.append(
+              RateObservation(
+                currency: CurrencyCode('VES'),
+                nativePerUsd: Decimal.parse('400.00'),
+                observedAt: DateTime.now().toUtc(),
+                source: 'manual:paralelo',
+              ),
+            );
+            await rateSeries.append(
+              RateObservation(
+                currency: CurrencyCode('VES'),
+                nativePerUsd: Decimal.parse('999.00'),
+                observedAt: DateTime.now().toUtc(),
+                source: 'manual:bcv',
+              ),
+            );
+
+            await useCase(
+              eventId: EventId('evt-row8-excess'),
+              deviceId: 'dev-1',
+              sourceAccountId: usdAccountId('bdv'),
+              destinationAccountId: bancamiga,
+              givenAmount: Money(
+                amount: BigInt.from(2000000),
+                currency: CurrencyCode('VES'),
+              ),
+            );
+
+            final log = await store.queryLog();
+            expect(log.last.metadata.type, 'Transfer');
+            // cubierto $10.00 + exceso 15,000.00/400 = $37.50 => $47.50
+            // moved, on top of BdV's existing $10.00.
+            expect(projections.accountBalance(bancamiga).usd, 4750);
+            expect(projections.accountBalance(AccountId('bdv')).usd, -3750);
+          },
+        );
+
+        test('an excess above the balance without any rate observation '
+            'throws a typed domain exception, not a crash', () async {
+          await fundBdv(nativeAmount: BigInt.from(500000), usdAmount: 1000);
+
+          await expectLater(
+            () => useCase(
+              eventId: EventId('evt-row8-excess-no-rate'),
+              deviceId: 'dev-1',
+              sourceAccountId: usdAccountId('bdv'),
+              destinationAccountId: bancamiga,
+              givenAmount: Money(
+                amount: BigInt.from(2000000),
+                currency: CurrencyCode('VES'),
+              ),
+            ),
+            throwsA(isA<RateRequiredForExcess>()),
+          );
+        });
+      });
 
       test('every account pair reachable from the UI selectors either posts '
           'or throws a typed exception the capture sheet already catches and '

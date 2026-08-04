@@ -104,8 +104,11 @@ class _Session {
   RecordUsdExpense get recordUsdExpense =>
       RecordUsdExpense(record: recordTx, catalog: catalog);
 
-  RecordTransfer get recordTransfer =>
-      RecordTransfer(record: recordTx, catalog: catalog);
+  RecordTransfer get recordTransfer => RecordTransfer(
+    record: recordTx,
+    catalog: catalog,
+    projections: projections,
+  );
 
   RecordAcquisitionConversion get recordAcquisitionConversion =>
       RecordAcquisitionConversion(record: recordTx, catalog: catalog);

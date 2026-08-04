@@ -20,6 +20,18 @@ class UsdOnlyOperation implements Exception {
   String toString() => 'UsdOnlyOperation: $message';
 }
 
+class RateRequiredForExcess implements Exception {
+  final String message;
+  RateRequiredForExcess([
+    this.message =
+        'The transferred amount exceeds the known balance. A parallel rate '
+            'is required to value the excess.',
+  ]);
+
+  @override
+  String toString() => 'RateRequiredForExcess: $message';
+}
+
 class TransactionNotFound implements Exception {
   final String message;
   TransactionNotFound(this.message);
