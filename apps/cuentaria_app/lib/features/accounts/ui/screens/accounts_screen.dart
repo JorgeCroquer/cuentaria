@@ -210,12 +210,13 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
     super.dispose();
   }
 
-  /// The rate field only makes sense for a non-USD account with a non-zero
-  /// opening balance — matches [validateOpeningBalanceRate]'s own condition.
+  /// A non-USD account always needs a rate — with an opening balance it
+  /// freezes the real cost of the opening fact; without one, it's the first
+  /// parallel-rate observation the app needs (#112), asked for once instead
+  /// of surfacing as a later error. Matches [validateOpeningBalanceRate].
   bool get _needsOpeningBalanceRate {
-    if (widget.isEdit || _currency == 'USD') return false;
-    final balance = int.tryParse(_openingBalanceController.text.trim()) ?? 0;
-    return balance != 0;
+    if (widget.isEdit) return false;
+    return _currency != 'USD';
   }
 
   Future<void> _save() async {
@@ -237,7 +238,6 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
             ? null
             : validateOpeningBalanceRate(
               currency: _currency,
-              openingBalanceText: _openingBalanceController.text,
               rateText: _openingBalanceRateController.text,
             );
     if (rateError != null) {
