@@ -1,6 +1,9 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/capture/ui/screens/quick_add_expense_sheet.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
@@ -105,6 +108,60 @@ Future<void> _enterAmount(WidgetTester tester, String digits) async {
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
   }
   await tester.pump();
+}
+
+Future<void> _backspace(WidgetTester tester, int times) async {
+  for (var i = 0; i < times; i++) {
+    await tester.tap(find.byKey(const Key('keypadBackspace')));
+  }
+  await tester.pump();
+}
+
+/// Funds [accountId] with [nativeAmount] at a frozen cost of [usdAmount],
+/// via a bare Opening posting pair, so a balance/cost basis exists without
+/// going through a capture flow.
+Future<void> _fund(
+  ProviderContainer container, {
+  required String accountId,
+  required BigInt nativeAmount,
+  required CurrencyCode currency,
+  required int usdAmount,
+}) async {
+  final store = await container.read(eventStoreProvider.future);
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final differentialId = catalog.getSystemEnvelope(EnvelopeRole.differential);
+  final eventId = EventId('evt-fund-$accountId');
+  await store.append(
+    Transaction.create(
+      metadata: TransactionMetadata(
+        eventId: eventId,
+        type: 'Opening',
+        occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+        deviceId: 'dev-1',
+        schemaVersion: 1,
+      ),
+      postings: [
+        Posting(
+          target: AccountTarget(AccountId(accountId)),
+          amountNative: Money(amount: nativeAmount, currency: currency),
+          currency: currency,
+          amountUsd: usdAmount,
+        ),
+        Posting(
+          target: EnvelopeTarget(differentialId),
+          amountNative: Money(
+            amount: BigInt.from(usdAmount),
+            currency: CurrencyCode('USD'),
+          ),
+          currency: CurrencyCode('USD'),
+          amountUsd: usdAmount,
+        ),
+      ],
+    ),
+  );
+  projections.apply((await store.get(eventId))!);
 }
 
 void main() {
@@ -567,5 +624,68 @@ void main() {
       );
       expect(field.controller!.text, '40.00');
     });
+
+    testWidgets(
+      'BdV -> Bancamiga (VES -> VES): the excess valuation row appears only '
+      'once the amount exceeds the known balance, and disappears when the '
+      'amount drops back under it (ADR-0018 §3)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'bdv', 'VES');
+        await _saveAccount(container, 'bancamiga', 'VES');
+        // 5,000.00 Bs at a frozen cost of $10.00 (200 VES/USD).
+        await _fund(
+          container,
+          accountId: 'bdv',
+          nativeAmount: BigInt.from(500000),
+          currency: CurrencyCode('VES'),
+          usdAmount: 1000,
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const Key('moverDestinationChip_bancamiga')),
+        );
+        await tester.pump();
+
+        // Same-currency non-USD Mover: no two-sided rate toggle at all.
+        expect(find.byKey(const Key('moverToggleReceived')), findsNothing);
+
+        // 1,000.00 Bs — well under the known 5,000.00 Bs balance.
+        await _enterAmount(tester, '100000');
+        expect(
+          find.byKey(const Key('moverExcessValuationAnnouncement')),
+          findsNothing,
+        );
+
+        // 20,000.00 Bs — exceeds the balance, no rate registered yet.
+        await _backspace(tester, 6);
+        await _enterAmount(tester, '2000000');
+        expect(
+          find.byKey(const Key('moverExcessRateUnavailableMessage')),
+          findsOneWidget,
+        );
+
+        // Drop back under the balance: the row disappears again.
+        await _backspace(tester, 7);
+        await _enterAmount(tester, '100000');
+        expect(
+          find.byKey(const Key('moverExcessValuationAnnouncement')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('moverExcessRateUnavailableMessage')),
+          findsNothing,
+        );
+      },
+    );
   });
 }

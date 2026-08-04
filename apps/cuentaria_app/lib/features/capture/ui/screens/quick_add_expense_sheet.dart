@@ -389,6 +389,29 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return candidate.nativeCurrency == source.nativeCurrency;
   }
 
+  /// How much of the typed Mover amount exceeds the known native balance of
+  /// a non-USD same-currency [source] (ADR-0018 §3) — `null` when the pair
+  /// doesn't apply (different currencies, USD, or nothing typed yet) or the
+  /// balance already covers it, since only the excess ever gets valued
+  /// against a rate.
+  BigInt? _moverForeignExcess(Account? source, Account? destination) {
+    if (source == null || destination == null) return null;
+    if (source.nativeCurrency != destination.nativeCurrency) return null;
+    if (source.nativeCurrency == CurrencyCode('USD')) return null;
+    if (!_moverGivenAmount.isValid) return null;
+
+    final balance = ref
+        .read(ledgerProjectionsProvider)
+        .accountBalance(source.id);
+    final available =
+        balance.native.amount < BigInt.zero
+            ? BigInt.zero
+            : balance.native.amount;
+    final amount = _moverGivenAmount.amountMinorUnits;
+    if (amount <= available) return null;
+    return amount - available;
+  }
+
   bool _moverCanSave(QuickAddCaptureContext captureContext) {
     final source = _accountById(captureContext, _moverSourceAccountId);
     final destination = _accountById(
@@ -819,6 +842,30 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         ),
         const SizedBox(height: 8),
         Center(child: NumericKeypad(controller: _moverGivenAmount)),
+        if (!differentCurrency)
+          Builder(
+            builder: (context) {
+              final excess = _moverForeignExcess(
+                sourceAccount,
+                destinationAccount,
+              );
+              if (excess == null) return const SizedBox.shrink();
+              final resultingBalance = _formatCentsAsAmount(
+                ref
+                        .read(ledgerProjectionsProvider)
+                        .accountBalance(sourceAccount!.id)
+                        .native
+                        .amount -
+                    _moverGivenAmount.amountMinorUnits,
+              );
+              return _MoverExcessAnnouncement(
+                currency: sourceAccount.nativeCurrency,
+                resultingBalance:
+                    '$resultingBalance ${sourceAccount.nativeCurrency.value}',
+                onRegisterRate: _openRecordRatesDialog,
+              );
+            },
+          ),
         if (differentCurrency) ...[
           const SizedBox(height: 16),
           Row(
@@ -1000,6 +1047,72 @@ class _RateValuationAnnouncement extends ConsumerWidget {
             child: const Text('Registrar tasa'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Announces how a same-currency non-USD Mover's excess will be valued
+/// (ADR-0018 §3): only shown once the typed amount exceeds the source
+/// Account's known balance, since the covered portion moves its frozen cost
+/// proportionally and no rate ever participates in it — announcing one for
+/// the covered case would be a lie.
+class _MoverExcessAnnouncement extends ConsumerWidget {
+  const _MoverExcessAnnouncement({
+    required this.currency,
+    required this.resultingBalance,
+    required this.onRegisterRate,
+  });
+
+  final CurrencyCode currency;
+  final String resultingBalance;
+  final VoidCallback onRegisterRate;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rateAsync = ref.watch(latestParaleloRateProvider(currency));
+    return rateAsync.when(
+      data: (observation) => _build(context, observation),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _build(BuildContext context, RateObservation? observation) {
+    if (observation == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'El exceso necesita una tasa para ${currency.value} y no '
+                'hay ninguna registrada.',
+                key: const Key('moverExcessRateUnavailableMessage'),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+            TextButton(
+              key: const Key('moverRegisterRateShortcut'),
+              onPressed: onRegisterRate,
+              child: const Text('Registrar tasa'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final observedLocal = observation.observedAt.toLocal();
+    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+    final dateSuffix =
+        _isToday(observedLocal) ? 'hoy' : _formatShortDate(observedLocal);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        'El exceso se valora a $rateText ${currency.value}/USD · '
+        '$dateSuffix — origen quedará en $resultingBalance',
+        key: const Key('moverExcessValuationAnnouncement'),
       ),
     );
   }
