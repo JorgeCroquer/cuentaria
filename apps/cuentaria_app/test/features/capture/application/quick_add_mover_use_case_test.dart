@@ -1,5 +1,5 @@
 import 'package:decimal/decimal.dart';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
@@ -7,12 +7,12 @@ import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
-import 'package:contabilidad/application/ledger/quick_add_mover_use_case.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
+import 'package:cuentaria_app/features/capture/application/quick_add_mover_use_case.dart';
 
 void main() {
   group('QuickAddMoverUseCase', () {

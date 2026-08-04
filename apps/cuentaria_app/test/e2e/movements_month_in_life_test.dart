@@ -1,3 +1,4 @@
+import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/screens/movements/movement_detail_screen.dart';
@@ -419,6 +420,101 @@ void main() {
           matching: find.text('Real cost: \$100.00 · Today: \$100.00'),
         ),
         findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'a client pays in Bs: Ingreso derives the foreign-currency valuation '
+    'from the destination account (ADR-0018), crediting Stage with the '
+    'USD equivalent while keeping the client source recorded and net '
+    'worth in balance (#119)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: const MyApp()),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('manageAccountsAction')));
+      await tester.pumpAndSettle();
+
+      // A non-USD account always asks for a rate, even with no opening
+      // balance (#112) — this doubles as BdV's first parallel Rate
+      // Observation, consumed immediately by the Ingreso below.
+      await _createAccount(
+        tester,
+        name: 'BdV',
+        currency: 'VES',
+        openingBalanceRate: '40',
+      );
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final bdvId = catalog.accounts.singleWhere((a) => a.name == 'BdV').id;
+      final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
+
+      // -- A client pays 4000.00 Bs into BdV ----------------------------
+      await tester.tap(find.byKey(const Key('quickAddExpenseFab')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pump();
+
+      await tester.tap(find.byKey(Key('incomeAccountChip_${bdvId.value}')));
+      await tester.enterText(
+        find.byKey(const Key('incomeSourceField')),
+        'Cliente Bs',
+      );
+      await _tapDigits(tester, '400000'); // 4000.00 Bs
+
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      // -- Stage received the USD equivalent (4000.00 / 40 = $100.00),
+      // the client source is recorded, and BdV shows the Bs it actually
+      // received --------------------------------------------------------
+      final store = await container.read(eventStoreProvider.future);
+      final log = await store.queryLog();
+      final incomeTx = log.singleWhere((t) => t.metadata.type == 'Income');
+      expect(incomeTx.metadata.source, 'Cliente Bs');
+
+      expect(projections.envelopeUsdBalance(stageId), 10000);
+      expect(
+        projections.accountBalance(bdvId).native.amount,
+        BigInt.from(400000),
+      );
+      expect(projections.accountBalance(bdvId).usd, 10000);
+
+      // Ingreso doesn't auto-close the sheet — it re-drains for another
+      // capture (U1, #98) — so dismiss it before navigating elsewhere.
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      // -- Net worth cuadra: BdV's real cost equals its today's value at
+      // the same rate, with no unrealized P&L ---------------------------
+      await tester.tap(find.byIcon(Icons.pie_chart_outline));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('realCostAmount'))).data,
+        '\$100.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
+        '\$100.00',
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
+        'Unrealized P&L: \$0.00',
       );
     },
   );

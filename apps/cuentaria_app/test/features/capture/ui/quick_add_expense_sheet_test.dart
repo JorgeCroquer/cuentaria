@@ -444,8 +444,9 @@ void main() {
       expect(tx.postings.length, 3);
     });
 
-    testWidgets('shows a human message, not the raw exception, when no '
-        'parallel rate is registered for the Bs account (#112)', (
+    testWidgets('a Bs Gasto blocks Save and offers a shortcut to register '
+        'the rate when none exists yet, instead of surfacing the raw '
+        'exception after a failed save (#112/#119, ADR-0018 §7)', (
       tester,
     ) async {
       final container = ProviderContainer(
@@ -474,23 +475,27 @@ void main() {
       await _openSheet(tester, existing: container);
 
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
-      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('RateNotAvailable'), findsNothing);
-      expect(
-        find.text(
-          'No hay tasa registrada para Bs. Regístrala desde Patrimonio '
-          '(icono de tasas) y vuelve a intentar.',
-        ),
-        findsOneWidget,
+      expect(find.byKey(const Key('rateUnavailableMessage')), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
       );
+      expect(saveButton.onPressed, isNull);
+
+      expect(find.textContaining('RateNotAvailable'), findsNothing);
+      expect(find.textContaining('UsdOnlyOperation'), findsNothing);
+
+      await tester.ensureVisible(find.byKey(const Key('registerRateShortcut')));
+      await tester.tap(find.byKey(const Key('registerRateShortcut')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('paraleloRateField')), findsOneWidget);
     });
 
-    testWidgets('shows a human message, not the raw exception, when '
-        'recording income for a non-USD account (#119)', (tester) async {
+    testWidgets('an Ingreso to a Bs account blocks Save and offers a '
+        'shortcut to register the rate when none exists yet (#119, '
+        'ADR-0018 §7)', (tester) async {
       final container = ProviderContainer(
         overrides: [isWebProvider.overrideWithValue(true)],
       );
@@ -512,19 +517,194 @@ void main() {
       await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
       await tester.pump();
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
-      await tester.pump();
-      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
-      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('UsdOnlyOperation'), findsNothing);
-      expect(
-        find.text(
-          'Esta operación aún no está disponible para cuentas en esta '
-          'moneda.',
-        ),
-        findsOneWidget,
+      expect(find.byKey(const Key('rateUnavailableMessage')), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
       );
+      expect(saveButton.onPressed, isNull);
+
+      expect(find.textContaining('RateNotAvailable'), findsNothing);
+    });
+
+    testWidgets('a Bs Gasto shows the valuation rate and date once one is '
+        "registered — today's rate never blocks Save (ADR-0018 §6)", (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('400.00'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
+      );
+      expect(saveButton.onPressed, isNotNull);
+    });
+
+    testWidgets('a Bs Gasto warns when the latest rate is stale but still '
+        'lets the user save (ADR-0018 §6)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('400.00'),
+          observedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('staleRateWarning')), findsOneWidget);
+      expect(find.byKey(const Key('registerRateShortcut')), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
+      );
+      expect(saveButton.onPressed, isNotNull);
+    });
+
+    testWidgets('an Ingreso to a Bs account shows the valuation rate and '
+        "date once one is registered — today's rate never blocks Save "
+        '(ADR-0018 §6)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('400.00'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
+      );
+      expect(saveButton.onPressed, isNotNull);
+    });
+
+    testWidgets('an Ingreso to a Bs account warns when the latest rate is '
+        'stale but still lets the user save (ADR-0018 §6)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('400.00'),
+          observedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('keypadDigit_5')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('staleRateWarning')), findsOneWidget);
+      expect(find.byKey(const Key('registerRateShortcut')), findsOneWidget);
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('quickAddSaveButton')),
+      );
+      expect(saveButton.onPressed, isNotNull);
     });
 
     testWidgets('a Bs expense exceeding the account balance is recorded, '
