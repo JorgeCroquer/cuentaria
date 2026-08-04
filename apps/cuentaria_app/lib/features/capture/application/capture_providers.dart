@@ -100,6 +100,11 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
       record: recordTransaction,
       catalog: catalog,
     ),
+    recordRealization: RecordRealization(
+      record: recordTransaction,
+      catalog: catalog,
+      projections: projections,
+    ),
     catalog: catalog,
   );
 });
