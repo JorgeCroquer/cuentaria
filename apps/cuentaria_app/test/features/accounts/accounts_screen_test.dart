@@ -1,4 +1,9 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
+import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/domain/posting.dart';
+import 'package:contabilidad/domain/posting_target.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/accounts/ui/screens/accounts_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
@@ -136,6 +141,76 @@ void main() {
             .data,
         '1000.00 VES',
       );
+    },
+  );
+
+  testWidgets(
+    'signals a negative balance with an indicator and a cause hint (#113)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-sobregiro'),
+        name: 'Bs sobregiro',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final tx = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-sobregiro'),
+          type: 'ForeignCurrencyExpense',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(account.id),
+            amountNative: Money(
+              amount: BigInt.from(-5000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: -125,
+          ),
+          Posting(
+            target: EnvelopeTarget(
+              catalog.getSystemEnvelope(EnvelopeRole.differential),
+            ),
+            amountNative: Money(
+              amount: BigInt.from(-125),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: -125,
+          ),
+        ],
+      );
+      await store.append(tx);
+      projections.apply(tx);
+
+      await pumpWithContainer(tester, container);
+
+      expect(
+        find.byKey(Key('negativeBalanceIndicator_${account.id.value}')),
+        findsOneWidget,
+      );
+      final tooltip = tester.widget<Tooltip>(
+        find.ancestor(
+          of: find.byKey(Key('negativeBalanceIndicator_${account.id.value}')),
+          matching: find.byType(Tooltip),
+        ),
+      );
+      expect(tooltip.message, 'Saldo negativo — ¿falta registrar un ingreso?');
     },
   );
 

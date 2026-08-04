@@ -120,6 +120,7 @@ class _AccountTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         _hexToColor(account.colorHex) ?? Theme.of(context).colorScheme.primary;
+    final isNegative = balance.amount < BigInt.zero;
     return ListTile(
       key: Key('account_${account.id.value}'),
       leading: CircleAvatar(backgroundColor: color, radius: 12),
@@ -128,11 +129,28 @@ class _AccountTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isNegative)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Tooltip(
+                message: 'Saldo negativo — ¿falta registrar un ingreso?',
+                child: Icon(
+                  Icons.error_outline,
+                  key: Key('negativeBalanceIndicator_${account.id.value}'),
+                  color: Theme.of(context).colorScheme.error,
+                  size: 18,
+                ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Text(
               _formatBalance(balance),
               key: Key('accountBalance_${account.id.value}'),
+              style:
+                  isNegative
+                      ? TextStyle(color: Theme.of(context).colorScheme.error)
+                      : null,
             ),
           ),
           IconButton(
