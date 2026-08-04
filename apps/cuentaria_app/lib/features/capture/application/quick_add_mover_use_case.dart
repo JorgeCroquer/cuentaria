@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_series.dart';
 
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
@@ -8,29 +9,36 @@ import 'package:contabilidad/application/ledger/factories/record_realization.dar
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/domain/rate_calculator.dart';
 
+const _paraleloSource = 'manual:paralelo';
+
 /// Derives the right Transaction Factory from the currencies of the two
-/// Accounts (U1-14, #98/#116): same currency posts a plain transfer; USD
-/// origin -> foreign destination posts a P2P/FX acquisition (ADR-0006);
-/// foreign origin -> USD destination posts a realization/disposal
-/// (ADR-0017/0018) — the user never sees this taxonomy, only "Mover". The
-/// two-sided form lets the user type either the received amount or the
-/// executed rate; whichever is missing is derived via [RateCalculator] and
-/// only the resulting amounts are posted — the rate itself is never stored.
+/// Accounts (U1-14, #98/#116): same currency posts a plain transfer (valued
+/// against the latest parallel Rate Observation when it's a non-USD excess
+/// above the known balance, ADR-0018 §3); USD origin -> foreign destination
+/// posts a P2P/FX acquisition (ADR-0006); foreign origin -> USD destination
+/// posts a realization/disposal (ADR-0017/0018) — the user never sees this
+/// taxonomy, only "Mover". The two-sided form lets the user type either the
+/// received amount or the executed rate; whichever is missing is derived via
+/// [RateCalculator] and only the resulting amounts are posted — the rate
+/// itself is never stored.
 class QuickAddMoverUseCase {
   final RecordTransfer _recordTransfer;
   final RecordAcquisitionConversion _recordAcquisitionConversion;
   final RecordRealization _recordRealization;
   final CatalogRepository _catalog;
+  final RateSeries _rateSeries;
 
   QuickAddMoverUseCase({
     required RecordTransfer recordTransfer,
     required RecordAcquisitionConversion recordAcquisitionConversion,
     required RecordRealization recordRealization,
     required CatalogRepository catalog,
+    required RateSeries rateSeries,
   }) : _recordTransfer = recordTransfer,
        _recordAcquisitionConversion = recordAcquisitionConversion,
        _recordRealization = recordRealization,
-       _catalog = catalog;
+       _catalog = catalog,
+       _rateSeries = rateSeries;
 
   Future<void> call({
     required EventId eventId,
@@ -54,12 +62,22 @@ class QuickAddMoverUseCase {
     }
 
     if (source.nativeCurrency == destination.nativeCurrency) {
+      Decimal? parallelRate;
+      if (source.nativeCurrency != CurrencyCode('USD')) {
+        final observation = await _rateSeries.latestFor(
+          source.nativeCurrency,
+          source: _paraleloSource,
+        );
+        parallelRate = observation?.nativePerUsd;
+      }
+
       await _recordTransfer(
         eventId: eventId,
         deviceId: deviceId,
         sourceAccountId: sourceAccountId,
         destinationAccountId: destinationAccountId,
         amount: givenAmount,
+        parallelRate: parallelRate,
         occurredAt: occurredAt,
       );
       return;
