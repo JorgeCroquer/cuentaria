@@ -22,6 +22,12 @@ Color? _hexToColor(String? hex) {
   return Color(0xFF000000 | parsed);
 }
 
+String _formatBalance(Money balance) {
+  final decimal =
+      (Decimal.fromBigInt(balance.amount) / Decimal.fromInt(100)).toDecimal();
+  return '${decimal.toStringAsFixed(2)} ${balance.currency.value}';
+}
+
 /// Accounts catalog (#94): create, edit and archive Accounts, reachable
 /// from Patrimonio. Editing/archiving mutate the same [CatalogRepository]
 /// instance Patrimonio reads, so this screen rebuilds itself locally after
@@ -62,6 +68,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
+    final projections = ref.watch(ledgerProjectionsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cuentas')),
@@ -77,6 +84,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
               for (final account in accounts)
                 _AccountTile(
                   account: account,
+                  balance: projections.accountBalance(account.id).native,
                   onEdit: () => _openEditDialog(account),
                   onArchive: () => _archive(account),
                 ),
@@ -98,11 +106,13 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
+    required this.balance,
     required this.onEdit,
     required this.onArchive,
   });
 
   final Account account;
+  final Money balance;
   final VoidCallback onEdit;
   final VoidCallback onArchive;
 
@@ -118,6 +128,13 @@ class _AccountTile extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Text(
+              _formatBalance(balance),
+              key: Key('accountBalance_${account.id.value}'),
+            ),
+          ),
           IconButton(
             key: Key('editAccount_${account.id.value}'),
             icon: const Icon(Icons.edit_outlined),

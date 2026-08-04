@@ -13,6 +13,12 @@ import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
+String _formatNativeAmount(BigInt minorAmount, CurrencyCode currency) {
+  final decimal =
+      (Decimal.fromBigInt(minorAmount) / Decimal.fromInt(100)).toDecimal();
+  return '${decimal.toStringAsFixed(2)} ${currency.value}';
+}
+
 /// The icon/color a user Envelope was tagged with in the management screen
 /// (#95) — `null` (no leading widget) when neither was chosen, since older
 /// Envelopes and system ones never carry appearance.
@@ -55,6 +61,7 @@ class PatrimonioScreen extends ConsumerWidget {
         actions: const [
           _ManageAccountsAction(),
           _ManageEnvelopesAction(),
+          _EditCascadeAction(),
           _RecordRatesAction(),
         ],
       ),
@@ -272,10 +279,20 @@ class _AccountGroupTile extends StatelessWidget {
     return ListTile(
       key: Key('accountGroup_${group.currency.value}'),
       title: Text(group.currency.value),
-      subtitle: Text(
-        'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
-        "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
-        '${group.hasRate ? '' : ' (sin tasa)'}',
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            _formatNativeAmount(group.nativeMinorAmount, group.currency),
+            key: Key('accountGroupNativeAmount_${group.currency.value}'),
+          ),
+          Text(
+            'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
+            "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
+            '${group.hasRate ? '' : ' (sin tasa)'}',
+          ),
+        ],
       ),
     );
   }
@@ -327,6 +344,24 @@ class _ManageEnvelopesAction extends StatelessWidget {
       icon: const Icon(Icons.category_outlined),
       tooltip: 'Manage envelopes',
       onPressed: () => context.push('/envelopes'),
+    );
+  }
+}
+
+/// Entry point to the cascade editor (#111): always available from Patrimonio,
+/// independent of Stage/Opening balance. The cascade is the configuration that
+/// decides where money goes; it should be editable in cold, not just when
+/// distributing.
+class _EditCascadeAction extends StatelessWidget {
+  const _EditCascadeAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      key: const Key('editCascadeAction'),
+      icon: const Icon(Icons.waterfall_chart_outlined),
+      tooltip: 'Edit cascade',
+      onPressed: () => context.push('/distribute/edit'),
     );
   }
 }
