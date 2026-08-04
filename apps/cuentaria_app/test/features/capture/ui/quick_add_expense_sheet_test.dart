@@ -527,8 +527,8 @@ void main() {
       );
     });
 
-    testWidgets('shows a human message, not the raw exception, when a Bs '
-        'expense exceeds the account balance (#113)', (tester) async {
+    testWidgets('a Bs expense exceeding the account balance is recorded, '
+        'not rejected, and leaves a negative balance (#113)', (tester) async {
       final container = ProviderContainer(
         overrides: [isWebProvider.overrideWithValue(true)],
       );
@@ -563,18 +563,37 @@ void main() {
 
       await _openSheet(tester, existing: container);
 
-      // No opening balance was funded, so any positive amount overdraws it.
+      // No opening balance was funded, so any positive amount overdraws it —
+      // it should post anyway (ADR-0017), not be rejected.
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pump();
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining('InsufficientBalance'), findsNothing);
+      expect(find.byKey(const Key('numericKeypad')), findsNothing);
+
+      final projections = container.read(ledgerProjectionsProvider);
       expect(
-        find.text('El monto supera el saldo registrado de la cuenta.'),
-        findsOneWidget,
+        projections.accountBalance(account.id).native.amount < BigInt.zero,
+        isTrue,
       );
+
+      final store = await container.read(eventStoreProvider.future);
+      final log = await store.queryLog();
+      final tx = log.last;
+      expect(tx.metadata.type, 'ForeignCurrencyExpense');
+      expect(tx.postings.length, 3);
+
+      // The whole disposed amount is excess (no known balance to cover it),
+      // valued at execution rate ⇒ zero differential.
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
+      final differentialPosting = tx.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(differentialPosting.amountUsd, 0);
     });
   });
 }

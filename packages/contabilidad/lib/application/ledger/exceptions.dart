@@ -20,14 +20,6 @@ class UsdOnlyOperation implements Exception {
   String toString() => 'UsdOnlyOperation: $message';
 }
 
-class InsufficientBalance implements Exception {
-  final String message;
-  InsufficientBalance(this.message);
-
-  @override
-  String toString() => 'InsufficientBalance: $message';
-}
-
 class TransactionNotFound implements Exception {
   final String message;
   TransactionNotFound(this.message);

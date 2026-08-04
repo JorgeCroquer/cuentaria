@@ -83,6 +83,50 @@ void main() {
       expect(projections.envelopeUsdBalance(envelopeId), equals(-5000));
     });
 
+    test(
+      'expense exceeding the account balance still posts, leaving a '
+      'negative balance (#113 — same rule as foreign-currency accounts)',
+      () async {
+        final accountId = AccountId('acc-usd-sobregiro');
+        catalog.saveAccount(
+          Account(
+            id: accountId,
+            name: 'USD Account',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        final envelopeId = EnvelopeId('env-1');
+        catalog.saveEnvelope(
+          Envelope(
+            id: envelopeId,
+            name: 'Food',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        // No opening balance was funded: any positive spend overdraws it.
+        await recordUsdExpense(
+          eventId: EventId('evt-sobregiro'),
+          deviceId: 'dev-1',
+          accountId: accountId,
+          envelopeId: envelopeId,
+          amount: Money(
+            amount: BigInt.from(5000),
+            currency: CurrencyCode('USD'),
+          ),
+        );
+
+        expect(store.events.length, equals(1));
+        expect(projections.accountBalance(accountId).usd, equals(-5000));
+        expect(projections.envelopeUsdBalance(envelopeId), equals(-5000));
+      },
+    );
+
     test('expense rejects non-USD account', () async {
       final accountId = AccountId('acc-ves');
       catalog.saveAccount(

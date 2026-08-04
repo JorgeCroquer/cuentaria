@@ -8,7 +8,6 @@ import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
-import 'package:contabilidad/application/ledger/exceptions.dart';
 import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:event_bus/event_bus.dart';
@@ -49,10 +48,14 @@ void main() {
     });
 
     test(
-      'Overdraw Rejection: throws InsufficientBalance if nativeAmount > balance.native',
+      'Sobregiro (a): disposing exactly the balance sweeps all remaining cost, '
+      'no excess',
       () async {
-        final bsAccountId = AccountId('acc-bs');
-        final destinationEnvelopeId = EnvelopeId('env-destination');
+        final bsAccountId = AccountId('acc-bs-sobregiro-a');
+        final destinationEnvelopeId = EnvelopeId('env-destination-sobregiro-a');
+        final differentialId = catalog.getSystemEnvelope(
+          EnvelopeRole.differential,
+        );
 
         catalog.saveAccount(
           Account(
@@ -63,7 +66,6 @@ void main() {
             updatedAt: DateTime.now(),
           ),
         );
-
         catalog.saveEnvelope(
           Envelope(
             id: destinationEnvelopeId,
@@ -74,10 +76,10 @@ void main() {
           ),
         );
 
-        // Add 100 VES balance via a direct event to projections
+        // 100 VES with a base cost of $2.50
         final initialEvent = Transaction.create(
           metadata: TransactionMetadata(
-            eventId: EventId('evt-init'),
+            eventId: EventId('evt-init-sobregiro-a'),
             type: 'Opening',
             occurredAt: DomainTimestamp(DateTime.now().toUtc()),
             recordedAt: DomainTimestamp(DateTime.now().toUtc()),
@@ -90,9 +92,9 @@ void main() {
               amountNative: Money(
                 amount: BigInt.from(10000),
                 currency: CurrencyCode('VES'),
-              ), // 100 VES
+              ),
               currency: CurrencyCode('VES'),
-              amountUsd: 250, // $2.50
+              amountUsd: 250,
             ),
             Posting(
               target: EnvelopeTarget(EnvelopeId('env-opening')),
@@ -107,22 +109,284 @@ void main() {
         );
         projections.apply(initialEvent);
 
-        await expectLater(
-          () => factory.foreignCurrencyExpense(
-            eventId: EventId('evt-expense-1'),
-            deviceId: 'dev-1',
-            accountId: bsAccountId,
-            destinationEnvelopeId: destinationEnvelopeId,
-            nativeAmount: Money(
-              amount: BigInt.from(15000),
-              currency: CurrencyCode('VES'),
-            ), // 150 VES > 100 VES
-            currentRate: Decimal.parse('40.00'), // VES/USD
+        // Dispose exactly 100 VES: cubierto=100, exceso=0.
+        await factory.foreignCurrencyExpense(
+          eventId: EventId('evt-expense-sobregiro-a'),
+          deviceId: 'dev-1',
+          accountId: bsAccountId,
+          destinationEnvelopeId: destinationEnvelopeId,
+          nativeAmount: Money(
+            amount: BigInt.from(10000),
+            currency: CurrencyCode('VES'),
           ),
-          throwsA(isA<InsufficientBalance>()),
+          currentRate: Decimal.parse('40.00'), // VES/USD
         );
+
+        final event = store.events.last;
+        expect(event.postings.length, 3);
+
+        final pAccount = event.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
+        );
+        expect(pAccount.amountUsd, -250); // zero-native rule sweeps all cost
+
+        final pDifferential = event.postings.firstWhere(
+          (p) => p.target == EnvelopeTarget(differentialId),
+        );
+        // market(100 VES @ 40) = $2.50, cost = $2.50 ⇒ differential 0
+        expect(pDifferential.amountUsd, 0);
+
+        final balance = projections.accountBalance(bsAccountId);
+        expect(balance.native.amount, BigInt.zero);
+        expect(balance.usd, 0);
       },
     );
+
+    test(
+      'Sobregiro (b): disposing more than a positive balance splits cost '
+      'basis — frozen for the covered part, market rate for the excess',
+      () async {
+        final bsAccountId = AccountId('acc-bs-sobregiro-b');
+        final destinationEnvelopeId = EnvelopeId('env-destination-sobregiro-b');
+        final differentialId = catalog.getSystemEnvelope(
+          EnvelopeRole.differential,
+        );
+
+        catalog.saveAccount(
+          Account(
+            id: bsAccountId,
+            name: 'Bs Bank',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        catalog.saveEnvelope(
+          Envelope(
+            id: destinationEnvelopeId,
+            name: 'Expenses',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        // 100 VES with a base cost of $2.50
+        final initialEvent = Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-init-sobregiro-b'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(bsAccountId),
+              amountNative: Money(
+                amount: BigInt.from(10000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 250,
+            ),
+            Posting(
+              target: EnvelopeTarget(EnvelopeId('env-opening')),
+              amountNative: Money(
+                amount: BigInt.from(250),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 250,
+            ),
+          ],
+        );
+        projections.apply(initialEvent);
+
+        // Dispose 150 VES > 100 VES balance: cubierto=100, exceso=50.
+        // cost = base_cost(100) + market(50 @ 40) = 250 + 125 = 375.
+        // observed value = market(150 @ 40) = 375 ⇒ differential 0.
+        await factory.foreignCurrencyExpense(
+          eventId: EventId('evt-expense-sobregiro-b'),
+          deviceId: 'dev-1',
+          accountId: bsAccountId,
+          destinationEnvelopeId: destinationEnvelopeId,
+          nativeAmount: Money(
+            amount: BigInt.from(15000),
+            currency: CurrencyCode('VES'),
+          ),
+          currentRate: Decimal.parse('40.00'), // VES/USD
+        );
+
+        final event = store.events.last;
+        expect(event.postings.length, 3);
+
+        final pAccount = event.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
+        );
+        expect(pAccount.amountNative.amount, BigInt.from(-15000));
+        expect(pAccount.amountUsd, -375);
+
+        final pDestination = event.postings.firstWhere(
+          (p) => p.target == EnvelopeTarget(destinationEnvelopeId),
+        );
+        expect(pDestination.amountUsd, -375);
+
+        final pDifferential = event.postings.firstWhere(
+          (p) => p.target == EnvelopeTarget(differentialId),
+        );
+        expect(pDifferential.amountUsd, 0);
+
+        final balance = projections.accountBalance(bsAccountId);
+        expect(balance.native.amount, BigInt.from(-5000)); // -50 VES
+        expect(balance.usd, -125); // -50 VES worth, at market rate
+      },
+    );
+
+    test('Sobregiro (c): disposing from a zero balance values everything at '
+        'market rate, zero differential', () async {
+      final bsAccountId = AccountId('acc-bs-sobregiro-c');
+      final destinationEnvelopeId = EnvelopeId('env-destination-sobregiro-c');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
+
+      catalog.saveAccount(
+        Account(
+          id: bsAccountId,
+          name: 'Bs Bank',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveEnvelope(
+        Envelope(
+          id: destinationEnvelopeId,
+          name: 'Expenses',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // No opening balance: nativeBalance = 0, usd = 0.
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-sobregiro-c'),
+        deviceId: 'dev-1',
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
+          amount: BigInt.from(5000),
+          currency: CurrencyCode('VES'),
+        ), // 50 VES
+        currentRate: Decimal.parse('40.00'), // VES/USD
+      );
+
+      final event = store.events.last;
+      final pAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(bsAccountId),
+      );
+      expect(pAccount.amountUsd, -125); // all at market rate
+
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(pDifferential.amountUsd, 0);
+
+      final balance = projections.accountBalance(bsAccountId);
+      expect(balance.native.amount, BigInt.from(-5000));
+      expect(balance.usd, -125);
+    });
+
+    test('Sobregiro (d): disposing while already in sobregiro keeps clamping '
+        'covered to zero, everything at market rate', () async {
+      final bsAccountId = AccountId('acc-bs-sobregiro-d');
+      final destinationEnvelopeId = EnvelopeId('env-destination-sobregiro-d');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
+
+      catalog.saveAccount(
+        Account(
+          id: bsAccountId,
+          name: 'Bs Bank',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveEnvelope(
+        Envelope(
+          id: destinationEnvelopeId,
+          name: 'Expenses',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // Seed an already-negative balance: -10 VES, -$0.25.
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-init-sobregiro-d'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(bsAccountId),
+            amountNative: Money(
+              amount: BigInt.from(-1000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: -25,
+          ),
+          Posting(
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
+            amountNative: Money(
+              amount: BigInt.from(-25),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: -25,
+          ),
+        ],
+      );
+      projections.apply(initialEvent);
+
+      await factory.foreignCurrencyExpense(
+        eventId: EventId('evt-expense-sobregiro-d'),
+        deviceId: 'dev-1',
+        accountId: bsAccountId,
+        destinationEnvelopeId: destinationEnvelopeId,
+        nativeAmount: Money(
+          amount: BigInt.from(5000),
+          currency: CurrencyCode('VES'),
+        ), // 50 VES
+        currentRate: Decimal.parse('40.00'), // VES/USD
+      );
+
+      final event = store.events.last;
+      final pAccount = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(bsAccountId),
+      );
+      expect(pAccount.amountUsd, -125); // all at market rate, nothing covered
+
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(pDifferential.amountUsd, 0);
+
+      final balance = projections.accountBalance(bsAccountId);
+      expect(balance.native.amount, BigInt.from(-6000)); // -10 - 50 VES
+      expect(balance.usd, -150); // -25 - 125
+    });
 
     test(
       'IncompatibleCurrency: foreignCurrencyExpense rejects USD account',
@@ -498,6 +762,111 @@ void main() {
       );
       expect(pDifferential.amountUsd, 50); // 300 - 250 = 50
     });
+
+    test(
+      'Disposal Conversion: sobregiro splits cost basis between covered '
+      '(frozen) and excess (proportional to the observed proceeds)',
+      () async {
+        final bsAccountId = AccountId('acc-bs-conv-sobregiro');
+        final usdAccountId = AccountId('acc-usd-conv-sobregiro');
+        final differentialId = catalog.getSystemEnvelope(
+          EnvelopeRole.differential,
+        );
+
+        catalog.saveAccount(
+          Account(
+            id: bsAccountId,
+            name: 'Bs conv sobregiro',
+            nativeCurrency: CurrencyCode('VES'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        catalog.saveAccount(
+          Account(
+            id: usdAccountId,
+            name: 'USD conv sobregiro',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        // 100 VES with a base cost of $5.00
+        final initialEvent = Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-init-conv-sobregiro'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(bsAccountId),
+              amountNative: Money(
+                amount: BigInt.from(10000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 500,
+            ),
+            Posting(
+              target: EnvelopeTarget(EnvelopeId('env-opening')),
+              amountNative: Money(
+                amount: BigInt.from(500),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 500,
+            ),
+          ],
+        );
+        projections.apply(initialEvent);
+
+        // Dispose 150 VES > 100 VES balance: cubierto=100, exceso=50.
+        // excess cost = round(5000 * 450 / 15000) = 150.
+        // costBasis = base_cost(100) [500, zero-native] + 150 = 650.
+        await factory.disposalConversion(
+          eventId: EventId('evt-conv-sobregiro'),
+          deviceId: 'dev-conv-sobregiro',
+          sourceForeignAccountId: bsAccountId,
+          destinationUsdAccountId: usdAccountId,
+          nativeAmount: Money(
+            amount: BigInt.from(15000),
+            currency: CurrencyCode('VES'),
+          ), // 150 VES
+          usdAmountReceived: Money(
+            amount: BigInt.from(450),
+            currency: CurrencyCode('USD'),
+          ), // $4.50
+          rateRef: '33.33 VES/USD',
+        );
+
+        final event = store.events.last;
+        expect(event.postings.length, 3);
+
+        final pForeignAccount = event.postings.firstWhere(
+          (p) => p.target == AccountTarget(bsAccountId),
+        );
+        expect(pForeignAccount.amountUsd, -650);
+
+        final pUsdAccount = event.postings.firstWhere(
+          (p) => p.target == AccountTarget(usdAccountId),
+        );
+        expect(pUsdAccount.amountUsd, 450);
+
+        final pDifferential = event.postings.firstWhere(
+          (p) => p.target == EnvelopeTarget(differentialId),
+        );
+        expect(pDifferential.amountUsd, -200); // 450 - 650 = -200 (loss)
+
+        final balance = projections.accountBalance(bsAccountId);
+        expect(balance.native.amount, BigInt.from(-5000)); // -50 VES
+        expect(balance.usd, -150);
+      },
+    );
 
     test(
       'Zero-Native: Emptying account sweeps all remaining USD cost',
@@ -902,6 +1271,109 @@ void main() {
         (p) => p.target == EnvelopeTarget(differentialId),
       );
       expect(pDifferential.amountUsd, 1500000); // gain
+    });
+
+    test('Crypto Sale: sobregiro splits cost basis between covered (frozen) '
+        'and excess (proportional to the observed proceeds)', () async {
+      // BTC account: 1 BTC acquired at $30,000 (3_000_000 cents), but the
+      // user sells 1.5 BTC — 0.5 BTC the app never knew it had.
+      final btcAccountId = AccountId('acc-btc-sobregiro');
+      final usdDestAccountId = AccountId('acc-usd-btc-sobregiro');
+      final differentialId = catalog.getSystemEnvelope(
+        EnvelopeRole.differential,
+      );
+
+      catalog.saveAccount(
+        Account(
+          id: btcAccountId,
+          name: 'BTC sobregiro',
+          nativeCurrency: CurrencyCode('BTC'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      catalog.saveAccount(
+        Account(
+          id: usdDestAccountId,
+          name: 'USD dest sobregiro',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final initialEvent = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-btc-sobregiro-init'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(btcAccountId),
+            amountNative: Money(
+              amount: BigInt.from(100000000),
+              currency: CurrencyCode('BTC'),
+            ),
+            currency: CurrencyCode('BTC'),
+            amountUsd: 3000000,
+          ),
+          Posting(
+            target: EnvelopeTarget(EnvelopeId('env-opening')),
+            amountNative: Money(
+              amount: BigInt.from(3000000),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 3000000,
+          ),
+        ],
+      );
+      projections.apply(initialEvent);
+
+      // Sell 1.5 BTC (150_000_000 sat) > 1 BTC balance: cubierto=1 BTC,
+      // exceso=0.5 BTC. excess cost = round(50_000_000 * 4_500_000 /
+      // 150_000_000) = 1_500_000. costBasis = 3_000_000 + 1_500_000 =
+      // 4_500_000, equal to observed proceeds ⇒ differential 0.
+      await factory.cryptoSale(
+        eventId: EventId('evt-btc-sobregiro-sale'),
+        deviceId: 'dev-btc-sobregiro',
+        cryptoAccountId: btcAccountId,
+        destinationUsdAccountId: usdDestAccountId,
+        quantity: Money(
+          amount: BigInt.from(150000000),
+          currency: CurrencyCode('BTC'),
+        ),
+        usdAmountReceived: Money(
+          amount: BigInt.from(4500000),
+          currency: CurrencyCode('USD'),
+        ),
+        rateRef: '30000.00 USD/BTC',
+      );
+
+      final event = store.events.last;
+
+      final pBtc = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(btcAccountId),
+      );
+      expect(pBtc.amountUsd, -4500000);
+
+      final pUsd = event.postings.firstWhere(
+        (p) => p.target == AccountTarget(usdDestAccountId),
+      );
+      expect(pUsd.amountUsd, 4500000);
+
+      final pDifferential = event.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(differentialId),
+      );
+      expect(pDifferential.amountUsd, 0);
+
+      final balance = projections.accountBalance(btcAccountId);
+      expect(balance.native.amount, BigInt.from(-50000000)); // -0.5 BTC
+      expect(balance.usd, -1500000);
     });
 
     test('foreignCurrencyExpense persists the memo when provided', () async {

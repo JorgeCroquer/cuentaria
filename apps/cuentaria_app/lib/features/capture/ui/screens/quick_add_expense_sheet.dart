@@ -46,9 +46,6 @@ String _userFacingErrorMessage(Object error) {
     return 'Esta operación aún no está disponible para cuentas en esta '
         'moneda.';
   }
-  if (error is ledger.InsufficientBalance) {
-    return 'El monto supera el saldo registrado de la cuenta.';
-  }
   debugPrint('QuickAddExpenseSheet: unmapped error: $error');
   return 'No se pudo guardar el movimiento.';
 }
