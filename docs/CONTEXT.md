@@ -111,6 +111,13 @@ The Cascade engine's output: a previewable, per-Envelope list of allocations for
 **Sobregiro (overdraft)**
 The legal ledger state in which an Account's native balance goes negative after a disposal exceeds what the app knew it had. Not an error — the domain never rejects a real disposal. It signals a missing income entry, surfaced in the UI (Patrimony, Accounts) rather than hidden. The excess portion (beyond the known balance) gets no frozen Average Base Cost; it is valued at the disposal's own execution rate, posting **zero differential** on that portion — the ledger declares ignorance instead of inventing a gain or loss. Reconciliation (C3) is what later reconstructs the history once the missing income appears. See [ADR-0017](adr/ADR-0017-sobregiro-registrable.md).
 
+**Observed Counterparty**
+The USD side of an operation that actually happened and was seen: the USD received in a P2P sale, the USD handed over in a purchase of Bs, the proceeds of a crypto sale. When it exists, it **is** the frozen `amount_usd` — no rate is consulted and none is divided. Its absence (spending Bs, receiving Bs as income, the excess of a same-currency transfer) is what triggers Valuation from the Series. See [ADR-0018](adr/ADR-0018-valoracion-sin-contraparte-observada.md).
+
+**Valuation from the Series**
+The rule for freezing real cost when there is no Observed Counterparty: `amount_usd` comes from the latest **parallel** Rate Observation of that currency. It does not contradict "the parallel values, the BCV informs" — when no rate was ever executed, the liquidation rate *is* the real cost; any other figure would be invented. The app always announces which rate it froze and its date, and warns when the observation is not from today. See [ADR-0018](adr/ADR-0018-valoracion-sin-contraparte-observada.md).
+_Avoid_: treating it as an overlay valuation — this one **is posted** and frozen forever.
+
 ## Relationships
 
 - A **Command** on an **Aggregate** produces one or more **Domain Events**.
@@ -126,3 +133,4 @@ The legal ledger state in which an Account's native balance goes negative after 
 
 1. **Dinero y tasas:** Enteros o `Decimal`, jamás `double` — ni en firmas, proyecciones, ni tests.
 2. **Convención de Tasa:** La tasa es siempre **native-por-USD** (como se cotiza el dólar en Bs); valor USD = `round(native / tasa)` con un único redondeo. Conversiones observan montos, no dividen.
+3. **Qué es "native" en un par:** el lado **no-USD** del par, sea origen o destino. La etiqueta de una tasa se deriva del rol de cada cuenta, jamás de su posición en la operación (entregado/recibido). Ver [ADR-0018](adr/ADR-0018-valoracion-sin-contraparte-observada.md).
