@@ -8,6 +8,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_series.dart';
 
 import '../../capture/application/rate_exceptions.dart';
+import 'mark_account_reconciled.dart';
 
 const _paraleloSource = 'manual:paralelo';
 
@@ -17,22 +18,26 @@ const _paraleloSource = 'manual:paralelo';
 /// outcome when the user chose the escape hatch ("absorb anyway", ADR-0019
 /// §1) via [forceAbsorb]. Lives in the app layer, not `contabilidad`, for
 /// the same reason the quick-add capture use cases do: `contabilidad` may
-/// not import `tasas`' `domain/` (ADR-0005).
+/// not import `tasas`' `domain/` (ADR-0005). Stamps `lastReconciledAt`
+/// (#150) whenever it actually posts — never for `NothingToReconcile`.
 class ReconcileUseCase {
   final RecordAdjustment _recordAdjustment;
   final CatalogRepository _catalog;
   final LedgerProjections _projections;
   final RateSeries _rateSeries;
+  final MarkAccountReconciled _markReconciled;
 
   ReconcileUseCase({
     required RecordAdjustment recordAdjustment,
     required CatalogRepository catalog,
     required LedgerProjections projections,
     required RateSeries rateSeries,
+    required MarkAccountReconciled markReconciled,
   }) : _recordAdjustment = recordAdjustment,
        _catalog = catalog,
        _projections = projections,
-       _rateSeries = rateSeries;
+       _rateSeries = rateSeries,
+       _markReconciled = markReconciled;
 
   Future<ReconciliationOutcome> call({
     required EventId eventId,
@@ -77,6 +82,7 @@ class ReconcileUseCase {
         occurredAt: occurredAt,
         rate: isUsd ? null : rate,
       );
+      await _markReconciled(accountId, DateTime.now().toUtc());
     }
 
     return outcome;

@@ -5,7 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
+import 'mark_account_reconciled.dart';
 import 'reconcile_use_case.dart';
+
+final markAccountReconciledProvider = FutureProvider<MarkAccountReconciled>((
+  ref,
+) async {
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  return MarkAccountReconciled(catalog: catalog);
+});
 
 final reconcileUseCaseProvider = FutureProvider<ReconcileUseCase>((ref) async {
   final store = await ref.watch(eventStoreProvider.future);
@@ -13,6 +21,7 @@ final reconcileUseCaseProvider = FutureProvider<ReconcileUseCase>((ref) async {
   final projections = ref.watch(ledgerProjectionsProvider);
   final eventBus = ref.watch(eventBusProvider);
   final rateSeries = await ref.watch(rateSeriesProvider.future);
+  final markReconciled = await ref.watch(markAccountReconciledProvider.future);
 
   final recordTransaction = RecordTransaction(
     store: store,
@@ -30,5 +39,6 @@ final reconcileUseCaseProvider = FutureProvider<ReconcileUseCase>((ref) async {
     catalog: catalog,
     projections: projections,
     rateSeries: rateSeries,
+    markReconciled: markReconciled,
   );
 });

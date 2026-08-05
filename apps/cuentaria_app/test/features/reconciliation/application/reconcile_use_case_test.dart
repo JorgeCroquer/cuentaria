@@ -12,6 +12,7 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:cuentaria_app/features/capture/application/rate_exceptions.dart';
+import 'package:cuentaria_app/features/reconciliation/application/mark_account_reconciled.dart';
 import 'package:cuentaria_app/features/reconciliation/application/reconcile_use_case.dart';
 import 'package:decimal/decimal.dart';
 import 'package:event_bus/event_bus.dart';
@@ -56,6 +57,7 @@ void main() {
         catalog: catalog,
         projections: projections,
         rateSeries: rateSeries,
+        markReconciled: MarkAccountReconciled(catalog: catalog),
       );
 
       usdAccountId = AccountId('acc-usd');
@@ -97,6 +99,7 @@ void main() {
 
       expect(outcome, isA<NothingToReconcile>());
       expect(store.events, isEmpty);
+      expect(catalog.getAccount(usdAccountId)!.lastReconciledAt, isNull);
     });
 
     test(
@@ -117,6 +120,7 @@ void main() {
         expect(tx.metadata.type, 'Adjustment');
         expect(projections.accountBalance(usdAccountId).usd, 50);
         expect(projections.envelopeUsdBalance(adjustmentsId), 50);
+        expect(catalog.getAccount(usdAccountId)!.lastReconciledAt, isNotNull);
       },
     );
 
@@ -235,6 +239,7 @@ void main() {
 
       expect(outcome, isA<RouteToIncome>());
       expect(store.events, isEmpty);
+      expect(catalog.getAccount(vesAccountId)!.lastReconciledAt, isNull);
     });
 
     test('large VES surplus absorbs anyway when forced (escape hatch, '
@@ -265,6 +270,7 @@ void main() {
       expect(pAcc.amountUsd, 200000);
       expect(projections.accountBalance(vesAccountId).usd, 200000);
       expect(projections.envelopeUsdBalance(adjustmentsId), 200000);
+      expect(catalog.getAccount(vesAccountId)!.lastReconciledAt, isNotNull);
     });
 
     test('throws TargetNotFound for an unknown account', () async {
