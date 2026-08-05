@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'providers/rate_sync_providers.dart';
 import 'router/app_router.dart';
 import 'ui/theme/app_theme.dart';
 
@@ -13,6 +14,7 @@ class MyApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(rateSyncTriggerProvider);
     final goRouter = ref.watch(goRouterProvider);
     return MaterialApp.router(
       title: 'Cuentaria MVP',

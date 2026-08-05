@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required to sync the published rate feed (S2, ADR-0020 §1): the
+         debug/profile manifests already had this for the Flutter tool, but
+         the release manifest needs it explicitly for the app itself. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="cuentaria_app"
         android:name="${applicationName}"

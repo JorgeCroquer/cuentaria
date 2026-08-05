@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
-import 'package:tasas/domain/rate_observation.dart';
+
+import '../../domain/rate_observation.dart';
 
 /// The append-only NDJSON feed published as a GitHub Release asset
 /// (ADR-0020 §1): one observation per line, deduped by
