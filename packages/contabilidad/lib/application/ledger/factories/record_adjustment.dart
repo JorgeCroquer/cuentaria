@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:contabilidad/domain/posting.dart';
@@ -28,6 +29,7 @@ class RecordAdjustment {
     required AccountId accountId,
     required Money realNativeBalance,
     DomainTimestamp? occurredAt,
+    Decimal? rate,
   }) async {
     final account = _catalog.getAccount(accountId);
     if (account == null) {
@@ -40,6 +42,11 @@ class RecordAdjustment {
       );
     }
 
+    final isUsd = account.nativeCurrency == CurrencyCode('USD');
+    if (isUsd && rate != null) {
+      throw ArgumentError('A USD account is not valued against a rate.');
+    }
+
     final projectedBalance = _projections.accountBalance(accountId);
     final deltaNative =
         realNativeBalance.amount - projectedBalance.native.amount;
@@ -48,20 +55,30 @@ class RecordAdjustment {
       throw AdjustmentWithNoDifference();
     }
 
-    if (deltaNative > BigInt.zero &&
-        account.nativeCurrency != CurrencyCode('USD')) {
-      throw ForeignCurrencyPositiveAdjustmentNotAllowed();
-    }
-
     final int amountUsd;
-    if (account.nativeCurrency == CurrencyCode('USD')) {
+    if (isUsd) {
       amountUsd = deltaNative.toInt();
+    } else if (deltaNative > BigInt.zero) {
+      // Surplus in a foreign currency account: no cost basis was ever held
+      // for it, so it's valued with the latest parallel Rate Observation
+      // (ADR-0018 §1, ADR-0019 §4).
+      if (rate == null) {
+        throw ArgumentError(
+          'A positive adjustment on a foreign currency account requires '
+          'the observed parallel rate.',
+        );
+      }
+      amountUsd = (Decimal.fromBigInt(deltaNative) / rate).round().toInt();
     } else {
       final costBasis = projectedBalance.baseCostOf(deltaNative.abs());
       amountUsd = -costBasis;
     }
 
     final adjustmentsId = _catalog.getSystemEnvelope(EnvelopeRole.adjustments);
+    final rateRef =
+        rate == null
+            ? null
+            : '${rate.toStringAsFixed(2)} ${account.nativeCurrency.value}/USD';
 
     final postings = [
       Posting(
@@ -72,6 +89,7 @@ class RecordAdjustment {
         ),
         currency: account.nativeCurrency,
         amountUsd: amountUsd,
+        rateRef: rateRef,
       ),
       Posting(
         target: EnvelopeTarget(adjustmentsId),

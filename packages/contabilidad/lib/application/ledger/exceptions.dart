@@ -48,17 +48,6 @@ class TransactionAlreadyReversed implements Exception {
   String toString() => 'TransactionAlreadyReversed: $message';
 }
 
-class ForeignCurrencyPositiveAdjustmentNotAllowed implements Exception {
-  final String message;
-  ForeignCurrencyPositiveAdjustmentNotAllowed([
-    this.message =
-        'Cannot positively adjust a foreign currency account. Use an income to declare the surplus with its real USD value.',
-  ]);
-
-  @override
-  String toString() => 'ForeignCurrencyPositiveAdjustmentNotAllowed: $message';
-}
-
 class AdjustmentWithNoDifference implements Exception {
   final String message;
   AdjustmentWithNoDifference([

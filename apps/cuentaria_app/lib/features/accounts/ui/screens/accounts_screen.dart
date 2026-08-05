@@ -7,6 +7,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
+import '../../../reconciliation/ui/screens/reconciliation_sheet.dart';
 import '../../application/account_providers.dart';
 import '../account_form_validators.dart';
 
@@ -65,6 +66,16 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Reconciliation reachable from a Cuenta's row (C3 slice 1, #147): this
+  /// slice deliberately owns the only entry point — slices 2-4 hang off the
+  /// sheet this opens and never touch navigation again (U1's four sibling
+  /// slices stepped on each other by each adding their own route).
+  Future<void> _openReconciliationSheet(Account account) async {
+    await showReconciliationSheet(context, account);
+    ref.invalidate(patrimonioSnapshotProvider);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
@@ -85,6 +96,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                 _AccountTile(
                   account: account,
                   balance: projections.accountBalance(account.id).native,
+                  onReconcile: () => _openReconciliationSheet(account),
                   onEdit: () => _openEditDialog(account),
                   onArchive: () => _archive(account),
                 ),
@@ -107,12 +119,14 @@ class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
     required this.balance,
+    required this.onReconcile,
     required this.onEdit,
     required this.onArchive,
   });
 
   final Account account;
   final Money balance;
+  final VoidCallback onReconcile;
   final VoidCallback onEdit;
   final VoidCallback onArchive;
 
@@ -123,6 +137,7 @@ class _AccountTile extends StatelessWidget {
     final isNegative = balance.amount < BigInt.zero;
     return ListTile(
       key: Key('account_${account.id.value}'),
+      onTap: onReconcile,
       leading: CircleAvatar(backgroundColor: color, radius: 12),
       title: Text(account.name),
       subtitle: Text(account.nativeCurrency.value),
