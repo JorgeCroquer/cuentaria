@@ -33,7 +33,7 @@ _Avoid_: "balances table" as if it were a source of truth.
 Hexagonal boundary: the core defines ports (interfaces); adapters (Drift, Supabase, Binance, BCV) implement them. Supabase Postgres is a persistence/sync adapter, never the backend with logic.
 
 **Integration Worker**
-Minimal serverless function **in Dart** (AOT, scale-to-zero container) that executes sync with external APIs (Binance, rates, on-chain). It lives outside the client for secrets/scheduling. It is **dumb**: fetch → normalize → append observed fact; zero domain logic. See [ADR-0003](adr/ADR-0003-dart-en-todo.md).
+Minimal program **in Dart** (AOT) that executes sync with external APIs (Binance, rates, on-chain). It lives outside the client for **scheduling** — it must run on days the phone is off — and, when a source needs one, for secrets. It is **dumb**: fetch → normalize → append observed fact; zero domain logic, and in particular it never picks a winner among sources. Its host is whatever is cheapest per worker: a GitHub Actions cron for the rates worker (no secrets, publishes a static file), a scale-to-zero container when a callback demands one. See [ADR-0003](adr/ADR-0003-dart-en-todo.md) and [ADR-0020](adr/ADR-0020-ingesta-de-tasas-sin-servidor.md).
 
 **Scale-to-zero**
 Hosting mode where the platform (Cloud Run / Fly.io) maintains zero instances without traffic (≈ free) and spins one up per trigger. Cost: cold start of 1–3 s, irrelevant for background sync.
@@ -65,7 +65,15 @@ _Avoid_: recomputing the historical USD from the current rate.
 Today's value computed on the fly (`quantity × current rate/price`) shown in Patrimony, without posting to the ledger. The difference with real cost is the **unrealized** P&L; it becomes **realized** only when converting/selling/spending. Computed with the **parallel** rate (see Liquidation Value vs BCV Value).
 
 **Rate Observation**
-One appended entry in a currency's rate series: `(currency, nativePerUsd, observedAt, source)`. An Observed External Fact — never overwritten, never a domain event. In the MVP the source is manual (typed by the user); S1's worker later appends automatic sources to the same series. See [ADR-0016](adr/ADR-0016-tasas-manuales-valoracion-patrimonio.md).
+One appended entry in a currency's rate series: `(currency, nativePerUsd, observedAt, source)`. An Observed External Fact — never overwritten, never a domain event. `source` names the provenance, not the role: `binancep2p:ask`, `dolarapi:paralelo`, `dolarapi:oficial`, `manual:paralelo`, `manual:bcv`. Several sources coexist for the same currency and day and **do not agree**; which one values a movement is decided by the Rate Resolution Chain, never by the source's own claim to be "the" rate. See [ADR-0016](adr/ADR-0016-tasas-manuales-valoracion-patrimonio.md) and [ADR-0020](adr/ADR-0020-ingesta-de-tasas-sin-servidor.md).
+
+**Rate Resolution Chain**
+The pure, client-side rule that picks **one** Rate Observation to value a movement: `resolve(currency, asOf, observations) → (rate, source, observedAt)`. Priority `manual` (same day only) → `binancep2p:ask` → `dolarapi:paralelo`; freshness wins first, source rank only breaks ties within the same day, so a manually typed rate rules the day it was typed and never hijacks later ones. It lives in the client and never in a worker: choosing the rate **is** deciding what the user's net worth is, and that cannot live in a CI binary without domain tests ([ADR-0003](adr/ADR-0003-dart-en-todo.md)). Whatever it picks, the app announces — source and date. A currency with no automatic source resolves down to the manual rung. See [ADR-0020](adr/ADR-0020-ingesta-de-tasas-sin-servidor.md).
+_Avoid_: "fallback in the worker" (rejected — a source change would move net worth with no signal).
+
+**Published Rate Series**
+The append-only NDJSON file the ingestion worker publishes as a fixed GitHub Release asset, read by the client over plain HTTPS with no token, server or auth. It is a **transport**, not a source of truth: the client merges it into its local series idempotently and the ledger keeps ruling. Its side effect is that the rate history is the one part of the user's data that already survives losing the phone. See [ADR-0020](adr/ADR-0020-ingesta-de-tasas-sin-servidor.md).
+_Avoid_: "rates API", "rates backend" (nothing is served — a static file is published).
 
 **Liquidation Value vs BCV Value ("the parallel values, the BCV informs")**
 Two readings of the same native balance. **Liquidation value** = balance at the **parallel** rate: what you would actually obtain by converting today — it is the only rate that enters net worth and unrealized P&L. **BCV value** = balance at the official rate: "sticker" purchasing power against formally-priced goods — shown as a labeled reference, never summed into net worth. The **executed** rate of past operations participates in neither; it lives frozen in the ledger as real cost. See [ADR-0016](adr/ADR-0016-tasas-manuales-valoracion-patrimonio.md).
