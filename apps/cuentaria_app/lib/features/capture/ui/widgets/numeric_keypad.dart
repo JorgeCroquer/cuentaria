@@ -7,9 +7,18 @@ import '../amount_input_controller.dart';
 /// No decimal key — the split between whole units and cents is purely
 /// display formatting, driven by [AmountInputController].
 class NumericKeypad extends StatelessWidget {
-  const NumericKeypad({required this.controller, super.key});
+  const NumericKeypad({
+    required this.controller,
+    this.onDonePressed,
+    super.key,
+  });
 
   final AmountInputController controller;
+
+  /// Confirms the typed amount (#158): when provided, replaces the keypad's
+  /// otherwise-blank corner with a "Listo" key. Callers that evaluate the
+  /// amount on every digit (none left after #158) don't need to pass it.
+  final VoidCallback? onDonePressed;
 
   static const _layout = [
     ['1', '2', '3'],
@@ -36,7 +45,15 @@ class NumericKeypad extends StatelessWidget {
   }
 
   Widget _buildKey(BuildContext context, String label) {
-    if (label.isEmpty) return const SizedBox.shrink();
+    if (label.isEmpty) {
+      final onDonePressed = this.onDonePressed;
+      if (onDonePressed == null) return const SizedBox.shrink();
+      return TextButton(
+        key: const Key('keypadDone'),
+        onPressed: onDonePressed,
+        child: Text('Listo', style: Theme.of(context).textTheme.headlineSmall),
+      );
+    }
 
     if (label == '⌫') {
       return IconButton(
