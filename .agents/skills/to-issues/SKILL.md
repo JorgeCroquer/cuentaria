@@ -63,7 +63,34 @@ For each approved slice, publish a new issue to the issue tracker. Use the issue
 
 Publish issues in dependency order (blockers first) so you can reference real issue identifiers in the "Blocked by" field.
 
+### 6. Declare the signals (required — the body starts with frontmatter)
+
+Every issue body MUST open with the frontmatter block in the template. **The orchestrator's RiskGate counts a missing key as `false`**, so an omitted key silently under-prices the slice and sends risky work to an unattended agent. Declare all seven every time; never leave one out because "it obviously doesn't apply".
+
+| Key | `true` when the slice… |
+|---|---|
+| `risk_touches_multiple_modules` | changes more than 2 modules/packages |
+| `risk_modifies_domain_aggregate` | changes a domain aggregate or one of its invariants |
+| `risk_changes_public_interface` | changes a public API, DTO or port |
+| `risk_involves_money` | touches a money, rate or fee path |
+| `risk_touches_external_integration` | talks to an external system |
+| `risk_has_unresolved_ambiguity` | leaves decisions **explicitly open** to the implementer (a property of the spec, auditable by reading it) |
+
+Each signal must be declarable by reading only the spec and auditable after the fact against the delivered PR. **3 or more true → `high` → the run refuses to start** and the ticket is relabeled `ready-for-human`. That is the gate working, not a problem to massage away: if the user has deliberately ratified a high-risk slice, add `risk_approved_by_human: true`.
+
+`verify_on_device: true` goes on **every slice a human can see on screen** — it routes the slice to a handoff for human verification instead of auto-merge. A slice that only adds tests does not carry it.
+
 <issue-template>
+---
+risk_touches_multiple_modules: true|false
+risk_modifies_domain_aggregate: true|false
+risk_changes_public_interface: true|false
+risk_involves_money: true|false
+risk_touches_external_integration: true|false
+risk_has_unresolved_ambiguity: true|false
+verify_on_device: true|false
+---
+
 ## Parent
 
 A reference to the parent issue on the issue tracker (if the source was an existing issue, otherwise omit this section).
@@ -79,6 +106,8 @@ Avoid specific file paths or code snippets — they go stale fast. Exception: if
 - [ ] Criterion 1
 - [ ] Criterion 2
 - [ ] Criterion 3
+
+When `verify_on_device: true`, every criterion a human can see on screen carries **a concrete example with numbers** — the actual figure typed and the actual text expected on screen, in the user's words. The verification plan is written from these as a *do this → you must see this* table, with chained steps where each one leaves the state the next needs. Copying implementer vocabulary ("absorbs against Adjustments", "lands in Stage") produces a plan the verifier cannot read.
 
 ## Blocked by
 
