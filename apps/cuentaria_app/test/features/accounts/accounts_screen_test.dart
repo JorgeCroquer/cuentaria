@@ -446,4 +446,31 @@ void main() {
     expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
     expect(catalog.getAccount(AccountId('acc-1'))?.isArchived, isTrue);
   });
+
+  testWidgets(
+    'tapping an account row opens the Reconciliation sheet for it (#147)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-1'),
+          name: 'Bancamiga',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      await tester.tap(find.byKey(const Key('account_acc-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('projectedBalanceText')), findsOneWidget);
+    },
+  );
 }
