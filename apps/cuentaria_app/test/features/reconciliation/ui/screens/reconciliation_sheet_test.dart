@@ -539,6 +539,51 @@ void main() {
       expect(projections.envelopeUsdBalance(adjustmentsId), 0);
     });
 
+    testWidgets('a routed Income for a foreign currency account asks when it '
+        'happened and warns when the only rate observed is from a different '
+        'date (ADR-0019 §5)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('380.00'),
+          observedAt: DateTime.utc(2026, 8, 1),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await _openSheet(tester, account, existing: container);
+
+      // Real balance 5000.00 VES vs. a projected 0 = a large enough surplus
+      // (at 380 VES/USD, well past the $1.00 tolerance) to route to Income.
+      await _typeDigits(tester, '500000');
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('routedOccurredAtField')), findsOneWidget);
+      expect(
+        find.byKey(const Key('routedRateFallbackWarning')),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('an overdrawn account is squared by a routed Income and the '
         'negative balance is gone (ADR-0017 closure)', (tester) async {
       final container = ProviderContainer(

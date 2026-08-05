@@ -37,6 +37,7 @@ class DriftRateSeries implements RateSeries {
   Future<RateObservation?> latestFor(
     CurrencyCode currency, {
     String? source,
+    DateTime? asOf,
   }) async {
     final row =
         await (_db.select(_db.rateObservations)
@@ -45,7 +46,12 @@ class DriftRateSeries implements RateSeries {
                     t.currency.equals(currency.value) &
                     (source == null
                         ? const Constant(true)
-                        : t.source.equals(source)),
+                        : t.source.equals(source)) &
+                    (asOf == null
+                        ? const Constant(true)
+                        : t.observedAt.isSmallerOrEqualValue(
+                          asOf.microsecondsSinceEpoch,
+                        )),
               )
               ..orderBy([
                 (t) => OrderingTerm.desc(t.observedAt),

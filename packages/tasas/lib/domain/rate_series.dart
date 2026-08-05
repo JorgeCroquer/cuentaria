@@ -9,5 +9,14 @@ abstract class RateSeries {
   /// Most recent observation for [currency], or null if none was recorded.
   /// When [source] is given, scopes to observations from that exact source
   /// (e.g. `manual:bcv` vs `manual:paralelo`) instead of the latest overall.
-  Future<RateObservation?> latestFor(CurrencyCode currency, {String? source});
+  /// When [asOf] is given, scopes to the most recent observation at or
+  /// before that instant instead of the latest overall — for valuing a
+  /// movement registered late with the rate from when it actually happened
+  /// (ADR-0019 §5). Omitting it preserves the current "latest overall"
+  /// behavior exactly.
+  Future<RateObservation?> latestFor(
+    CurrencyCode currency, {
+    String? source,
+    DateTime? asOf,
+  });
 }
