@@ -431,6 +431,7 @@ void main() {
       expect(projections.envelopeUsdBalance(stageId), 500);
       final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
       expect(projections.envelopeUsdBalance(adjustmentsId), 0);
+      expect(catalog.getAccount(account.id)!.lastReconciledAt, isNotNull);
     });
 
     testWidgets('a large shortage offers to register an Expense with '
@@ -537,6 +538,7 @@ void main() {
       expect(projections.envelopeUsdBalance(EnvelopeId('env-food')), -800);
       final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
       expect(projections.envelopeUsdBalance(adjustmentsId), 0);
+      expect(catalog.getAccount(account.id)!.lastReconciledAt, isNotNull);
     });
 
     testWidgets('a routed Income for a foreign currency account asks when it '

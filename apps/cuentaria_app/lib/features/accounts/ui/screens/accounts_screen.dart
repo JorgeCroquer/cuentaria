@@ -29,6 +29,33 @@ String _formatBalance(Money balance) {
   return '${decimal.toStringAsFixed(2)} ${balance.currency.value}';
 }
 
+/// "Hace cuánto se concilió" (C3 slice 4, #150): the only reconciliation
+/// reminder — never a blank when it was never reconciled.
+String _formatLastReconciled(DateTime? lastReconciledAt) {
+  if (lastReconciledAt == null) return 'Nunca conciliada';
+
+  final elapsed = DateTime.now().difference(lastReconciledAt);
+  if (elapsed.inDays >= 365) {
+    final years = elapsed.inDays ~/ 365;
+    return 'Conciliada hace $years ${years == 1 ? 'año' : 'años'}';
+  }
+  if (elapsed.inDays >= 30) {
+    final months = elapsed.inDays ~/ 30;
+    return 'Conciliada hace $months ${months == 1 ? 'mes' : 'meses'}';
+  }
+  if (elapsed.inDays >= 1) {
+    return 'Conciliada hace ${elapsed.inDays} ${elapsed.inDays == 1 ? 'día' : 'días'}';
+  }
+  if (elapsed.inHours >= 1) {
+    return 'Conciliada hace ${elapsed.inHours} ${elapsed.inHours == 1 ? 'hora' : 'horas'}';
+  }
+  if (elapsed.inMinutes >= 1) {
+    return 'Conciliada hace ${elapsed.inMinutes} '
+        '${elapsed.inMinutes == 1 ? 'minuto' : 'minutos'}';
+  }
+  return 'Conciliada hace instantes';
+}
+
 /// Accounts catalog (#94): create, edit and archive Accounts, reachable
 /// from Patrimonio. Editing/archiving mutate the same [CatalogRepository]
 /// instance Patrimonio reads, so this screen rebuilds itself locally after
@@ -140,7 +167,18 @@ class _AccountTile extends StatelessWidget {
       onTap: onReconcile,
       leading: CircleAvatar(backgroundColor: color, radius: 12),
       title: Text(account.name),
-      subtitle: Text(account.nativeCurrency.value),
+      subtitle: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(account.nativeCurrency.value),
+          Text(
+            _formatLastReconciled(account.lastReconciledAt),
+            key: Key('lastReconciled_${account.id.value}'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

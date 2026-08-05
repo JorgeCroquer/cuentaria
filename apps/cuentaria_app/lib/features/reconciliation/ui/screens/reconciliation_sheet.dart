@@ -119,6 +119,15 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
     );
   }
 
+  /// Stamps the account's `lastReconciledAt` (#150) after a routed
+  /// Income/Expense posts — the absorbed path stamps it inside
+  /// [ReconcileUseCase] itself, but the routed capture use cases are shared
+  /// with plain quick-add and know nothing about reconciliation.
+  Future<void> _markReconciled() async {
+    final markReconciled = await ref.read(markAccountReconciledProvider.future);
+    await markReconciled(widget.account.id, DateTime.now().toUtc());
+  }
+
   Future<void> _pickRoutedOccurredAt() async {
     final picked = await showDatePicker(
       context: context,
@@ -188,6 +197,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
         source: _incomeSourceController.text.trim(),
         occurredAt: DomainTimestamp(_routedOccurredAt.toUtc()),
       );
+      await _markReconciled();
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -224,6 +234,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
         ),
         occurredAt: DomainTimestamp(_routedOccurredAt.toUtc()),
       );
+      await _markReconciled();
 
       if (mounted) Navigator.of(context).pop();
     } catch (e) {

@@ -448,6 +448,62 @@ void main() {
   });
 
   testWidgets(
+    'an account never reconciled says so explicitly, not a blank (#150)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-1'),
+          name: 'Bancamiga',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('lastReconciled_acc-1'))).data,
+        'Nunca conciliada',
+      );
+    },
+  );
+
+  testWidgets(
+    'a reconciled account shows how long ago in relative language (#150)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-1'),
+          name: 'Bancamiga',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withLastReconciledAt(
+          DateTime.now().subtract(const Duration(days: 2)),
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('lastReconciled_acc-1'))).data,
+        'Conciliada hace 2 días',
+      );
+    },
+  );
+
+  testWidgets(
     'tapping an account row opens the Reconciliation sheet for it (#147)',
     (tester) async {
       final container = ProviderContainer(
