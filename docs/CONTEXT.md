@@ -90,6 +90,14 @@ Auto-provisioned envelopes identified by `rol` (e.g. Stage, Exchange Differentia
 - **Reversal:** Exact negation of a previous transaction's frozen `amount_usd` to correct a mistake.
 - **Adjustment:** A conciliation entry posting a delta against the Adjustments system envelope to match reality.
 
+**Reconciliation**
+The recurring ritual of declaring an Account's real native balance and bringing the ledger to it. The difference between real and projected is the **Reconciliation Delta**; what happens to it depends on its size, never on its sign alone. See [ADR-0019](adr/ADR-0019-conciliacion-enrutada.md).
+_Avoid_: "sync" (nothing is fetched — the user declares the balance), "correction" (a Reversal is the correction of a mistake; a Reconciliation absorbs an unexplained difference).
+
+**Reconciliation Tolerance**
+A single USD-denominated threshold that decides whether a Reconciliation Delta is **absorbed** (posted straight to the Adjustments system envelope, one touch) or **routed** (the app offers to record the real movement the delta implies — an Income above, an Expense below). It governs friction only: declining the routed capture still absorbs. Denominated in USD so it does not rot with bolívar inflation.
+_Avoid_: confusing it with the rejected disposal threshold of [ADR-0017](adr/ADR-0017-sobregiro-registrable.md), which would have changed what gets posted.
+
 **Funding Target**
 A typed, optional funding target for a user Envelope (`role == none`); sealed class `FundingTarget` with three variants:
 - `NoTarget` — no target (default).
