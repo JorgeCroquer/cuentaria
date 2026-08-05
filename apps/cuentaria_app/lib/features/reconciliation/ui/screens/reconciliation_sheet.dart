@@ -75,6 +75,12 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   bool _isSaving = false;
   String? _error;
 
+  // Set only when the user confirms the typed amount with the keypad's Done
+  // key (#158) — not recomputed on every digit, so the outcome sections
+  // never flicker mid-typing. Any further edit to the real balance clears it
+  // until Done is pressed again.
+  ReconciliationOutcome? _outcome;
+
   // RouteToIncome
   final _incomeSourceController = TextEditingController();
 
@@ -95,7 +101,10 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
 
   void _onRealBalanceChanged() {
     if (!mounted) return;
-    setState(() => _hasTypedDigits = true);
+    setState(() {
+      _hasTypedDigits = true;
+      _outcome = null;
+    });
   }
 
   void _onIncomeSourceChanged() {
@@ -138,10 +147,15 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
     if (picked != null) setState(() => _routedOccurredAt = picked);
   }
 
-  ReconciliationOutcome? _previewOutcome(Money projectedNative, Decimal rate) {
-    if (!_hasTypedDigits) return null;
+  /// Evaluates the typed amount into an outcome (#158): fired from the
+  /// keypad's Done key, not from every digit, so partial digits never render
+  /// a result the user hasn't finished typing yet.
+  void _confirmAmount(Money projectedNative, Decimal rate) {
+    if (!_hasTypedDigits) return;
     final deltaNative = _realBalance.amountMinorUnits - projectedNative.amount;
-    return planReconciliation(deltaNative: deltaNative, rate: rate);
+    setState(() {
+      _outcome = planReconciliation(deltaNative: deltaNative, rate: rate);
+    });
   }
 
   Future<void> _confirm({required bool forceAbsorb}) async {
@@ -309,117 +323,146 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   }
 
   Widget _buildBody(AccountBalance projectedBalance, Decimal rate) {
-    final outcome = _previewOutcome(projectedBalance.native, rate);
+    final outcome = _outcome;
     final isRouted = outcome is RouteToIncome || outcome is RouteToExpense;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            widget.account.name,
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Proyectado: ${_formatMoney(projectedBalance.native)}',
-            key: const Key('projectedBalanceText'),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: AnimatedBuilder(
-              animation: _realBalance,
-              builder:
-                  (context, _) => Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        _realBalance.displayText,
-                        key: const Key('realBalanceDisplay'),
-                        style: Theme.of(context).textTheme.headlineLarge,
+    // The amount display + keypad live in a fixed-height header (#158) so
+    // outcome sections appearing/disappearing below can never push them
+    // around: the footer gets its own scrollable area instead of growing
+    // the sheet.
+    return SizedBox(
+      height: MediaQuery.of(context).size.height * 0.85,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              widget.account.name,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Proyectado: ${_formatMoney(projectedBalance.native)}',
+              key: const Key('projectedBalanceText'),
+            ),
+            const SizedBox(height: 16),
+            Center(
+              child: AnimatedBuilder(
+                animation: _realBalance,
+                builder:
+                    (context, _) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          _realBalance.displayText,
+                          key: const Key('realBalanceDisplay'),
+                          style: Theme.of(context).textTheme.headlineLarge,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          widget.account.nativeCurrency.value,
+                          key: const Key('realBalanceCurrency'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: NumericKeypad(
+                controller: _realBalance,
+                onDonePressed:
+                    () => _confirmAmount(projectedBalance.native, rate),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (outcome != null)
+                      _OutcomeMessage(
+                        outcome: outcome,
+                        currency: widget.account.nativeCurrency,
                       ),
-                      const SizedBox(width: 8),
+                    if (isRouted)
+                      _RoutedOccurredAtSection(
+                        currency: widget.account.nativeCurrency,
+                        date: _routedOccurredAt,
+                        onPickDate: _pickRoutedOccurredAt,
+                      ),
+                    if (outcome is RouteToIncome)
+                      _RouteToIncomeSection(
+                        isSaving: _isSaving,
+                        sourceController: _incomeSourceController,
+                        onConfirm: () => _confirmRouteToIncome(outcome),
+                      ),
+                    if (outcome is RouteToExpense)
+                      _RouteToExpenseSection(
+                        isSaving: _isSaving,
+                        selectedEnvelopeId: _selectedExpenseEnvelopeId,
+                        onEnvelopeSelected:
+                            (id) =>
+                                setState(() => _selectedExpenseEnvelopeId = id),
+                        onConfirm: () => _confirmRouteToExpense(outcome),
+                      ),
+                    if (_error != null) ...[
+                      const SizedBox(height: 8),
                       Text(
-                        widget.account.nativeCurrency.value,
-                        key: const Key('realBalanceCurrency'),
-                        style: Theme.of(context).textTheme.titleMedium,
+                        _error!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
                     ],
-                  ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Center(child: NumericKeypad(controller: _realBalance)),
-          const SizedBox(height: 16),
-          if (outcome != null)
-            _OutcomeMessage(
-              outcome: outcome,
-              currency: widget.account.nativeCurrency,
-            ),
-          if (isRouted)
-            _RoutedOccurredAtSection(
-              currency: widget.account.nativeCurrency,
-              date: _routedOccurredAt,
-              onPickDate: _pickRoutedOccurredAt,
-            ),
-          if (outcome is RouteToIncome)
-            _RouteToIncomeSection(
-              isSaving: _isSaving,
-              sourceController: _incomeSourceController,
-              onConfirm: () => _confirmRouteToIncome(outcome),
-            ),
-          if (outcome is RouteToExpense)
-            _RouteToExpenseSection(
-              isSaving: _isSaving,
-              selectedEnvelopeId: _selectedExpenseEnvelopeId,
-              onEnvelopeSelected:
-                  (id) => setState(() => _selectedExpenseEnvelopeId = id),
-              onConfirm: () => _confirmRouteToExpense(outcome),
-            ),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: TextButton(
-                  key: const Key('reconciliationCancelButton'),
-                  onPressed:
-                      _isSaving ? null : () => Navigator.of(context).pop(),
-                  child: const Text('Cancelar'),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            key: const Key('reconciliationCancelButton'),
+                            onPressed:
+                                _isSaving
+                                    ? null
+                                    : () => Navigator.of(context).pop(),
+                            child: const Text('Cancelar'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton(
+                            key: const Key('reconciliationConfirmButton'),
+                            onPressed:
+                                outcome == null || _isSaving || isRouted
+                                    ? null
+                                    : () => _confirm(forceAbsorb: false),
+                            child: const Text('Confirmar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isRouted) ...[
+                      const SizedBox(height: 8),
+                      TextButton(
+                        key: const Key('reconciliationAbsorbAnywayButton'),
+                        onPressed:
+                            _isSaving
+                                ? null
+                                : () => _confirm(forceAbsorb: true),
+                        child: const Text('Absorber de todos modos'),
+                      ),
+                    ],
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ElevatedButton(
-                  key: const Key('reconciliationConfirmButton'),
-                  onPressed:
-                      !_hasTypedDigits || _isSaving || isRouted
-                          ? null
-                          : () => _confirm(forceAbsorb: false),
-                  child: const Text('Confirmar'),
-                ),
-              ),
-            ],
-          ),
-          if (isRouted) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              key: const Key('reconciliationAbsorbAnywayButton'),
-              onPressed: _isSaving ? null : () => _confirm(forceAbsorb: true),
-              child: const Text('Absorber de todos modos'),
             ),
           ],
-        ],
+        ),
       ),
     );
   }

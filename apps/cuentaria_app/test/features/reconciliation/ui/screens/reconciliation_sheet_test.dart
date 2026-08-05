@@ -52,6 +52,15 @@ Future<void> _typeDigits(WidgetTester tester, String digits) async {
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
     await tester.pump();
   }
+  await tester.tap(find.byKey(const Key('keypadDone')));
+  await tester.pump();
+}
+
+Future<void> _clearDigits(WidgetTester tester, int count) async {
+  for (var i = 0; i < count; i++) {
+    await tester.tap(find.byKey(const Key('keypadBackspace')));
+    await tester.pump();
+  }
 }
 
 void main() {
@@ -208,6 +217,9 @@ void main() {
 
       await _typeDigits(tester, '500');
       await tester.pump();
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationCancelButton')),
+      );
       await tester.tap(find.byKey(const Key('reconciliationCancelButton')));
       await tester.pumpAndSettle();
 
@@ -663,6 +675,146 @@ void main() {
 
       expect(projections.accountBalance(account.id).usd, 300);
       expect(projections.accountBalance(account.id).usd < 0, isFalse);
+    });
+
+    testWidgets('typing digits does not render an outcome until Done is '
+        'pressed (#158)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Type "150" one digit at a time — over a projected 0.00 this would,
+      // if evaluated mid-typing, cross Absorb -> RouteToIncome partway
+      // through. It must stay silent until Done.
+      for (final digit in '150'.split('')) {
+        await tester.tap(find.byKey(Key('keypadDigit_$digit')));
+        await tester.pump();
+        expect(
+          find.byKey(const Key('reconciliationAbsorbMessage')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('reconciliationRouteWarning')),
+          findsNothing,
+        );
+      }
+
+      await tester.tap(find.byKey(const Key('keypadDone')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the amount display and keypad keys never move across the '
+        'no-result, Absorb, RouteToIncome and RouteToExpense states (#158)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      // Seed a projected balance of $10.00 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      await _openSheet(tester, account, existing: container);
+
+      Offset displayPosition() =>
+          tester.getCenter(find.byKey(const Key('realBalanceDisplay')));
+      Offset keyPosition() =>
+          tester.getCenter(find.byKey(const Key('keypadDigit_5')));
+
+      final expectedDisplayPosition = displayPosition();
+      final expectedKeyPosition = keyPosition();
+
+      // RouteToExpense: real 2.00 vs projected 10.00 => delta -800.
+      await _typeDigits(tester, '200');
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+      expect(displayPosition(), expectedDisplayPosition);
+      expect(keyPosition(), expectedKeyPosition);
+
+      // Absorb: real 9.99 vs projected 10.00 => delta -1, within tolerance.
+      await _clearDigits(tester, 3);
+      await _typeDigits(tester, '999');
+      expect(
+        find.byKey(const Key('reconciliationAbsorbMessage')),
+        findsOneWidget,
+      );
+      expect(displayPosition(), expectedDisplayPosition);
+      expect(keyPosition(), expectedKeyPosition);
+
+      // RouteToIncome: real 18.00 vs projected 10.00 => delta +800.
+      await _clearDigits(tester, 3);
+      await _typeDigits(tester, '1800');
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+      expect(displayPosition(), expectedDisplayPosition);
+      expect(keyPosition(), expectedKeyPosition);
     });
   });
 }
