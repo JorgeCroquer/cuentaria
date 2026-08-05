@@ -15,11 +15,13 @@ class InMemoryRateSeries implements RateSeries {
   Future<RateObservation?> latestFor(
     CurrencyCode currency, {
     String? source,
+    DateTime? asOf,
   }) async {
     RateObservation? latest;
     for (final observation in _observations) {
       if (observation.currency != currency) continue;
       if (source != null && observation.source != source) continue;
+      if (asOf != null && observation.observedAt.isAfter(asOf)) continue;
       if (latest == null ||
           !observation.observedAt.isBefore(latest.observedAt)) {
         latest = observation;

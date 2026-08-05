@@ -58,6 +58,7 @@ class QuickAddIncomeUseCase {
     final observation = await _rateSeries.latestFor(
       account.nativeCurrency,
       source: _paraleloSource,
+      asOf: occurredAt?.value,
     );
     if (observation == null) {
       throw RateNotAvailable(

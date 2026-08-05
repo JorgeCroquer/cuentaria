@@ -182,6 +182,80 @@ void main() {
       expect(destination.amountUsd, -250);
     });
 
+    test('a Bs account with an occurredAt in the past values the expense '
+        'with the rate observed as of that date, not the latest one', () async {
+      final opening = Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-opening-historical'),
+          type: 'Opening',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: 'dev',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: AccountTarget(vesAccountId),
+            amountNative: Money(
+              amount: BigInt.from(10000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: 500,
+          ),
+          Posting(
+            target: EnvelopeTarget(
+              catalog.getSystemEnvelope(EnvelopeRole.opening),
+            ),
+            amountNative: Money(
+              amount: BigInt.from(500),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 500,
+          ),
+        ],
+      );
+      projections.apply(opening);
+
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('380.00'),
+          observedAt: DateTime.utc(2026, 8, 1),
+          source: 'manual:paralelo',
+        ),
+      );
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('420.00'),
+          observedAt: DateTime.utc(2026, 8, 20),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await useCase(
+        eventId: EventId('evt-historical'),
+        deviceId: 'dev-1',
+        accountId: vesAccountId,
+        envelopeId: envelopeId,
+        amount: Money(
+          amount: BigInt.from(2000000),
+          currency: CurrencyCode('VES'),
+        ), // 20000.00 Bs
+        occurredAt: DomainTimestamp(DateTime.utc(2026, 8, 1)),
+      );
+
+      final tx = store.events.single;
+      // 20000.00 / 380.00 = $52.63 — the rate from when it happened, not
+      // the $47.62 the latest (420.00) rate would produce.
+      final destination = tx.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(envelopeId),
+      );
+      expect(destination.amountUsd, -5263);
+    });
+
     test('throws TargetNotFound for an unknown account', () async {
       await expectLater(
         () => useCase(

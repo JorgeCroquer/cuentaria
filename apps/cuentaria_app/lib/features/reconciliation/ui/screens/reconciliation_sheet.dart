@@ -5,6 +5,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
@@ -35,6 +36,16 @@ String _formatNative(BigInt minorUnits, CurrencyCode currency) =>
     _formatMoney(Money(amount: minorUnits, currency: currency));
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+String _formatDate(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
+
+bool _isSameDay(DateTime a, DateTime b) =>
+    a.year == b.year && a.month == b.month && a.day == b.day;
 
 /// Asks for a Cuenta's real native-currency balance, shows the resulting
 /// delta against the projected one, and posts it (ADR-0019): `Absorb` and
@@ -70,6 +81,11 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   // RouteToExpense
   EnvelopeId? _selectedExpenseEnvelopeId;
 
+  // Shared by RouteToIncome/RouteToExpense: when the routed movement
+  // actually happened, so it freezes with the rate from that date instead
+  // of today's (ADR-0019 §5).
+  DateTime _routedOccurredAt = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -101,6 +117,16 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
       context: context,
       builder: (context) => const RecordRatesDialog(),
     );
+  }
+
+  Future<void> _pickRoutedOccurredAt() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _routedOccurredAt,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _routedOccurredAt = picked);
   }
 
   ReconciliationOutcome? _previewOutcome(Money projectedNative, Decimal rate) {
@@ -160,6 +186,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
           currency: widget.account.nativeCurrency,
         ),
         source: _incomeSourceController.text.trim(),
+        occurredAt: DomainTimestamp(_routedOccurredAt.toUtc()),
       );
 
       if (mounted) Navigator.of(context).pop();
@@ -195,6 +222,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
           amount: -outcome.deltaNative,
           currency: widget.account.nativeCurrency,
         ),
+        occurredAt: DomainTimestamp(_routedOccurredAt.toUtc()),
       );
 
       if (mounted) Navigator.of(context).pop();
@@ -321,6 +349,12 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
               outcome: outcome,
               currency: widget.account.nativeCurrency,
             ),
+          if (isRouted)
+            _RoutedOccurredAtSection(
+              currency: widget.account.nativeCurrency,
+              date: _routedOccurredAt,
+              onPickDate: _pickRoutedOccurredAt,
+            ),
           if (outcome is RouteToIncome)
             _RouteToIncomeSection(
               isSaving: _isSaving,
@@ -428,6 +462,99 @@ class _OutcomeMessage extends StatelessWidget {
         ),
       ),
     };
+  }
+}
+
+/// Asks when a routed Income/Expense actually happened (ADR-0019 §5) — the
+/// date drives which Rate Observation the movement freezes with, so it's
+/// captured before showing what that valuation will be.
+class _RoutedOccurredAtSection extends StatelessWidget {
+  const _RoutedOccurredAtSection({
+    required this.currency,
+    required this.date,
+    required this.onPickDate,
+  });
+
+  final CurrencyCode currency;
+  final DateTime date;
+  final VoidCallback onPickDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextButton(
+            key: const Key('routedOccurredAtField'),
+            onPressed: onPickDate,
+            child: Text('¿Cuándo pasó? ${_formatDate(date)}'),
+          ),
+          if (currency != CurrencyCode('USD'))
+            _RoutedRateAnnouncement(currency: currency, date: date),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shows what a routed Income/Expense will freeze at (ADR-0019 §5): the Rate
+/// Observation for the declared date, or an explicit warning when none
+/// exists for that exact date and the nearest earlier one is used instead —
+/// the cost is announced, never invented (same rule as ADR-0018 §4).
+class _RoutedRateAnnouncement extends ConsumerWidget {
+  const _RoutedRateAnnouncement({required this.currency, required this.date});
+
+  final CurrencyCode currency;
+  final DateTime date;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rateAsync = ref.watch(
+      paraleloRateAsOfProvider((currency, date.toUtc())),
+    );
+    return rateAsync.when(
+      data: (observation) => _build(context, observation),
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+
+  Widget _build(BuildContext context, RateObservation? observation) {
+    if (observation == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'No hay tasa registrada para ${currency.value} en esa fecha.',
+          key: const Key('routedRateUnavailableMessage'),
+          style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      );
+    }
+
+    final observedLocal = observation.observedAt.toLocal();
+    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+
+    if (_isSameDay(observedLocal, date)) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'Se valorará a $rateText ${currency.value}/USD',
+          key: const Key('routedRateValuationAnnouncement'),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        '⚠ No hay tasa de esa fecha — se usó la del '
+        '${_formatDate(observedLocal)}: $rateText ${currency.value}/USD',
+        key: const Key('routedRateFallbackWarning'),
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      ),
+    );
   }
 }
 

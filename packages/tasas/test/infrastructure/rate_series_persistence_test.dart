@@ -66,4 +66,45 @@ void main() {
       dir.deleteSync(recursive: true);
     }
   });
+
+  test('latestFor(asOf: ...) resolves against real persistence, ignoring '
+      'observations appended after that instant', () async {
+    final dir = Directory.systemTemp.createTempSync('tasas_persistence_test');
+    final dbPath = '${dir.path}/tasas.db';
+
+    try {
+      var db = TasasDatabase(NativeDatabase(File(dbPath)));
+      var series = DriftRateSeries(db);
+
+      final early = RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('380'),
+        observedAt: DateTime.utc(2026, 8, 1),
+        source: 'manual:paralelo',
+      );
+      final late = RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('420'),
+        observedAt: DateTime.utc(2026, 8, 20),
+        source: 'manual:paralelo',
+      );
+
+      await series.append(early);
+      await series.append(late);
+      await db.close();
+
+      db = TasasDatabase(NativeDatabase(File(dbPath)));
+      series = DriftRateSeries(db);
+
+      final historical = await series.latestFor(
+        CurrencyCode('VES'),
+        asOf: DateTime.utc(2026, 8, 5),
+      );
+      expect(historical, early);
+
+      await db.close();
+    } finally {
+      dir.deleteSync(recursive: true);
+    }
+  });
 }

@@ -46,3 +46,16 @@ final latestParaleloRateProvider =
       final series = await ref.watch(rateSeriesProvider.future);
       return series.latestFor(currency, source: _paraleloSource);
     });
+
+/// Parallel Rate Observation for [currency] as of a given date, or the
+/// nearest one before it (ADR-0019 §5) — used by routed Reconciliation
+/// capture to preview what a late-registered Income/Expense will freeze at.
+final paraleloRateAsOfProvider =
+    FutureProvider.family<RateObservation?, (CurrencyCode, DateTime)>((
+      ref,
+      key,
+    ) async {
+      final (currency, asOf) = key;
+      final series = await ref.watch(rateSeriesProvider.future);
+      return series.latestFor(currency, source: _paraleloSource, asOf: asOf);
+    });

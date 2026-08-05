@@ -17,6 +17,7 @@ class _RecordingRateSeries implements RateSeries {
   Future<RateObservation?> latestFor(
     CurrencyCode currency, {
     String? source,
+    DateTime? asOf,
   }) async => throw UnimplementedError();
 }
 
