@@ -363,6 +363,9 @@ void main() {
       );
       expect(confirmButton.onPressed, isNull);
 
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationAbsorbAnywayButton')),
+      );
       await tester.tap(
         find.byKey(const Key('reconciliationAbsorbAnywayButton')),
       );
@@ -372,6 +375,247 @@ void main() {
       expect(projections.accountBalance(account.id).usd, 500);
       final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
       expect(projections.envelopeUsdBalance(adjustmentsId), 500);
+    });
+
+    testWidgets('a large surplus offers to register an Income with the '
+        'amount pre-filled; confirming lands it in Stage, not Adjustments '
+        '(ADR-0019 §2)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      await _openSheet(tester, account, existing: container);
+
+      await _typeDigits(tester, '500');
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+
+      final confirmIncomeButtonDisabled = tester.widget<ElevatedButton>(
+        find.byKey(const Key('routeToIncomeConfirmButton')),
+      );
+      expect(confirmIncomeButtonDisabled.onPressed, isNull);
+
+      await tester.enterText(
+        find.byKey(const Key('routeToIncomeSourceField')),
+        'Cobro olvidado',
+      );
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeToIncomeConfirmButton')),
+      );
+      await tester.tap(find.byKey(const Key('routeToIncomeConfirmButton')));
+      await tester.pumpAndSettle();
+
+      final store = await container.read(eventStoreProvider.future);
+      final tx = (await store.queryLog()).single;
+      expect(tx.metadata.type, 'Income');
+
+      final projections = container.read(ledgerProjectionsProvider);
+      expect(projections.accountBalance(account.id).usd, 500);
+      final stageId = catalog.getSystemEnvelope(EnvelopeRole.stage);
+      expect(projections.envelopeUsdBalance(stageId), 500);
+      final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
+      expect(projections.envelopeUsdBalance(adjustmentsId), 0);
+    });
+
+    testWidgets('a large shortage offers to register an Expense with '
+        'envelope selection; confirming discounts the chosen envelope', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // Seed a projected balance of $10.00 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Real balance is $2.00: delta = 200 - 1000 = -800, well past
+      // tolerance ($1.00).
+      await _typeDigits(tester, '200');
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('reconciliationRouteWarning')),
+        findsOneWidget,
+      );
+
+      final confirmExpenseButtonDisabled = tester.widget<ElevatedButton>(
+        find.byKey(const Key('routeToExpenseConfirmButton')),
+      );
+      expect(confirmExpenseButtonDisabled.onPressed, isNull);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeToExpenseEnvelopeChip_env-food')),
+      );
+      await tester.tap(
+        find.byKey(const Key('routeToExpenseEnvelopeChip_env-food')),
+      );
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeToExpenseConfirmButton')),
+      );
+      await tester.tap(find.byKey(const Key('routeToExpenseConfirmButton')));
+      await tester.pumpAndSettle();
+
+      final tx = (await store.queryLog()).last;
+      expect(tx.metadata.type, 'Expense');
+
+      expect(projections.accountBalance(account.id).usd, 200);
+      expect(projections.envelopeUsdBalance(EnvelopeId('env-food')), -800);
+      final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
+      expect(projections.envelopeUsdBalance(adjustmentsId), 0);
+    });
+
+    testWidgets('an overdrawn account is squared by a routed Income and the '
+        'negative balance is gone (ADR-0017 closure)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      // Seed a projected balance of -$5.00 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(-500),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: -500,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(-500),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: -500,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      expect(projections.accountBalance(account.id).usd, -500);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Real balance is $3.00: delta = 300 - (-500) = 800.
+      await _typeDigits(tester, '300');
+      await tester.pump();
+
+      await tester.enterText(
+        find.byKey(const Key('routeToIncomeSourceField')),
+        'Cobro que faltaba',
+      );
+      await tester.pump();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeToIncomeConfirmButton')),
+      );
+      await tester.tap(find.byKey(const Key('routeToIncomeConfirmButton')));
+      await tester.pumpAndSettle();
+
+      expect(projections.accountBalance(account.id).usd, 300);
+      expect(projections.accountBalance(account.id).usd < 0, isFalse);
     });
   });
 }

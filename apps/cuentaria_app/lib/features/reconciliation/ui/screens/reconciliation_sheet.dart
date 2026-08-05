@@ -8,8 +8,10 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
+import '../../../capture/application/capture_providers.dart';
 import '../../../capture/ui/amount_input_controller.dart';
 import '../../../capture/ui/widgets/numeric_keypad.dart';
+import '../../../envelopes/application/envelopes_providers.dart';
 import '../../../patrimonio/ui/screens/patrimonio_screen.dart';
 import '../../application/reconciliation_providers.dart';
 
@@ -36,9 +38,10 @@ String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 /// Asks for a Cuenta's real native-currency balance, shows the resulting
 /// delta against the projected one, and posts it (ADR-0019): `Absorb` and
-/// `NothingToReconcile` post directly, a routed delta is only posted if the
-/// user takes the "absorb anyway" escape hatch (ADR-0019 §1) — the routed
-/// capture itself is a later slice.
+/// `NothingToReconcile` post directly; a routed delta offers to register the
+/// Income/Expense it implies via the existing quick-add capture use cases
+/// (ADR-0019 §2), reusing their factories rather than duplicating them, or
+/// the user can still take the "absorb anyway" escape hatch (ADR-0019 §1).
 class ReconciliationSheet extends ConsumerStatefulWidget {
   const ReconciliationSheet({required this.account, super.key});
 
@@ -61,10 +64,17 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   bool _isSaving = false;
   String? _error;
 
+  // RouteToIncome
+  final _incomeSourceController = TextEditingController();
+
+  // RouteToExpense
+  EnvelopeId? _selectedExpenseEnvelopeId;
+
   @override
   void initState() {
     super.initState();
     _realBalance.addListener(_onRealBalanceChanged);
+    _incomeSourceController.addListener(_onIncomeSourceChanged);
   }
 
   void _onRealBalanceChanged() {
@@ -72,10 +82,17 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
     setState(() => _hasTypedDigits = true);
   }
 
+  void _onIncomeSourceChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   void dispose() {
     _realBalance.removeListener(_onRealBalanceChanged);
     _realBalance.dispose();
+    _incomeSourceController.removeListener(_onIncomeSourceChanged);
+    _incomeSourceController.dispose();
     super.dispose();
   }
 
@@ -111,6 +128,73 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
           currency: widget.account.nativeCurrency,
         ),
         forceAbsorb: forceAbsorb,
+      );
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Registers the routed surplus as an Income via [QuickAddIncomeUseCase]
+  /// (ADR-0019 §2) — no envelope is passed, so it lands in Stage same as any
+  /// manually captured Income.
+  Future<void> _confirmRouteToIncome(RouteToIncome outcome) async {
+    setState(() {
+      _error = null;
+      _isSaving = true;
+    });
+
+    try {
+      final useCase = await ref.read(quickAddIncomeUseCaseProvider.future);
+      final deviceId = await ref.read(deviceIdProvider.future);
+
+      await useCase(
+        eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
+        deviceId: deviceId,
+        accountId: widget.account.id,
+        amount: Money(
+          amount: outcome.deltaNative,
+          currency: widget.account.nativeCurrency,
+        ),
+        source: _incomeSourceController.text.trim(),
+      );
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  /// Registers the routed shortage as an Expense via
+  /// [QuickAddExpenseUseCase] (ADR-0019 §2), discounting the envelope the
+  /// user picked.
+  Future<void> _confirmRouteToExpense(RouteToExpense outcome) async {
+    final envelopeId = _selectedExpenseEnvelopeId;
+    if (envelopeId == null) return;
+
+    setState(() {
+      _error = null;
+      _isSaving = true;
+    });
+
+    try {
+      final useCase = await ref.read(quickAddExpenseUseCaseProvider.future);
+      final deviceId = await ref.read(deviceIdProvider.future);
+
+      await useCase(
+        eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
+        deviceId: deviceId,
+        accountId: widget.account.id,
+        envelopeId: envelopeId,
+        amount: Money(
+          amount: -outcome.deltaNative,
+          currency: widget.account.nativeCurrency,
+        ),
       );
 
       if (mounted) Navigator.of(context).pop();
@@ -237,6 +321,20 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
               outcome: outcome,
               currency: widget.account.nativeCurrency,
             ),
+          if (outcome is RouteToIncome)
+            _RouteToIncomeSection(
+              isSaving: _isSaving,
+              sourceController: _incomeSourceController,
+              onConfirm: () => _confirmRouteToIncome(outcome),
+            ),
+          if (outcome is RouteToExpense)
+            _RouteToExpenseSection(
+              isSaving: _isSaving,
+              selectedEnvelopeId: _selectedExpenseEnvelopeId,
+              onEnvelopeSelected:
+                  (id) => setState(() => _selectedExpenseEnvelopeId = id),
+              onConfirm: () => _confirmRouteToExpense(outcome),
+            ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -313,7 +411,8 @@ class _OutcomeMessage extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-          '(${_formatUsdCents(suggestedUsd)}). Puedes absorberla igual.',
+          '(${_formatUsdCents(suggestedUsd)}). Parece un cobro sin '
+          'registrar — regístralo como Ingreso, o absorbe de todos modos.',
           key: const Key('reconciliationRouteWarning'),
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
@@ -322,11 +421,115 @@ class _OutcomeMessage extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
           'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-          '(${_formatUsdCents(suggestedUsd)}). Puedes absorberla igual.',
+          '(${_formatUsdCents(suggestedUsd)}). Parece un gasto sin '
+          'registrar — regístralo como Gasto, o absorbe de todos modos.',
           key: const Key('reconciliationRouteWarning'),
           style: TextStyle(color: Theme.of(context).colorScheme.error),
         ),
       ),
     };
+  }
+}
+
+/// The routed Income capture (ADR-0019 §2): the amount is fixed to the
+/// delta, so only the source of the money is asked before posting via
+/// [QuickAddIncomeUseCase].
+class _RouteToIncomeSection extends StatelessWidget {
+  const _RouteToIncomeSection({
+    required this.isSaving,
+    required this.sourceController,
+    required this.onConfirm,
+  });
+
+  final bool isSaving;
+  final TextEditingController sourceController;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            key: const Key('routeToIncomeSourceField'),
+            controller: sourceController,
+            decoration: const InputDecoration(labelText: '¿De dónde vino?'),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            key: const Key('routeToIncomeConfirmButton'),
+            onPressed:
+                isSaving || sourceController.text.trim().isEmpty
+                    ? null
+                    : onConfirm,
+            child: const Text('Registrar Ingreso'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The routed Expense capture (ADR-0019 §2): the amount is fixed to the
+/// delta, so only the Sobre it came out of is asked before posting via
+/// [QuickAddExpenseUseCase].
+class _RouteToExpenseSection extends ConsumerWidget {
+  const _RouteToExpenseSection({
+    required this.isSaving,
+    required this.selectedEnvelopeId,
+    required this.onEnvelopeSelected,
+    required this.onConfirm,
+  });
+
+  final bool isSaving;
+  final EnvelopeId? selectedEnvelopeId;
+  final ValueChanged<EnvelopeId> onEnvelopeSelected;
+  final VoidCallback onConfirm;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final envelopesAsync = ref.watch(userEnvelopesProvider);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          envelopesAsync.when(
+            data:
+                (envelopes) =>
+                    envelopes.isEmpty
+                        ? const Text('No hay Sobres.')
+                        : Wrap(
+                          spacing: 8,
+                          children: [
+                            for (final envelope in envelopes)
+                              ChoiceChip(
+                                key: Key(
+                                  'routeToExpenseEnvelopeChip_'
+                                  '${envelope.id.value}',
+                                ),
+                                label: Text(envelope.name),
+                                selected: envelope.id == selectedEnvelopeId,
+                                onSelected:
+                                    (_) => onEnvelopeSelected(envelope.id),
+                              ),
+                          ],
+                        ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            key: const Key('routeToExpenseConfirmButton'),
+            onPressed:
+                isSaving || selectedEnvelopeId == null ? null : onConfirm,
+            child: const Text('Registrar Gasto'),
+          ),
+        ],
+      ),
+    );
   }
 }
