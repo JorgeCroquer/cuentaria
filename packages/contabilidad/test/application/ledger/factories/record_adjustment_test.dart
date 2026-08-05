@@ -1,3 +1,4 @@
+import 'package:decimal/decimal.dart';
 import 'package:test/test.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -98,11 +99,16 @@ void main() {
       },
     );
 
-    // 6. Adjust rejects positive increment on foreign account
+    // 6. Adjust increments foreign currency account balance valued at the
+    // provided rate (ADR-0018 §1 applied to a positive Adjustment).
     test(
-      'throws ForeignCurrencyPositiveAdjustmentNotAllowed if delta is positive on non-USD account',
+      'increment foreign currency account balance values the surplus with the provided rate',
       () async {
         final accountId = AccountId('acc-ves');
+        final adjustmentsId = catalog.getSystemEnvelope(
+          EnvelopeRole.adjustments,
+        );
+
         catalog.saveAccount(
           Account(
             id: accountId,
@@ -113,18 +119,37 @@ void main() {
           ),
         );
 
-        await expectLater(
-          () => recordAdjustment(
-            eventId: EventId('evt-adj-2'),
-            deviceId: 'dev-1',
-            accountId: accountId,
-            realNativeBalance: Money(
-              amount: BigInt.from(100),
-              currency: CurrencyCode('VES'),
-            ), // Positive
-          ),
-          throwsA(isA<ForeignCurrencyPositiveAdjustmentNotAllowed>()),
+        await recordAdjustment(
+          eventId: EventId('evt-adj-2'),
+          deviceId: 'dev-1',
+          accountId: accountId,
+          realNativeBalance: Money(
+            amount: BigInt.from(2000000),
+            currency: CurrencyCode('VES'),
+          ), // Positive: delta = +20000.00 VES
+          rate: Decimal.parse('100'), // 100.00 VES/USD
         );
+
+        final tx = store.events.last;
+        final pAcc = tx.postings.firstWhere((p) => p.target is AccountTarget);
+        final pEnv = tx.postings.firstWhere((p) => p.target is EnvelopeTarget);
+
+        expect(pAcc.amountNative.amount, equals(BigInt.from(2000000)));
+        // 20000.00 VES / 100.00 VES per USD = $200.00
+        expect(pAcc.amountUsd, equals(20000));
+
+        expect(pEnv.amountNative.amount, equals(BigInt.from(20000)));
+        expect(pEnv.amountUsd, equals(20000));
+        expect(
+          (pEnv.target as EnvelopeTarget).envelopeId,
+          equals(adjustmentsId),
+        );
+
+        expect(
+          projections.accountBalance(accountId).native.amount,
+          equals(BigInt.from(2000000)),
+        );
+        expect(projections.accountBalance(accountId).usd, equals(20000));
       },
     );
 

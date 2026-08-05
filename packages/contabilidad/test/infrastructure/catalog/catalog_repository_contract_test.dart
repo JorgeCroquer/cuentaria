@@ -146,6 +146,18 @@ void _runContractSuite(
       test('unknown id returns null', () {
         expect(repo.getAccount(AccountId('no-such')), isNull);
       });
+
+      test('lastReconciledAt survives save + retrieve (#150)', () async {
+        final acc = Account(
+          id: AccountId('acc-4'),
+          name: 'Cash',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: t0,
+        ).withLastReconciledAt(t1);
+        await repo.saveAccount(acc);
+        expect(repo.getAccount(AccountId('acc-4'))?.lastReconciledAt, t1);
+      });
     });
 
     // -----------------------------------------------------------------------

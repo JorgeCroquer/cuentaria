@@ -138,6 +138,44 @@ void main() {
       expect(projections.envelopeUsdBalance(stageId), 20000);
     });
 
+    test('a foreign currency destination with an occurredAt in the past '
+        'values the income with the rate observed as of that date, not the '
+        'latest one', () async {
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('380.00'),
+          observedAt: DateTime.utc(2026, 8, 1),
+          source: 'manual:paralelo',
+        ),
+      );
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('420.00'),
+          observedAt: DateTime.utc(2026, 8, 20),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await useCase(
+        eventId: EventId('evt-historical'),
+        deviceId: 'dev-1',
+        accountId: vesAccountId,
+        amount: Money(
+          amount: BigInt.from(2000000),
+          currency: CurrencyCode('VES'),
+        ), // 20000.00 Bs
+        source: 'Cobro tardío',
+        occurredAt: DomainTimestamp(DateTime.utc(2026, 8, 1)),
+      );
+
+      // 20000.00 / 380.00 = $52.63 — the rate from when it happened, not
+      // the $47.62 the latest (420.00) rate would have produced.
+      expect(projections.accountBalance(vesAccountId).usd, 5263);
+      expect(projections.envelopeUsdBalance(stageId), 5263);
+    });
+
     test('a foreign currency destination with no observed rate throws '
         'RateNotAvailable and posts nothing', () async {
       await expectLater(

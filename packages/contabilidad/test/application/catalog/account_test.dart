@@ -104,6 +104,50 @@ void main() {
       expect(withoutColor.colorHex, isNull);
     });
 
+    test('lastReconciledAt reads the "lastReconciledAt" key from meta', () {
+      final never = Account(
+        id: AccountId('acc-1'),
+        name: 'Name 1',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+      );
+      expect(never.lastReconciledAt, isNull);
+
+      final reconciled = Account(
+        id: AccountId('acc-1'),
+        name: 'Name 1',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'lastReconciledAt': '2024-03-05T12:00:00.000Z'},
+      );
+      expect(
+        reconciled.lastReconciledAt,
+        DateTime.parse('2024-03-05T12:00:00.000Z'),
+      );
+    });
+
+    test('withLastReconciledAt stamps the timestamp and advances updatedAt, '
+        'preserving other meta keys', () {
+      final account = Account(
+        id: AccountId('acc-1'),
+        name: 'Name 1',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'color': '#FF5500'},
+      );
+
+      final stamped = account.withLastReconciledAt(DateTime.utc(2024, 3, 5));
+
+      expect(stamped.lastReconciledAt, DateTime.utc(2024, 3, 5));
+      expect(stamped.updatedAt, DateTime.utc(2024, 3, 5));
+      expect(stamped.colorHex, '#FF5500');
+      expect(stamped.id, account.id);
+      expect(stamped.name, account.name);
+    });
+
     test('mergeWith carries meta from the winning side', () {
       final older = Account(
         id: AccountId('acc-1'),

@@ -180,6 +180,96 @@ void _runContractSuite(
         isNull,
       );
     });
+
+    test('latestFor(asOf: ...) returns the observation recorded exactly on '
+        'that date when it is the most recent one at or before it', () async {
+      final target = _obs(observedAt: DateTime.utc(2026, 7, 20), rate: '400');
+      await series.append(target);
+
+      expect(
+        await series.latestFor(
+          CurrencyCode('VES'),
+          asOf: DateTime.utc(2026, 7, 20),
+        ),
+        target,
+      );
+    });
+
+    test('latestFor(asOf: ...) returns the most recent observation at or '
+        'before that date, ignoring later ones', () async {
+      final before = _obs(observedAt: DateTime.utc(2026, 7, 1), rate: '380');
+      final onTarget = _obs(observedAt: DateTime.utc(2026, 7, 10), rate: '390');
+      final after = _obs(observedAt: DateTime.utc(2026, 7, 23), rate: '420');
+      await series.append(before);
+      await series.append(onTarget);
+      await series.append(after);
+
+      expect(
+        await series.latestFor(
+          CurrencyCode('VES'),
+          asOf: DateTime.utc(2026, 7, 20),
+        ),
+        onTarget,
+      );
+    });
+
+    test('latestFor(asOf: ...) returns null when every observation is '
+        'after that date', () async {
+      await series.append(_obs(observedAt: DateTime.utc(2026, 7, 23)));
+
+      expect(
+        await series.latestFor(
+          CurrencyCode('VES'),
+          asOf: DateTime.utc(2026, 7, 1),
+        ),
+        isNull,
+      );
+    });
+
+    test('two observations on the same day both qualify for asOf; the last '
+        'one appended wins the tiebreak', () async {
+      final sameDay = DateTime.utc(2026, 7, 20);
+      final first = _obs(observedAt: sameDay, rate: '400');
+      final second = _obs(observedAt: sameDay, rate: '405');
+      await series.append(first);
+      await series.append(second);
+
+      expect(
+        await series.latestFor(CurrencyCode('VES'), asOf: sameDay),
+        second,
+      );
+    });
+
+    test('latestFor(asOf: ..., source: ...) combines both scopes', () async {
+      final sameInstant = DateTime.utc(2026, 7, 20, 12);
+      final bcv = _obs(
+        observedAt: sameInstant,
+        rate: '390',
+        source: 'manual:bcv',
+      );
+      final paralelo = _obs(
+        observedAt: sameInstant,
+        rate: '400',
+        source: 'manual:paralelo',
+      );
+      final laterParalelo = _obs(
+        observedAt: DateTime.utc(2026, 7, 23),
+        rate: '420',
+        source: 'manual:paralelo',
+      );
+      await series.append(bcv);
+      await series.append(paralelo);
+      await series.append(laterParalelo);
+
+      expect(
+        await series.latestFor(
+          CurrencyCode('VES'),
+          source: 'manual:paralelo',
+          asOf: sameInstant,
+        ),
+        paralelo,
+      );
+    });
   });
 }
 

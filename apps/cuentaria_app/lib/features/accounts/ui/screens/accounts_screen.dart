@@ -7,6 +7,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
+import '../../../reconciliation/ui/screens/reconciliation_sheet.dart';
 import '../../application/account_providers.dart';
 import '../account_form_validators.dart';
 
@@ -26,6 +27,33 @@ String _formatBalance(Money balance) {
   final decimal =
       (Decimal.fromBigInt(balance.amount) / Decimal.fromInt(100)).toDecimal();
   return '${decimal.toStringAsFixed(2)} ${balance.currency.value}';
+}
+
+/// "Hace cuánto se concilió" (C3 slice 4, #150): the only reconciliation
+/// reminder — never a blank when it was never reconciled.
+String _formatLastReconciled(DateTime? lastReconciledAt) {
+  if (lastReconciledAt == null) return 'Nunca conciliada';
+
+  final elapsed = DateTime.now().difference(lastReconciledAt);
+  if (elapsed.inDays >= 365) {
+    final years = elapsed.inDays ~/ 365;
+    return 'Conciliada hace $years ${years == 1 ? 'año' : 'años'}';
+  }
+  if (elapsed.inDays >= 30) {
+    final months = elapsed.inDays ~/ 30;
+    return 'Conciliada hace $months ${months == 1 ? 'mes' : 'meses'}';
+  }
+  if (elapsed.inDays >= 1) {
+    return 'Conciliada hace ${elapsed.inDays} ${elapsed.inDays == 1 ? 'día' : 'días'}';
+  }
+  if (elapsed.inHours >= 1) {
+    return 'Conciliada hace ${elapsed.inHours} ${elapsed.inHours == 1 ? 'hora' : 'horas'}';
+  }
+  if (elapsed.inMinutes >= 1) {
+    return 'Conciliada hace ${elapsed.inMinutes} '
+        '${elapsed.inMinutes == 1 ? 'minuto' : 'minutos'}';
+  }
+  return 'Conciliada hace instantes';
 }
 
 /// Accounts catalog (#94): create, edit and archive Accounts, reachable
@@ -65,6 +93,16 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
     if (mounted) setState(() {});
   }
 
+  /// Reconciliation reachable from a Cuenta's row (C3 slice 1, #147): this
+  /// slice deliberately owns the only entry point — slices 2-4 hang off the
+  /// sheet this opens and never touch navigation again (U1's four sibling
+  /// slices stepped on each other by each adding their own route).
+  Future<void> _openReconciliationSheet(Account account) async {
+    await showReconciliationSheet(context, account);
+    ref.invalidate(patrimonioSnapshotProvider);
+    if (mounted) setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
@@ -85,6 +123,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                 _AccountTile(
                   account: account,
                   balance: projections.accountBalance(account.id).native,
+                  onReconcile: () => _openReconciliationSheet(account),
                   onEdit: () => _openEditDialog(account),
                   onArchive: () => _archive(account),
                 ),
@@ -107,12 +146,14 @@ class _AccountTile extends StatelessWidget {
   const _AccountTile({
     required this.account,
     required this.balance,
+    required this.onReconcile,
     required this.onEdit,
     required this.onArchive,
   });
 
   final Account account;
   final Money balance;
+  final VoidCallback onReconcile;
   final VoidCallback onEdit;
   final VoidCallback onArchive;
 
@@ -123,9 +164,21 @@ class _AccountTile extends StatelessWidget {
     final isNegative = balance.amount < BigInt.zero;
     return ListTile(
       key: Key('account_${account.id.value}'),
+      onTap: onReconcile,
       leading: CircleAvatar(backgroundColor: color, radius: 12),
       title: Text(account.name),
-      subtitle: Text(account.nativeCurrency.value),
+      subtitle: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(account.nativeCurrency.value),
+          Text(
+            _formatLastReconciled(account.lastReconciledAt),
+            key: Key('lastReconciled_${account.id.value}'),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
