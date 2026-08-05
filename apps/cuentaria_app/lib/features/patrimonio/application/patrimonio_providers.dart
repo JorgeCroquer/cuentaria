@@ -5,13 +5,13 @@ import 'package:contabilidad/domain/transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/application/rate_resolution_service.dart';
 
 import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
 
 const _engine = PatrimonioEngine();
 const _bcvSource = 'manual:bcv';
-const _paraleloSource = 'manual:paralelo';
 
 /// The Patrimonio header + accounts block (ADR-0016), computed by the pure
 /// [PatrimonioEngine]. This is the composition root's mapping from
@@ -53,7 +53,7 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
 
   final rates = <CurrencyCode, RateView>{};
   for (final currency in foreignCurrencies) {
-    final parallel = await series.latestFor(currency, source: _paraleloSource);
+    final parallel = await RateResolutionService(series)(currency);
     final bcv = await series.latestFor(currency, source: _bcvSource);
     if (parallel == null && bcv == null) continue;
 

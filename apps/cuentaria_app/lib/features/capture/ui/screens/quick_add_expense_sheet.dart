@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
-import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
@@ -77,6 +77,24 @@ bool _isToday(DateTime date) {
   return date.year == now.year &&
       date.month == now.month &&
       date.day == now.day;
+}
+
+/// Human-readable provenance for a resolved Rate (#165): the announcement
+/// names the source, not just the number (ADR-0018 "la app siempre anuncia
+/// con qué valoró").
+String _sourceLabel(String source) => switch (source) {
+  'binancep2p:ask' => 'Binance P2P',
+  'dolarapi:paralelo' => 'DolarApi',
+  _ => 'manual',
+};
+
+/// A manual entry always reads "hoy" — the user just typed it. An automatic
+/// source reads how long ago it synced, since it refreshes periodically
+/// through the day (ADR-0020) rather than at the moment of the transaction.
+String _recency(DateTime observedLocal, String source) {
+  if (source == 'manual:paralelo') return 'hoy';
+  final hours = DateTime.now().difference(observedLocal).inHours;
+  return 'hace $hours h';
 }
 
 enum _CaptureMode { gasto, ingreso, mover }
@@ -987,14 +1005,14 @@ class _RateValuationAnnouncement extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rateAsync = ref.watch(latestParaleloRateProvider(currency));
     return rateAsync.when(
-      data: (observation) => _build(context, observation),
+      data: (resolution) => _build(context, resolution),
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
   }
 
-  Widget _build(BuildContext context, RateObservation? observation) {
-    if (observation == null) {
+  Widget _build(BuildContext context, Resolution? resolution) {
+    if (resolution == null) {
       return Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Row(
@@ -1016,14 +1034,16 @@ class _RateValuationAnnouncement extends ConsumerWidget {
       );
     }
 
-    final observedLocal = observation.observedAt.toLocal();
-    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+    final observedLocal = resolution.observedAt.toLocal();
+    final rateText = resolution.nativePerUsd.toStringAsFixed(2);
+    final sourceLabel = _sourceLabel(resolution.source);
 
     if (_isToday(observedLocal)) {
       return Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Text(
-          'Valorado a $rateText ${currency.value}/USD · hoy',
+          'Valorado a $rateText ${currency.value}/USD · $sourceLabel, '
+          '${_recency(observedLocal, resolution.source)}',
           key: const Key('rateValuationAnnouncement'),
         ),
       );
@@ -1035,8 +1055,8 @@ class _RateValuationAnnouncement extends ConsumerWidget {
         children: [
           Expanded(
             child: Text(
-              '⚠ Tasa del ${_formatShortDate(observedLocal)} — '
-              '¿registrar la de hoy?',
+              '⚠ Sin actualizar desde el ${_formatShortDate(observedLocal)} '
+              '— valorando a $rateText',
               key: const Key('staleRateWarning'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
@@ -1044,7 +1064,7 @@ class _RateValuationAnnouncement extends ConsumerWidget {
           TextButton(
             key: const Key('registerRateShortcut'),
             onPressed: onRegisterRate,
-            child: const Text('Registrar tasa'),
+            child: const Text('Poner la tasa a mano'),
           ),
         ],
       ),
@@ -1072,14 +1092,14 @@ class _MoverExcessAnnouncement extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final rateAsync = ref.watch(latestParaleloRateProvider(currency));
     return rateAsync.when(
-      data: (observation) => _build(context, observation),
+      data: (resolution) => _build(context, resolution),
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
   }
 
-  Widget _build(BuildContext context, RateObservation? observation) {
-    if (observation == null) {
+  Widget _build(BuildContext context, Resolution? resolution) {
+    if (resolution == null) {
       return Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Row(
@@ -1102,16 +1122,19 @@ class _MoverExcessAnnouncement extends ConsumerWidget {
       );
     }
 
-    final observedLocal = observation.observedAt.toLocal();
-    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+    final observedLocal = resolution.observedAt.toLocal();
+    final rateText = resolution.nativePerUsd.toStringAsFixed(2);
+    final sourceLabel = _sourceLabel(resolution.source);
     final dateSuffix =
-        _isToday(observedLocal) ? 'hoy' : _formatShortDate(observedLocal);
+        _isToday(observedLocal)
+            ? _recency(observedLocal, resolution.source)
+            : _formatShortDate(observedLocal);
 
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Text(
         'El exceso se valora a $rateText ${currency.value}/USD · '
-        '$dateSuffix — origen quedará en $resultingBalance',
+        '$sourceLabel, $dateSuffix — origen quedará en $resultingBalance',
         key: const Key('moverExcessValuationAnnouncement'),
       ),
     );

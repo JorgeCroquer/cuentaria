@@ -5,12 +5,11 @@ import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/domain/reconciliation/reconciliation_planner.dart';
 import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/application/rate_resolution_service.dart';
 import 'package:tasas/domain/rate_series.dart';
 
 import '../../capture/application/rate_exceptions.dart';
 import 'mark_account_reconciled.dart';
-
-const _paraleloSource = 'manual:paralelo';
 
 /// Orchestrates the Reconciliation ritual (C3, #147, ADR-0019): resolves the
 /// applicable rate, asks the pure [planReconciliation] what to do with the
@@ -55,16 +54,15 @@ class ReconcileUseCase {
     final isUsd = account.nativeCurrency == CurrencyCode('USD');
     Decimal rate = Decimal.one;
     if (!isUsd) {
-      final observation = await _rateSeries.latestFor(
+      final resolution = await RateResolutionService(_rateSeries)(
         account.nativeCurrency,
-        source: _paraleloSource,
       );
-      if (observation == null) {
+      if (resolution == null) {
         throw RateNotAvailable(
           'No parallel rate observed for ${account.nativeCurrency.value}',
         );
       }
-      rate = observation.nativePerUsd;
+      rate = resolution.nativePerUsd;
     }
 
     final projectedBalance = _projections.accountBalance(accountId);

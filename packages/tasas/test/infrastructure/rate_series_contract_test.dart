@@ -270,6 +270,86 @@ void _runContractSuite(
         paralelo,
       );
     });
+
+    test('candidatesFor returns an empty list for a currency with no '
+        'observations', () async {
+      expect(await series.candidatesFor(CurrencyCode('VES')), isEmpty);
+    });
+
+    test(
+      'candidatesFor returns the latest observation of each source',
+      () async {
+        final olderManual = _obs(
+          observedAt: DateTime.utc(2026, 8, 1),
+          rate: '800',
+          source: 'manual:paralelo',
+        );
+        final newerManual = _obs(
+          observedAt: DateTime.utc(2026, 8, 5),
+          rate: '900',
+          source: 'manual:paralelo',
+        );
+        final binance = _obs(
+          observedAt: DateTime.utc(2026, 8, 5),
+          rate: '845.88',
+          source: 'binancep2p:ask',
+        );
+        final bcv = _obs(
+          observedAt: DateTime.utc(2026, 8, 5),
+          rate: '45',
+          source: 'manual:bcv',
+        );
+        await series.append(olderManual);
+        await series.append(newerManual);
+        await series.append(binance);
+        await series.append(bcv);
+
+        final candidates = await series.candidatesFor(CurrencyCode('VES'));
+
+        expect(candidates, containsAll([newerManual, binance, bcv]));
+        expect(candidates, isNot(contains(olderManual)));
+        expect(candidates.length, 3);
+      },
+    );
+
+    test('candidatesFor is scoped to the requested currency', () async {
+      final ves = _obs(currency: 'VES', observedAt: DateTime.utc(2026, 8, 5));
+      final usd = _obs(
+        currency: 'USD',
+        rate: '1',
+        observedAt: DateTime.utc(2026, 8, 5),
+      );
+      await series.append(ves);
+      await series.append(usd);
+
+      expect(await series.candidatesFor(CurrencyCode('VES')), [ves]);
+    });
+
+    test(
+      'candidatesFor(asOf: ...) ignores observations after that date',
+      () async {
+        final before = _obs(
+          observedAt: DateTime.utc(2026, 7, 1),
+          rate: '400',
+          source: 'manual:paralelo',
+        );
+        final after = _obs(
+          observedAt: DateTime.utc(2026, 8, 5),
+          rate: '420',
+          source: 'manual:paralelo',
+        );
+        await series.append(before);
+        await series.append(after);
+
+        expect(
+          await series.candidatesFor(
+            CurrencyCode('VES'),
+            asOf: DateTime.utc(2026, 7, 20),
+          ),
+          [before],
+        );
+      },
+    );
   });
 }
 

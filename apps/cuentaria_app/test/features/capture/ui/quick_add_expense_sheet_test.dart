@@ -569,7 +569,10 @@ void main() {
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      expect(
+        find.text('Valorado a 400.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
       final saveButton = tester.widget<ElevatedButton>(
         find.byKey(const Key('quickAddSaveButton')),
       );
@@ -658,7 +661,10 @@ void main() {
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      expect(
+        find.text('Valorado a 400.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
       final saveButton = tester.widget<ElevatedButton>(
         find.byKey(const Key('quickAddSaveButton')),
       );
