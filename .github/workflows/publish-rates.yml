@@ -1,0 +1,47 @@
+name: Publish rates
+
+on:
+  schedule:
+    - cron: '10 4,10,16,22 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/rates
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Download existing feed
+        run: |
+          curl -sfL -o existing.ndjson \
+            "https://github.com/${{ github.repository }}/releases/download/rates/rates.ndjson" \
+            || : > existing.ndjson
+
+      - name: Fetch sources and merge
+        run: dart run bin/rates.dart existing.ndjson > rates.ndjson
+
+      - name: Publish release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -s rates.ndjson ]; then
+            gh release view rates --repo "${{ github.repository }}" \
+              || gh release create rates --repo "${{ github.repository }}" \
+                   --title "rates" --notes "Append-only exchange rate observations (ADR-0020)."
+            gh release upload rates rates.ndjson --repo "${{ github.repository }}" \
+              --clobber
+          fi

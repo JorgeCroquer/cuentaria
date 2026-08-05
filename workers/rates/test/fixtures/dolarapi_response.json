@@ -1,0 +1,4 @@
+[
+  { "moneda": "USD", "fuente": "oficial",  "promedio": 755.1552,   "fechaActualizacion": "2026-08-05T00:00:00-04:00" },
+  { "moneda": "USD", "fuente": "paralelo", "promedio": 834.370612, "fechaActualizacion": "2026-08-05T19:02:18.542Z" }
+]
