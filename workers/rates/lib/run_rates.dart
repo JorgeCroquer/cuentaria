@@ -1,7 +1,7 @@
 import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/infrastructure/ndjson/ndjson_rate_store.dart';
 
 import 'sources/rate_source.dart';
-import 'storage/ndjson_rate_store.dart';
 
 /// Fetches every [sources] independently (ADR-0020 §2 — no source's failure
 /// blocks another's) and merges what they report into [existingNdjson].

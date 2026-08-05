@@ -1,7 +1,7 @@
 import 'package:decimal/decimal.dart';
-import 'package:rates/storage/ndjson_rate_store.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/infrastructure/ndjson/ndjson_rate_store.dart';
 import 'package:test/test.dart';
 
 RateObservation _obs({

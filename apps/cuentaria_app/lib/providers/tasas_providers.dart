@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/application/record_rate_use_case.dart';
+import 'package:tasas/application/sync_rate_series_use_case.dart';
+import 'package:tasas/domain/rate_feed.dart';
 import 'package:tasas/domain/rate_observation.dart';
 import 'package:tasas/domain/rate_series.dart';
 import 'package:tasas/infrastructure/drift/drift_rate_series.dart';
 import 'package:tasas/infrastructure/drift/tasas_database.dart';
+import 'package:tasas/infrastructure/http/http_rate_feed.dart';
+import 'package:tasas/infrastructure/in_memory/in_memory_rate_feed.dart';
 import 'package:tasas/infrastructure/in_memory/in_memory_rate_series.dart';
 
 import '../infrastructure/persistence/open_tasas_database_stub.dart'
@@ -32,6 +36,25 @@ final recordRateUseCaseProvider = FutureProvider<RecordRateUseCase>((
 ) async {
   final series = await ref.watch(rateSeriesProvider.future);
   return RecordRateUseCase(series);
+});
+
+/// The published rate feed (S2, ADR-0020 §1). Web has no CORS-friendly
+/// path to a raw GitHub Release asset and no durable storage to sync into
+/// either — see [isWebProvider] — so it gets an empty in-memory feed
+/// instead of a real network call.
+final rateFeedProvider = Provider<RateFeed>((ref) {
+  if (ref.watch(isWebProvider)) {
+    return InMemoryRateFeed('');
+  }
+  return HttpRateFeed();
+});
+
+final syncRateSeriesUseCaseProvider = FutureProvider<SyncRateSeriesUseCase>((
+  ref,
+) async {
+  final feed = ref.watch(rateFeedProvider);
+  final series = await ref.watch(rateSeriesProvider.future);
+  return SyncRateSeriesUseCase(feed, series);
 });
 
 /// Latest parallel Rate Observation for [currency] (ADR-0018), watched
