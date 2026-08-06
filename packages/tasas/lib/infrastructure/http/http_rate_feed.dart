@@ -9,6 +9,15 @@ import '../ndjson/ndjson_rate_store.dart';
 /// silent on any network error, timeout, or non-200 response: the app
 /// never blocks or shows an error for a feed it can't reach (ADR-0020 §6),
 /// it just keeps whatever it already has.
+///
+/// Known risk (see ticket #178): this public CDN URL can serve a stale
+/// cached copy, same as the worker's old `curl` download did. The worker
+/// switched to the authenticated `gh release download` API, but the app
+/// has no token and ADR-0020 §1 deliberately keeps it that way — auth
+/// would defeat the "no server" design. Left as-is: the app's local merge
+/// is idempotent and re-syncs on the next fetch, so the worst case is a
+/// phone showing yesterday's rate, which ADR-0020 §6 already announces
+/// rather than hides.
 class HttpRateFeed implements RateFeed {
   static final Uri defaultUrl = Uri.parse(
     'https://github.com/JorgeCroquer/cuentaria/releases/download/rates/rates.ndjson',
