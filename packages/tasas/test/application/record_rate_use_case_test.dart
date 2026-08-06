@@ -19,6 +19,12 @@ class _RecordingRateSeries implements RateSeries {
     String? source,
     DateTime? asOf,
   }) async => throw UnimplementedError();
+
+  @override
+  Future<List<RateObservation>> candidatesFor(
+    CurrencyCode currency, {
+    DateTime? asOf,
+  }) async => throw UnimplementedError();
 }
 
 RateObservation _obs({

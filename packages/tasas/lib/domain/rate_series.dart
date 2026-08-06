@@ -19,4 +19,12 @@ abstract class RateSeries {
     String? source,
     DateTime? asOf,
   });
+
+  /// The latest observation of each source for [currency], at or before
+  /// [asOf] when given — the candidates the Rate Resolution Chain (#165)
+  /// picks from, instead of loading the whole series.
+  Future<List<RateObservation>> candidatesFor(
+    CurrencyCode currency, {
+    DateTime? asOf,
+  });
 }

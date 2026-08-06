@@ -71,4 +71,45 @@ class DriftRateSeries implements RateSeries {
       source: row.source,
     );
   }
+
+  @override
+  Future<List<RateObservation>> candidatesFor(
+    CurrencyCode currency, {
+    DateTime? asOf,
+  }) async {
+    final rows =
+        await (_db.select(_db.rateObservations)
+              ..where(
+                (t) =>
+                    t.currency.equals(currency.value) &
+                    (asOf == null
+                        ? const Constant(true)
+                        : t.observedAt.isSmallerOrEqualValue(
+                          asOf.microsecondsSinceEpoch,
+                        )),
+              )
+              ..orderBy([
+                (t) => OrderingTerm.desc(t.observedAt),
+                (t) => OrderingTerm.desc(t.id),
+              ]))
+            .get();
+
+    final seenSources = <String>{};
+    final candidates = <RateObservation>[];
+    for (final row in rows) {
+      if (!seenSources.add(row.source)) continue;
+      candidates.add(
+        RateObservation(
+          currency: CurrencyCode(row.currency),
+          nativePerUsd: Decimal.parse(row.nativePerUsd),
+          observedAt: DateTime.fromMicrosecondsSinceEpoch(
+            row.observedAt,
+            isUtc: true,
+          ),
+          source: row.source,
+        ),
+      );
+    }
+    return candidates;
+  }
 }
