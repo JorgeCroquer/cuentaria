@@ -145,6 +145,10 @@ class _PatrimonioBody extends ConsumerWidget {
             children: [
               _Header(snapshot: snapshot),
               const SizedBox(height: 24),
+              const Text(
+                'Sobres (a costo congelado)',
+                key: Key('envelopesFrozenCostLabel'),
+              ),
               for (final envelope in snapshot.envelopes)
                 _EnvelopeTile(envelope: envelope),
               const SizedBox(height: 24),
