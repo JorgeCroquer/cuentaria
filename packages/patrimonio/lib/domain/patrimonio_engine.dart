@@ -51,13 +51,19 @@ class PatrimonioEngine {
           account.nativeMinorAmount,
           parallel.nativePerUsd,
         );
-        group.observedAt = parallel.observedAt;
+        group.parallelRate = parallel;
       }
 
-      group.bcvReferenceUsdCents +=
-          bcv == null
-              ? account.realCostUsdCents
-              : _convert(account.nativeMinorAmount, bcv.nativePerUsd);
+      if (bcv == null) {
+        group.bcvReferenceUsdCents += account.realCostUsdCents;
+        group.hasBcvRate = false;
+      } else {
+        group.bcvReferenceUsdCents += _convert(
+          account.nativeMinorAmount,
+          bcv.nativePerUsd,
+        );
+        group.bcvRate = bcv;
+      }
     }
 
     final accountGroups = groups.values.map((g) => g.toView()).toList();
@@ -247,7 +253,9 @@ class _MutableGroup {
   int todayValueUsdCents = 0;
   int bcvReferenceUsdCents = 0;
   bool hasRate = true;
-  DateTime? observedAt;
+  bool hasBcvRate = true;
+  RateObservationView? parallelRate;
+  RateObservationView? bcvRate;
 
   _MutableGroup(this.currency);
 
@@ -258,6 +266,8 @@ class _MutableGroup {
     todayValueUsdCents: todayValueUsdCents,
     bcvReferenceUsdCents: bcvReferenceUsdCents,
     hasRate: hasRate,
-    observedAt: observedAt,
+    hasBcvRate: hasBcvRate,
+    parallelRate: parallelRate,
+    bcvRate: bcvRate,
   );
 }
