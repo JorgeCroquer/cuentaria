@@ -3,11 +3,10 @@ import 'package:contabilidad/application/catalog/exceptions.dart';
 import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 import 'package:contabilidad/application/ledger/factories/record_usd_expense.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/application/rate_resolution_service.dart';
 import 'package:tasas/domain/rate_series.dart';
 
 import 'rate_exceptions.dart';
-
-const _paraleloSource = 'manual:paralelo';
 
 /// Derives the right Transaction Factory from the paying Account's currency
 /// (U1, #97): USD posts a plain expense, Bs/foreign posts a realization
@@ -59,12 +58,11 @@ class QuickAddExpenseUseCase {
       return;
     }
 
-    final observation = await _rateSeries.latestFor(
+    final resolution = await RateResolutionService(_rateSeries)(
       account.nativeCurrency,
-      source: _paraleloSource,
       asOf: occurredAt?.value,
     );
-    if (observation == null) {
+    if (resolution == null) {
       throw RateNotAvailable(
         'No parallel rate observed for ${account.nativeCurrency.value}',
       );
@@ -76,7 +74,7 @@ class QuickAddExpenseUseCase {
       accountId: accountId,
       destinationEnvelopeId: envelopeId,
       nativeAmount: amount,
-      currentRate: observation.nativePerUsd,
+      currentRate: resolution.nativePerUsd,
       occurredAt: occurredAt,
       memo: note,
     );

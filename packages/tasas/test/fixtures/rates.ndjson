@@ -1,0 +1,4 @@
+{"currency":"VES","source":"dolarapi:oficial","nativePerUsd":"250.5","observedAt":"2026-08-05T04:10:00.000Z"}
+{"currency":"VES","source":"dolarapi:paralelo","nativePerUsd":"834.370612","observedAt":"2026-08-05T04:10:00.000Z"}
+{"currency":"VES","source":"binancep2p:ask","nativePerUsd":"845.88","observedAt":"2026-08-05T04:10:00.000Z"}
+{"currency":"VES","source":"binancep2p:bid","nativePerUsd":"840.12","observedAt":"2026-08-05T04:10:00.000Z"}

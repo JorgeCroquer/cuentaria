@@ -6,6 +6,7 @@ import 'package:contabilidad/domain/transaction.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/capture/application/capture_providers.dart';
 import 'package:cuentaria_app/features/capture/ui/screens/quick_add_expense_sheet.dart';
+import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
 import 'package:decimal/decimal.dart';
@@ -569,7 +570,10 @@ void main() {
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      expect(
+        find.text('Valorado a 400.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
       final saveButton = tester.widget<ElevatedButton>(
         find.byKey(const Key('quickAddSaveButton')),
       );
@@ -623,6 +627,138 @@ void main() {
       expect(saveButton.onPressed, isNotNull);
     });
 
+    testWidgets(
+      'a Bs Gasto valued by an automatic source names it and shows its '
+      'recency, not just the number (#165, ADR-0018 "la app siempre '
+      'anuncia con qué valoró")',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-ves'),
+          name: 'Bs wallet',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+        await catalog.saveEnvelope(
+          Envelope(
+            id: EnvelopeId('env-food'),
+            name: 'Food',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        // Stay within the current calendar day regardless of what time the
+        // suite happens to run at (e.g. shortly after local midnight, where
+        // a flat 2h lookback would roll into "yesterday" and hit the stale
+        // branch instead of the today/recency one under test).
+        final hoursAgo = DateTime.now().hour >= 2 ? 2 : 0;
+        final rateSeries = await container.read(rateSeriesProvider.future);
+        await rateSeries.append(
+          RateObservation(
+            currency: CurrencyCode('VES'),
+            nativePerUsd: Decimal.parse('845.88'),
+            observedAt: DateTime.now().toUtc().subtract(
+              Duration(hours: hoursAgo),
+            ),
+            source: 'binancep2p:ask',
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        await tester.tap(find.byKey(const Key('keypadDigit_5')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Valorado a 845.88 VES/USD · Binance P2P, hace $hoursAgo h',
+          ),
+          findsOneWidget,
+        );
+        final saveButton = tester.widget<ElevatedButton>(
+          find.byKey(const Key('quickAddSaveButton')),
+        );
+        expect(saveButton.onPressed, isNotNull);
+      },
+    );
+
+    testWidgets('recording a manual paralela from Patrimonio and returning to '
+        'capture updates the announcement and the posted value (#165)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-ves'),
+        name: 'Bs wallet',
+        nativeCurrency: CurrencyCode('VES'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+      final envelope = Envelope(
+        id: EnvelopeId('env-food'),
+        name: 'Food',
+        role: EnvelopeRole.none,
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveEnvelope(envelope);
+
+      // Record a manual paralela of 900 from the Patrimonio screen.
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: PatrimonioScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('recordRatesAction')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('bcvRateField')), '40');
+      await tester.enterText(find.byKey(const Key('paraleloRateField')), '900');
+      await tester.tap(find.byKey(const Key('saveRatesButton')));
+      await tester.pumpAndSettle();
+
+      // Back to capture — same container, fresh sheet.
+      await _openSheet(tester, existing: container);
+
+      for (final digit in const ['1', '0', '0', '0', '0', '0', '0']) {
+        await tester.tap(find.byKey(Key('keypadDigit_$digit')));
+      }
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Valorado a 900.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+      await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+      await tester.pumpAndSettle();
+
+      final store = await container.read(eventStoreProvider.future);
+      final log = await store.queryLog();
+      final tx = log.last;
+      final expensePosting = tx.postings.firstWhere(
+        (p) => p.target == EnvelopeTarget(envelope.id),
+      );
+      // 10,000.00 VES / 900 VES per USD = $11.11 (1111 cents), per the
+      // PRD's numeric example for the Patrimonio → capture round trip.
+      expect(expensePosting.amountUsd, -1111);
+    });
+
     testWidgets('an Ingreso to a Bs account shows the valuation rate and '
         "date once one is registered — today's rate never blocks Save "
         '(ADR-0018 §6)', (tester) async {
@@ -658,7 +794,10 @@ void main() {
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Valorado a 400.00 VES/USD · hoy'), findsOneWidget);
+      expect(
+        find.text('Valorado a 400.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
       final saveButton = tester.widget<ElevatedButton>(
         find.byKey(const Key('quickAddSaveButton')),
       );

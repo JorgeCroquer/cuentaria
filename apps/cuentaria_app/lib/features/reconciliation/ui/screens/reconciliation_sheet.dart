@@ -5,7 +5,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
-import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
@@ -569,14 +569,14 @@ class _RoutedRateAnnouncement extends ConsumerWidget {
       paraleloRateAsOfProvider((currency, date.toUtc())),
     );
     return rateAsync.when(
-      data: (observation) => _build(context, observation),
+      data: (resolution) => _build(context, resolution),
       loading: () => const SizedBox.shrink(),
       error: (_, __) => const SizedBox.shrink(),
     );
   }
 
-  Widget _build(BuildContext context, RateObservation? observation) {
-    if (observation == null) {
+  Widget _build(BuildContext context, Resolution? resolution) {
+    if (resolution == null) {
       return Padding(
         padding: const EdgeInsets.only(top: 4),
         child: Text(
@@ -587,8 +587,8 @@ class _RoutedRateAnnouncement extends ConsumerWidget {
       );
     }
 
-    final observedLocal = observation.observedAt.toLocal();
-    final rateText = observation.nativePerUsd.toStringAsFixed(2);
+    final observedLocal = resolution.observedAt.toLocal();
+    final rateText = resolution.nativePerUsd.toStringAsFixed(2);
 
     if (_isSameDay(observedLocal, date)) {
       return Padding(

@@ -29,4 +29,22 @@ class InMemoryRateSeries implements RateSeries {
     }
     return latest;
   }
+
+  @override
+  Future<List<RateObservation>> candidatesFor(
+    CurrencyCode currency, {
+    DateTime? asOf,
+  }) async {
+    final latestBySource = <String, RateObservation>{};
+    for (final observation in _observations) {
+      if (observation.currency != currency) continue;
+      if (asOf != null && observation.observedAt.isAfter(asOf)) continue;
+      final current = latestBySource[observation.source];
+      if (current == null ||
+          !observation.observedAt.isBefore(current.observedAt)) {
+        latestBySource[observation.source] = observation;
+      }
+    }
+    return latestBySource.values.toList();
+  }
 }

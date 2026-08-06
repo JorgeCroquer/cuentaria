@@ -3,8 +3,11 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/application/rate_resolution_service.dart';
+import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../../providers/composition_root.dart';
+import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../../reconciliation/ui/screens/reconciliation_sheet.dart';
@@ -12,6 +15,22 @@ import '../../application/account_providers.dart';
 import '../account_form_validators.dart';
 
 const _availableCurrencies = ['USD', 'VES', 'EUR'];
+
+/// Human-readable provenance for a resolved Rate (#165/#166), matching the
+/// announcement copy already used at capture time (ADR-0018 "la app
+/// siempre anuncia con qué valoró").
+String _sourceLabel(String source) => switch (source) {
+  'binancep2p:ask' => 'Binance P2P',
+  'dolarapi:paralelo' => 'DolarApi',
+  _ => 'manual',
+};
+
+String _formatDate(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
 
 String _colorToHex(Color color) =>
     '#${color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase()}';
@@ -261,6 +280,8 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
   String? _colorHex;
   String? _error;
   bool _isSaving = false;
+  Resolution? _suggestedRate;
+  bool _rateOverridden = false;
 
   @override
   void initState() {
@@ -288,6 +309,28 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
   bool get _needsOpeningBalanceRate {
     if (widget.isEdit) return false;
     return _currency != 'USD';
+  }
+
+  /// Proposes the currency's already-known parallel rate (#166) so a fresh
+  /// VES/etc. account doesn't ask the user for a number the app already
+  /// has — the same Rate Resolution Chain [latestParaleloRateProvider]
+  /// wraps for the capture sheet's valuation hint, called directly here
+  /// rather than through that provider: it isn't autoDispose, so reading it
+  /// this early (before the account/rate even exist) would cache a stale
+  /// `null` that nothing besides that provider's own writers would know to
+  /// invalidate. A currency with no automatic source (e.g. EUR) resolves to
+  /// `null` and the field stays empty, unchanged from today's behavior.
+  Future<void> _loadSuggestedRate() async {
+    final currency = CurrencyCode(_currency);
+    final series = await ref.read(rateSeriesProvider.future);
+    final resolution = await RateResolutionService(series)(currency);
+    if (!mounted || _currency != currency.value) return;
+    setState(() {
+      _suggestedRate = resolution;
+      if (resolution != null && !_rateOverridden) {
+        _openingBalanceRateController.text = resolution.nativePerUsd.toString();
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -391,7 +434,14 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                     DropdownMenuItem(value: code, child: Text(code)),
                 ],
                 onChanged: (value) {
-                  if (value != null) setState(() => _currency = value);
+                  if (value == null) return;
+                  setState(() {
+                    _currency = value;
+                    _suggestedRate = null;
+                    _rateOverridden = false;
+                    _openingBalanceRateController.clear();
+                  });
+                  if (value != 'USD') _loadSuggestedRate();
                 },
               ),
             const SizedBox(height: 8),
@@ -440,7 +490,19 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                   decoration: InputDecoration(
                     labelText: 'Exchange rate ($_currency per USD)',
                   ),
+                  onChanged: (_) => setState(() => _rateOverridden = true),
                 ),
+                if (_suggestedRate != null && !_rateOverridden)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      '${_suggestedRate!.nativePerUsd.toStringAsFixed(2)} '
+                      '(${_sourceLabel(_suggestedRate!.source)}, '
+                      '${_formatDate(_suggestedRate!.observedAt.toLocal())})',
+                      key: const Key('suggestedRateAnnouncement'),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
               ],
             ],
             if (_error != null) ...[

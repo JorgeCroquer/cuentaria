@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/application/rate_resolution_service.dart';
 import 'package:tasas/domain/rate_series.dart';
 
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
@@ -8,8 +9,6 @@ import 'package:contabilidad/application/ledger/factories/record_acquisition_con
 import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
 import 'package:contabilidad/domain/rate_calculator.dart';
-
-const _paraleloSource = 'manual:paralelo';
 
 /// Derives the right Transaction Factory from the currencies of the two
 /// Accounts (U1-14, #98/#116): same currency posts a plain transfer (valued
@@ -64,11 +63,10 @@ class QuickAddMoverUseCase {
     if (source.nativeCurrency == destination.nativeCurrency) {
       Decimal? parallelRate;
       if (source.nativeCurrency != CurrencyCode('USD')) {
-        final observation = await _rateSeries.latestFor(
+        final resolution = await RateResolutionService(_rateSeries)(
           source.nativeCurrency,
-          source: _paraleloSource,
         );
-        parallelRate = observation?.nativePerUsd;
+        parallelRate = resolution?.nativePerUsd;
       }
 
       await _recordTransfer(

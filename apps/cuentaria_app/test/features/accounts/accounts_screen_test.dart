@@ -7,10 +7,12 @@ import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/accounts/ui/screens/accounts_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 Future<void> pumpWithContainer(
   WidgetTester tester,
@@ -367,6 +369,157 @@ void main() {
 
       expect(observation, isNotNull);
       expect(observation!.nativePerUsd.toString(), '90');
+    },
+  );
+
+  testWidgets('pre-fills the exchange rate and announces its source when the '
+      'currency already has a known parallel rate (#166)', (tester) async {
+    final container = await pumpAccountsScreen(tester);
+    final rateSeries = await container.read(rateSeriesProvider.future);
+    await rateSeries.append(
+      RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('845.88'),
+        observedAt: DateTime.now().toUtc(),
+        source: 'binancep2p:ask',
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+    await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('VES').last);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('openingBalanceRateField')))
+          .controller!
+          .text,
+      '845.88',
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const Key('suggestedRateAnnouncement')))
+          .data,
+      contains('Binance P2P'),
+    );
+  });
+
+  testWidgets(
+    'leaves the exchange rate empty and unannounced for a currency with no '
+    'known rate (EUR) (#166)',
+    (tester) async {
+      await pumpAccountsScreen(tester);
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'Wise');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('EUR').last);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('openingBalanceRateField')))
+            .controller!
+            .text,
+        '',
+      );
+      expect(find.byKey(const Key('suggestedRateAnnouncement')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'the user can override the suggested rate; the override is what gets '
+    'recorded (#166)',
+    (tester) async {
+      final container = await pumpAccountsScreen(tester);
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('845.88'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'binancep2p:ask',
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceRateField')),
+        '999',
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('suggestedRateAnnouncement')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      final observation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'manual:paralelo',
+      );
+      expect(observation!.nativePerUsd.toString(), '999');
+    },
+  );
+
+  testWidgets(
+    'creates the account with the suggested rate when the user does not '
+    'override it (#166)',
+    (tester) async {
+      final container = await pumpAccountsScreen(tester);
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('845.88'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'binancep2p:ask',
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceField')),
+        '50000',
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final account = catalog.accounts.singleWhere((a) => a.name == 'BdV');
+
+      // 50,000 Bs at the suggested 845.88 Bs/USD => $59.11 (device AC).
+      expect(projections.accountBalance(account.id).usd, 5911);
+      final observation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'manual:paralelo',
+      );
+      expect(observation!.nativePerUsd.toString(), '845.88');
     },
   );
 
