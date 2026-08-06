@@ -17,6 +17,7 @@ final rateSyncTriggerProvider = Provider<AppLifecycleListener>((ref) {
     await useCase.sync();
     ref.invalidate(patrimonioSnapshotProvider);
     ref.invalidate(latestParaleloRateProvider);
+    ref.invalidate(latestOficialRateProvider);
   }
 
   final listener = AppLifecycleListener(onResume: sync);

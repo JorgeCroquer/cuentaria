@@ -66,6 +66,20 @@ final latestParaleloRateProvider =
       return RateResolutionService(series)(currency);
     });
 
+/// Latest resolved BCV/"oficial" Rate (#166, #175), the same Chain as
+/// [latestParaleloRateProvider] but resolved with [oficialSourcePriority] —
+/// used to pre-fill the manual rates form so accepting the suggestion never
+/// fabricates a `manual:bcv` observation that would outrank the real
+/// `dolarapi:oficial` reading (ADR-0020).
+final latestOficialRateProvider =
+    FutureProvider.family<Resolution?, CurrencyCode>((ref, currency) async {
+      final series = await ref.watch(rateSeriesProvider.future);
+      return RateResolutionService(series)(
+        currency,
+        sourcePriority: oficialSourcePriority,
+      );
+    });
+
 /// Resolved parallel Rate for [currency] as of a given date (ADR-0019 §5)
 /// — used by routed Reconciliation capture to preview what a
 /// late-registered Income/Expense will freeze at.

@@ -3,19 +3,22 @@ import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
 /// One captured side of a currency's rate (ADR-0016): how many native units
-/// are worth one USD, and when that was observed — exposed so the UI can
-/// show staleness instead of hiding it.
+/// are worth one USD, when that was observed, and which source it came from
+/// — exposed so the UI can announce provenance and staleness instead of
+/// hiding them (ADR-0018 §4).
 class RateObservationView extends Equatable {
   final Decimal nativePerUsd;
   final DateTime observedAt;
+  final String source;
 
   const RateObservationView({
     required this.nativePerUsd,
     required this.observedAt,
+    required this.source,
   });
 
   @override
-  List<Object?> get props => [nativePerUsd, observedAt];
+  List<Object?> get props => [nativePerUsd, observedAt, source];
 }
 
 /// Patrimonio-owned read view of a currency's known rates. [parallel] values

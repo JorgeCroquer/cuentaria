@@ -41,10 +41,12 @@ void main() {
           parallel: RateObservationView(
             nativePerUsd: Decimal.parse('100'),
             observedAt: observedAt,
+            source: 'binancep2p:ask',
           ),
           bcv: RateObservationView(
             nativePerUsd: Decimal.parse('50'),
             observedAt: observedAt,
+            source: 'dolarapi:oficial',
           ),
         ),
       };
@@ -60,7 +62,13 @@ void main() {
       final group = snapshot.accountGroups.single;
       expect(group.currency, ves);
       expect(group.hasRate, isTrue);
-      expect(group.observedAt, observedAt);
+      expect(group.parallelRate?.observedAt, observedAt);
+      expect(group.parallelRate?.nativePerUsd, Decimal.parse('100'));
+      expect(group.parallelRate?.source, 'binancep2p:ask');
+      expect(group.hasBcvRate, isTrue);
+      expect(group.bcvRate?.observedAt, observedAt);
+      expect(group.bcvRate?.nativePerUsd, Decimal.parse('50'));
+      expect(group.bcvRate?.source, 'dolarapi:oficial');
     });
 
     test('missing rate: currency without an observation falls back to real '
@@ -78,6 +86,9 @@ void main() {
       expect(snapshot.unrealizedPnlUsdCents, 0);
       expect(snapshot.hasMissingRate, isTrue);
       expect(snapshot.accountGroups.single.hasRate, isFalse);
+      expect(snapshot.accountGroups.single.hasBcvRate, isFalse);
+      expect(snapshot.accountGroups.single.parallelRate, isNull);
+      expect(snapshot.accountGroups.single.bcvRate, isNull);
     });
 
     test('stale rate date: the observation date is exposed as-is', () {
@@ -92,13 +103,14 @@ void main() {
           parallel: RateObservationView(
             nativePerUsd: Decimal.parse('100'),
             observedAt: longAgo,
+            source: 'manual:paralelo',
           ),
         ),
       };
 
       final snapshot = engine([account], rates, const [], observedAt);
 
-      expect(snapshot.accountGroups.single.observedAt, longAgo);
+      expect(snapshot.accountGroups.single.parallelRate?.observedAt, longAgo);
     });
 
     test('archived accounts are excluded from every total', () {
@@ -119,6 +131,7 @@ void main() {
           parallel: RateObservationView(
             nativePerUsd: Decimal.parse('100'),
             observedAt: observedAt,
+            source: 'binancep2p:ask',
           ),
         ),
       };
@@ -171,6 +184,7 @@ void main() {
           parallel: RateObservationView(
             nativePerUsd: Decimal.parse('3'),
             observedAt: observedAt,
+            source: 'binancep2p:ask',
           ),
         ),
       };
