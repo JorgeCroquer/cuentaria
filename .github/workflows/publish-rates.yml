@@ -26,9 +26,15 @@ jobs:
         run: dart pub get
 
       - name: Download existing feed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          curl -sfL -o existing.ndjson \
-            "https://github.com/${{ github.repository }}/releases/download/rates/rates.ndjson" \
+          # gh release download hits the authenticated API, not the public
+          # release-asset CDN behind the browser download URL — the CDN can
+          # serve a stale cached copy (observed up to 9h old), which silently
+          # truncates the published series on republish. See ticket #178.
+          gh release download rates --repo "${{ github.repository }}" \
+            --pattern rates.ndjson --output existing.ndjson --clobber \
             || : > existing.ndjson
 
       - name: Fetch sources and merge
