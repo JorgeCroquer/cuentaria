@@ -66,5 +66,35 @@ void main() {
       );
       expect(series.appended, isEmpty);
     });
+
+    test('appends only paralelo when bcv is omitted (#175)', () async {
+      final series = _RecordingRateSeries();
+      final useCase = RecordRateUseCase(series);
+
+      final paralelo = _obs(rate: '90', source: 'manual:paralelo');
+
+      await useCase.execute(paralelo: paralelo);
+
+      expect(series.appended, [paralelo]);
+    });
+
+    test('appends only bcv when paralelo is omitted (#175)', () async {
+      final series = _RecordingRateSeries();
+      final useCase = RecordRateUseCase(series);
+
+      final bcv = _obs(rate: '37.5', source: 'manual:bcv');
+
+      await useCase.execute(bcv: bcv);
+
+      expect(series.appended, [bcv]);
+    });
+
+    test('rejects when neither is given', () async {
+      final series = _RecordingRateSeries();
+      final useCase = RecordRateUseCase(series);
+
+      expect(() => useCase.execute(), throwsArgumentError);
+      expect(series.appended, isEmpty);
+    });
   });
 }
