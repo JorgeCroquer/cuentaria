@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
+import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
@@ -12,6 +13,23 @@ import '../../../../ui/theme/app_theme.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Human-readable provenance for a resolved Rate suggestion (#175), same
+/// convention as the account-creation and quick-add forms (ADR-0018 "la app
+/// siempre anuncia con qué valoró").
+String _sourceLabel(String source) => switch (source) {
+  'dolarapi:oficial' => 'DolarApi (oficial)',
+  'binancep2p:ask' => 'Binance P2P',
+  'dolarapi:paralelo' => 'DolarApi',
+  _ => 'manual',
+};
+
+String _formatRateDate(DateTime date) {
+  final year = date.year.toString().padLeft(4, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  final day = date.day.toString().padLeft(2, '0');
+  return '$year-$month-$day';
+}
 
 String _formatNativeAmount(BigInt minorAmount, CurrencyCode currency) {
   final decimal =
@@ -406,8 +424,14 @@ class RecordRatesDialog extends ConsumerStatefulWidget {
 }
 
 class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
+  static final _currency = CurrencyCode('VES');
+
   final _bcvController = TextEditingController();
   final _paraleloController = TextEditingController();
+  Resolution? _suggestedBcv;
+  Resolution? _suggestedParalelo;
+  bool _bcvPrefilled = false;
+  bool _paraleloPrefilled = false;
   String? _error;
   bool _isSaving = false;
 
@@ -418,11 +442,42 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
     super.dispose();
   }
 
+  /// Pre-fills each field from the Rate Resolution Chain (#166) the first
+  /// time its suggestion resolves — [_bcvPrefilled]/[_paraleloPrefilled]
+  /// keep it from clobbering text the user is already editing on a later
+  /// rebuild. A currency with no automatic source just leaves the field
+  /// empty, unchanged from today's behavior.
+  void _prefill(Resolution? bcv, Resolution? paralelo) {
+    if (!_bcvPrefilled) {
+      _bcvPrefilled = true;
+      _suggestedBcv = bcv;
+      if (bcv != null) _bcvController.text = bcv.nativePerUsd.toString();
+    }
+    if (!_paraleloPrefilled) {
+      _paraleloPrefilled = true;
+      _suggestedParalelo = paralelo;
+      if (paralelo != null) {
+        _paraleloController.text = paralelo.nativePerUsd.toString();
+      }
+    }
+  }
+
   Future<void> _save() async {
     final bcvRate = Decimal.tryParse(_bcvController.text);
     final paraleloRate = Decimal.tryParse(_paraleloController.text);
     if (bcvRate == null || paraleloRate == null) {
       setState(() => _error = 'Enter both rates as a number.');
+      return;
+    }
+
+    // Only what the user actually typed a different number for becomes an
+    // observation (#175, ADR-0020 §S1-6) — accepting the Chain's suggestion
+    // for one series must never fabricate a manual entry that would
+    // outrank the real automatic source for the rest of the day.
+    final bcvChanged = bcvRate != _suggestedBcv?.nativePerUsd;
+    final paraleloChanged = paraleloRate != _suggestedParalelo?.nativePerUsd;
+    if (!bcvChanged && !paraleloChanged) {
+      Navigator.of(context).pop();
       return;
     }
 
@@ -434,29 +489,35 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
     try {
       final useCase = await ref.read(recordRateUseCaseProvider.future);
       final observedAt = DateTime.now().toUtc();
-      final currency = CurrencyCode('VES');
 
       await useCase.execute(
-        bcv: RateObservation(
-          currency: currency,
-          nativePerUsd: bcvRate,
-          observedAt: observedAt,
-          source: 'manual:bcv',
-        ),
-        paralelo: RateObservation(
-          currency: currency,
-          nativePerUsd: paraleloRate,
-          observedAt: observedAt,
-          source: 'manual:paralelo',
-        ),
+        bcv:
+            bcvChanged
+                ? RateObservation(
+                  currency: _currency,
+                  nativePerUsd: bcvRate,
+                  observedAt: observedAt,
+                  source: 'manual:bcv',
+                )
+                : null,
+        paralelo:
+            paraleloChanged
+                ? RateObservation(
+                  currency: _currency,
+                  nativePerUsd: paraleloRate,
+                  observedAt: observedAt,
+                  source: 'manual:paralelo',
+                )
+                : null,
       );
 
       ref.invalidate(patrimonioSnapshotProvider);
       // Not rateSeriesProvider itself: on web it constructs a fresh, empty
       // InMemoryRateSeries — invalidating it would discard every previously
-      // recorded observation. Re-reading the lookup provider is enough,
-      // since it re-queries the same (still-cached) RateSeries instance.
+      // recorded observation. Re-reading the lookup providers is enough,
+      // since they re-query the same (still-cached) RateSeries instance.
       ref.invalidate(latestParaleloRateProvider);
+      ref.invalidate(latestOficialRateProvider);
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       setState(() => _error = e.toString());
@@ -467,10 +528,17 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final bcvAsync = ref.watch(latestOficialRateProvider(_currency));
+    final paraleloAsync = ref.watch(latestParaleloRateProvider(_currency));
+    if (bcvAsync.hasValue && paraleloAsync.hasValue) {
+      _prefill(bcvAsync.value, paraleloAsync.value);
+    }
+
     return AlertDialog(
       title: const Text('Record today\'s rates'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           TextField(
             key: const Key('bcvRateField'),
@@ -478,6 +546,16 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(labelText: 'BCV (VES per USD)'),
           ),
+          if (_suggestedBcv != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '${_sourceLabel(_suggestedBcv!.source)}, '
+                '${_formatRateDate(_suggestedBcv!.observedAt.toLocal())}',
+                key: const Key('suggestedBcvAnnouncement'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           const SizedBox(height: 8),
           TextField(
             key: const Key('paraleloRateField'),
@@ -487,6 +565,16 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
               labelText: 'Paralelo (VES per USD)',
             ),
           ),
+          if (_suggestedParalelo != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '${_sourceLabel(_suggestedParalelo!.source)}, '
+                '${_formatRateDate(_suggestedParalelo!.observedAt.toLocal())}',
+                key: const Key('suggestedParaleloAnnouncement'),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(
