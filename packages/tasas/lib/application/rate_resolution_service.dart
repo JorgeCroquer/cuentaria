@@ -12,9 +12,22 @@ class RateResolutionService {
 
   RateResolutionService(this._series);
 
-  Future<Resolution?> call(CurrencyCode currency, {DateTime? asOf}) async {
+  /// [sourcePriority] is forwarded to [resolve]; omit it to resolve the
+  /// default parallel chain, or pass [oficialSourcePriority] to resolve the
+  /// BCV series instead (#166).
+  Future<Resolution?> call(
+    CurrencyCode currency, {
+    DateTime? asOf,
+    List<String>? sourcePriority,
+  }) async {
     final cutoff = asOf ?? DateTime.now().toUtc();
     final candidates = await _series.candidatesFor(currency, asOf: cutoff);
-    return resolve(currency, cutoff, candidates);
+    if (sourcePriority == null) return resolve(currency, cutoff, candidates);
+    return resolve(
+      currency,
+      cutoff,
+      candidates,
+      sourcePriority: sourcePriority,
+    );
   }
 }

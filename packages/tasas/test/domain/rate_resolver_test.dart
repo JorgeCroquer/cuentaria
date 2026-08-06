@@ -156,6 +156,50 @@ void main() {
       expect(resolve(ves, today, [bcv, oficial]), isNull);
     });
 
+    test('oficialSourcePriority: dolarapi:oficial beats manual:bcv on the '
+        'same day', () {
+      final bcv = _obs(rate: '45.00', observedAt: today, source: 'manual:bcv');
+      final oficial = _obs(
+        rate: '48.00',
+        observedAt: today,
+        source: 'dolarapi:oficial',
+      );
+
+      final resolution = resolve(ves, today, [
+        bcv,
+        oficial,
+      ], sourcePriority: oficialSourcePriority);
+
+      expect(resolution?.source, 'dolarapi:oficial');
+      expect(resolution?.nativePerUsd, Decimal.parse('48.00'));
+    });
+
+    test('oficialSourcePriority: manual:bcv wins as the sole candidate — '
+        'the backup the BCV chain falls to when there is no automatic', () {
+      final bcv = _obs(rate: '45.00', observedAt: today, source: 'manual:bcv');
+
+      final resolution = resolve(ves, today, [
+        bcv,
+      ], sourcePriority: oficialSourcePriority);
+
+      expect(resolution?.source, 'manual:bcv');
+      expect(resolution?.nativePerUsd, Decimal.parse('45.00'));
+    });
+
+    test('oficialSourcePriority: candidates outside it (e.g. '
+        'manual:paralelo) never win', () {
+      final paralelo = _obs(
+        rate: '900.00',
+        observedAt: today,
+        source: 'manual:paralelo',
+      );
+
+      expect(
+        resolve(ves, today, [paralelo], sourcePriority: oficialSourcePriority),
+        isNull,
+      );
+    });
+
     test('asOf in the past resolves with the observations at or before that '
         'date, ignoring later ones', () {
       final past = DateTime.utc(2026, 7, 1);

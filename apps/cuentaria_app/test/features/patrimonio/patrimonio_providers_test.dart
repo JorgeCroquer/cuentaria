@@ -204,6 +204,148 @@ void main() {
         expect(snapshot.hasMissingRate, isFalse);
       },
     );
+
+    test('the BCV reference resolves from dolarapi:oficial with no manual '
+        'entry (#166)', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+
+      final vesAccountId = AccountId('ves-1');
+      await catalog.saveAccount(
+        Account(
+          id: vesAccountId,
+          name: 'Cuenta Bs',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // 755.16 Bs (75516 minor units) at 755.16 Bs/USD => exactly $1.00.
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(vesAccountId),
+              amountNative: Money(
+                amount: BigInt.from(75516),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 100,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(75516),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 100,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-ves-oficial'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('755.16'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'dolarapi:oficial',
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      expect(snapshot.bcvReferenceUsdCents, 100);
+    });
+
+    test('the BCV reference falls back to manual:bcv when there is no '
+        'dolarapi:oficial observation (#166)', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+
+      final vesAccountId = AccountId('ves-1');
+      await catalog.saveAccount(
+        Account(
+          id: vesAccountId,
+          name: 'Cuenta Bs',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // 50.00 Bs (5000 minor units) at 50 Bs/USD => exactly $1.00.
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(vesAccountId),
+              amountNative: Money(
+                amount: BigInt.from(5000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 100,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(5000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 100,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-ves-bcv-fallback'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:bcv',
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+      expect(snapshot.bcvReferenceUsdCents, 100);
+    });
   });
 
   group('patrimonioSnapshotProvider envelopes', () {
