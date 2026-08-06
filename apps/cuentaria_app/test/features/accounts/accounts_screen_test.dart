@@ -479,7 +479,7 @@ void main() {
 
   testWidgets(
     'creates the account with the suggested rate when the user does not '
-    'override it (#166)',
+    'override it, without fabricating a manual observation (#166, #174)',
     (tester) async {
       final container = await pumpAccountsScreen(tester);
       final rateSeries = await container.read(rateSeriesProvider.future);
@@ -515,11 +515,23 @@ void main() {
 
       // 50,000 Bs at the suggested 845.88 Bs/USD => $59.11 (device AC).
       expect(projections.accountBalance(account.id).usd, 5911);
-      final observation = await rateSeries.latestFor(
+      final manualObservation = await rateSeries.latestFor(
         CurrencyCode('VES'),
         source: 'manual:paralelo',
       );
-      expect(observation!.nativePerUsd.toString(), '845.88');
+      expect(
+        manualObservation,
+        isNull,
+        reason:
+            'accepting the suggestion verbatim must not fabricate a manual '
+            'observation that would outrank binancep2p:ask for the rest of '
+            'the day (#174)',
+      );
+      final automaticObservation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'binancep2p:ask',
+      );
+      expect(automaticObservation!.nativePerUsd.toString(), '845.88');
     },
   );
 

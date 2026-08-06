@@ -15,6 +15,12 @@ const _paraleloSource = 'manual:paralelo';
 /// The observation is dated to [occurredAt] — the fact date of the opening,
 /// which may be retroactive — never to "now", so a backdated opening never
 /// masquerades as today's rate.
+///
+/// When [suggestedRate] is given (the Rate Resolution Chain's proposal,
+/// #166) and [openingBalanceRate] matches it verbatim, no observation is
+/// appended: the user accepted the automatic rate, they didn't type one, so
+/// fabricating a `manual:paralelo` observation would outrank the real
+/// automatic source for the rest of the day (#174, ADR-0020 §S1-6).
 class CreateAccountWithRate {
   final CreateAccount _createAccount;
   final RateSeries _rateSeries;
@@ -32,6 +38,7 @@ class CreateAccountWithRate {
     Money? openingBalance,
     int? openingBalanceUsd,
     Decimal? openingBalanceRate,
+    Decimal? suggestedRate,
     required EventId eventId,
     required String deviceId,
     DomainTimestamp? occurredAt,
@@ -48,7 +55,9 @@ class CreateAccountWithRate {
       occurredAt: occurredAt,
     );
 
-    if (nativeCurrency != CurrencyCode('USD') && openingBalanceRate != null) {
+    if (nativeCurrency != CurrencyCode('USD') &&
+        openingBalanceRate != null &&
+        openingBalanceRate != suggestedRate) {
       await _rateSeries.append(
         RateObservation(
           currency: nativeCurrency,

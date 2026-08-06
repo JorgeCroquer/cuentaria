@@ -115,5 +115,45 @@ void main() {
       final observation = await rateSeries.latestFor(CurrencyCode('VES'));
       expect(observation, isNull);
     });
+
+    test('accepting the suggested rate as-is does not register a manual '
+        'observation (#174)', () async {
+      await createAccountWithRate(
+        name: 'BdV',
+        nativeCurrency: CurrencyCode('VES'),
+        openingBalanceRate: Decimal.parse('846.50'),
+        suggestedRate: Decimal.parse('846.50'),
+        eventId: EventId('evt-5'),
+        deviceId: 'dev-1',
+      );
+
+      final observation = await rateSeries.latestFor(CurrencyCode('VES'));
+      expect(
+        observation,
+        isNull,
+        reason:
+            'accepting the suggestion verbatim must not fabricate a '
+            'manual observation that would outrank the automatic one',
+      );
+    });
+
+    test('overriding the suggested rate still registers a manual observation '
+        '(#174)', () async {
+      await createAccountWithRate(
+        name: 'BdV',
+        nativeCurrency: CurrencyCode('VES'),
+        openingBalanceRate: Decimal.parse('900'),
+        suggestedRate: Decimal.parse('846.50'),
+        eventId: EventId('evt-6'),
+        deviceId: 'dev-1',
+      );
+
+      final observation = await rateSeries.latestFor(
+        CurrencyCode('VES'),
+        source: 'manual:paralelo',
+      );
+      expect(observation, isNotNull);
+      expect(observation!.nativePerUsd, Decimal.parse('900'));
+    });
   });
 }
