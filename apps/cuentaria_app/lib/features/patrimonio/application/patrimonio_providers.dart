@@ -68,6 +68,7 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
               : RateObservationView(
                 nativePerUsd: parallel.nativePerUsd,
                 observedAt: parallel.observedAt,
+                source: parallel.source,
               ),
       bcv:
           bcv == null
@@ -75,6 +76,7 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
               : RateObservationView(
                 nativePerUsd: bcv.nativePerUsd,
                 observedAt: bcv.observedAt,
+                source: bcv.source,
               ),
     );
   }

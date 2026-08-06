@@ -31,6 +31,40 @@ String _formatRateDate(DateTime date) {
   return '$year-$month-$day';
 }
 
+const _rateMonthAbbreviations = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+String _formatShortRateDate(DateTime date) =>
+    '${date.day} ${_rateMonthAbbreviations[date.month - 1]}';
+
+bool _isRateFromToday(DateTime date) {
+  final now = DateTime.now();
+  return date.year == now.year &&
+      date.month == now.month &&
+      date.day == now.day;
+}
+
+/// Same "hace N h" convention as the quick-add capture sheet's rate
+/// disclosure (ADR-0018 §4) — `manual:*` is always "hoy" since a manual
+/// entry is the user typing today's number, not an hours-old observation.
+String _rateRecency(DateTime observedLocal, String source) {
+  if (source == 'manual:paralelo' || source == 'manual:bcv') return 'hoy';
+  final hours = DateTime.now().difference(observedLocal).inHours;
+  return 'hace $hours h';
+}
+
 String _formatNativeAmount(BigInt minorAmount, CurrencyCode currency) {
   final decimal =
       (Decimal.fromBigInt(minorAmount) / Decimal.fromInt(100)).toDecimal();
@@ -315,6 +349,20 @@ class _AccountGroupTile extends StatelessWidget {
             "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
             '${group.hasRate ? '' : ' (sin tasa)'}',
           ),
+          if (group.currency != CurrencyCode('USD')) ...[
+            _RateDisclosureLine(
+              label: 'Paralelo',
+              currency: group.currency,
+              rate: group.hasRate ? group.parallelRate : null,
+              keyPrefix: 'parallel',
+            ),
+            _RateDisclosureLine(
+              label: 'BCV',
+              currency: group.currency,
+              rate: group.hasBcvRate ? group.bcvRate : null,
+              keyPrefix: 'bcv',
+            ),
+          ],
           if (isNegative)
             Text(
               'Saldo negativo — ¿falta registrar un ingreso?',
@@ -323,6 +371,57 @@ class _AccountGroupTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// One rate disclosure line for a currency group (#176, ADR-0018 §4): the
+/// app must always announce what it valued with. Mirrors the quick-add
+/// capture sheet's announcement — value · source · age — and its stale
+/// warning, but never blocks: a missing or stale rate is declared, not
+/// hidden behind a mute number.
+class _RateDisclosureLine extends StatelessWidget {
+  const _RateDisclosureLine({
+    required this.label,
+    required this.currency,
+    required this.rate,
+    required this.keyPrefix,
+  });
+
+  final String label;
+  final CurrencyCode currency;
+  final RateObservationView? rate;
+  final String keyPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    final rate = this.rate;
+    if (rate == null) {
+      return Text(
+        '$label: sin cotización disponible para ${currency.value}',
+        key: Key('${keyPrefix}RateUnavailable_${currency.value}'),
+        style: TextStyle(color: Theme.of(context).colorScheme.error),
+      );
+    }
+
+    final observedLocal = rate.observedAt.toLocal();
+    final rateText = rate.nativePerUsd.toStringAsFixed(2);
+
+    if (_isRateFromToday(observedLocal)) {
+      return Text(
+        '$label: $rateText ${currency.value}/USD · '
+        '${_sourceLabel(rate.source)}, '
+        '${_rateRecency(observedLocal, rate.source)}',
+        key: Key('${keyPrefix}RateAnnouncement_${currency.value}'),
+      );
+    }
+
+    return Text(
+      '$label: ⚠ sin actualizar desde el '
+      '${_formatShortRateDate(observedLocal)} — valorando a $rateText '
+      '${currency.value}/USD',
+      key: Key('${keyPrefix}StaleWarning_${currency.value}'),
+      style: TextStyle(color: Theme.of(context).colorScheme.error),
     );
   }
 }

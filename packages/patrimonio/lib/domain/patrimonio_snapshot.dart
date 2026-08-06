@@ -2,11 +2,15 @@ import 'package:equatable/equatable.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
 import 'envelope_view.dart';
+import 'rate_view.dart';
 
 /// One currency's accounts, valued (ADR-0016): [nativeMinorAmount] and
 /// [realCostUsdCents] sum every non-archived account in this currency;
 /// [todayValueUsdCents] and [bcvReferenceUsdCents] fall back to real cost
-/// with [hasRate] false when no observation exists — never a silent 1:1.
+/// with [hasRate]/[hasBcvRate] false when no observation exists — never a
+/// silent 1:1. [parallelRate]/[bcvRate] carry the actual observation used
+/// (value, source, age) so the UI can announce it (ADR-0018 §4) instead of
+/// only exposing the converted totals.
 class PatrimonioAccountGroup extends Equatable {
   final CurrencyCode currency;
   final BigInt nativeMinorAmount;
@@ -14,7 +18,9 @@ class PatrimonioAccountGroup extends Equatable {
   final int todayValueUsdCents;
   final int bcvReferenceUsdCents;
   final bool hasRate;
-  final DateTime? observedAt;
+  final bool hasBcvRate;
+  final RateObservationView? parallelRate;
+  final RateObservationView? bcvRate;
 
   const PatrimonioAccountGroup({
     required this.currency,
@@ -23,7 +29,9 @@ class PatrimonioAccountGroup extends Equatable {
     required this.todayValueUsdCents,
     required this.bcvReferenceUsdCents,
     required this.hasRate,
-    this.observedAt,
+    this.hasBcvRate = true,
+    this.parallelRate,
+    this.bcvRate,
   });
 
   @override
@@ -34,7 +42,9 @@ class PatrimonioAccountGroup extends Equatable {
     todayValueUsdCents,
     bcvReferenceUsdCents,
     hasRate,
-    observedAt,
+    hasBcvRate,
+    parallelRate,
+    bcvRate,
   ];
 }
 
