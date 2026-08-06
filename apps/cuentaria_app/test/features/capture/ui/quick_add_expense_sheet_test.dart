@@ -4,6 +4,7 @@ import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
+import 'package:cuentaria_app/features/accounts/ui/screens/accounts_screen.dart';
 import 'package:cuentaria_app/features/capture/application/capture_providers.dart';
 import 'package:cuentaria_app/features/capture/ui/screens/quick_add_expense_sheet.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
@@ -913,6 +914,133 @@ void main() {
         (p) => p.target == EnvelopeTarget(differentialId),
       );
       expect(differentialPosting.amountUsd, 0);
+    });
+  });
+
+  group('account creation feeds the capture cartel (#174)', () {
+    testWidgets('accepting the suggested rate at account creation values a Bs '
+        'expense from Binance P2P, not manual', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final hoursAgo = DateTime.now().hour >= 2 ? 2 : 0;
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('846.50'),
+          observedAt: DateTime.now().toUtc().subtract(
+            Duration(hours: hoursAgo),
+          ),
+          source: 'binancep2p:ask',
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: AccountsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      // The suggested rate is left as-is — the user never types a rate.
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      await _openSheet(tester, existing: container);
+
+      for (final digit in const ['1', '0', '0', '0', '0']) {
+        await tester.tap(find.byKey(Key('keypadDigit_$digit')));
+      }
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Valorado a 846.50 VES/USD · Binance P2P, hace $hoursAgo h'),
+        findsOneWidget,
+        reason:
+            'accepting the suggestion must not have fabricated a manual '
+            'observation that outranks the automatic one (#174)',
+      );
+    });
+
+    testWidgets('overriding the suggested rate at account creation values a Bs '
+        'expense from the manual observation', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-food'),
+          name: 'Food',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('846.50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'binancep2p:ask',
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: AccountsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('addAccountFab')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('accountNameField')), 'BdV');
+      await tester.tap(find.byKey(const Key('accountCurrencyDropdown')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('VES').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('openingBalanceRateField')),
+        '900',
+      );
+      await tester.tap(find.byKey(const Key('saveAccountButton')));
+      await tester.pumpAndSettle();
+
+      await _openSheet(tester, existing: container);
+
+      for (final digit in const ['1', '0', '0', '0', '0']) {
+        await tester.tap(find.byKey(Key('keypadDigit_$digit')));
+      }
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Valorado a 900.00 VES/USD · manual, hoy'),
+        findsOneWidget,
+      );
     });
   });
 }

@@ -394,6 +394,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                   : null,
           openingBalanceRate:
               trimmedRate.isEmpty ? null : Decimal.parse(trimmedRate),
+          suggestedRate: _suggestedRate?.nativePerUsd,
           eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
           deviceId: deviceId,
         );
