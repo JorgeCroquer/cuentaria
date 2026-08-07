@@ -11,6 +11,8 @@ import 'package:contabilidad/application/unit_of_work.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_error.dart';
+import 'package:contabilidad/infrastructure/codec/codec_error.dart';
 import 'package:contabilidad/infrastructure/codec/event_codec.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -18,9 +20,9 @@ import 'package:tasas/application/sync_rate_series_use_case.dart';
 import 'package:tasas/domain/rate_series.dart';
 import 'package:tasas/infrastructure/in_memory/in_memory_rate_feed.dart';
 
-/// Thrown when a Backup File cannot be restored. Per-line diagnostics are
-/// #194's job; this slice only guarantees the message is generic and that
-/// nothing was written (ADR-0021 §6).
+/// Thrown when a Backup File cannot be restored. [message] names the
+/// specific line and reason for a broken file, or a distinct message for a
+/// file from a newer app version — never a partial write (ADR-0021 §6).
 class RestoreBackupError implements Exception {
   final String message;
   const RestoreBackupError(this.message);
@@ -93,8 +95,20 @@ class RestoreBackup {
       cascadeDoc =
           file.cascades.isEmpty ? null : _cascadeFromJson(file.cascades.single);
       const codec = EventCodec();
-      transactions = file.events.map(codec.decode).toList();
+      transactions = [
+        for (var i = 0; i < file.events.length; i++)
+          _decodeEvent(codec, file.events[i], file.eventLineNumbers[i]),
+      ];
       rateFeed = InMemoryRateFeed(file.rates.map(jsonEncode).join('\n'));
+    } on UnknownFormatVersion {
+      throw const RestoreBackupError(
+        'Este respaldo es de una versión más nueva de Cuentaria. '
+        'Actualizá la app para poder restaurarlo. No se cambió nada.',
+      );
+    } on BackupReaderError catch (e) {
+      throw RestoreBackupError(
+        'No se pudo restaurar: ${e.message}. No se cambió nada.',
+      );
     } catch (e) {
       throw RestoreBackupError('El archivo de respaldo no se pudo leer: $e');
     }
@@ -133,6 +147,35 @@ class RestoreBackup {
     await SyncRateSeriesUseCase(rateFeed, rates).sync();
 
     return RestoreBackupResult(eventsRestored: transactions.length);
+  }
+
+  /// Decodes one event payload, translating `EventCodec`'s errors into an
+  /// [InvalidLine] naming [lineNumber] so the caller can report which line
+  /// broke — `EventCodec.decode` wraps a self-balance violation (ADR-0006)
+  /// as [MalformedPayload] with [MalformedPayload.cause] set to the
+  /// original [UnbalancedTransaction], so that case is told apart by
+  /// inspecting the cause rather than by a separate catch clause.
+  static Transaction _decodeEvent(
+    EventCodec codec,
+    String payload,
+    int lineNumber,
+  ) {
+    try {
+      return codec.decode(payload);
+    } on UnsupportedSchemaVersion {
+      throw InvalidLine(
+        lineNumber: lineNumber,
+        reason: 'usa una versión de datos más nueva que esta app',
+      );
+    } on MalformedPayload catch (e) {
+      throw InvalidLine(
+        lineNumber: lineNumber,
+        reason:
+            e.cause is UnbalancedTransaction
+                ? 'no cumple el balance contable'
+                : 'no se pudo interpretar',
+      );
+    }
   }
 
   static Account _accountFromJson(Map<String, dynamic> json) => Account(

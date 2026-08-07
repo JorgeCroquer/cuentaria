@@ -10,6 +10,13 @@ class BackupFile {
   final List<Map<String, dynamic>> envelopes;
   final List<Map<String, dynamic>> cascades;
   final List<String> events;
+
+  /// The 1-indexed source line each entry in [events] came from, in the
+  /// same order. Callers that decode [events] downstream (`EventCodec`)
+  /// need this to name the offending line when a payload fails to decode
+  /// or violates the self-balance invariant — [BackupReader] never decodes
+  /// event payloads itself, so it cannot report those failures directly.
+  final List<int> eventLineNumbers;
   final List<Map<String, dynamic>> rates;
 
   const BackupFile({
@@ -18,6 +25,7 @@ class BackupFile {
     required this.envelopes,
     required this.cascades,
     required this.events,
+    required this.eventLineNumbers,
     required this.rates,
   });
 }
