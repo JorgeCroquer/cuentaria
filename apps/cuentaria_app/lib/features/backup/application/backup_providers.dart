@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
 import 'create_backup.dart';
+import 'create_spreadsheet_export.dart';
 import 'restore_backup.dart';
 import 'system_file_picker.dart';
 import 'system_share.dart';
@@ -39,6 +40,14 @@ final restoreBackupProvider = FutureProvider<RestoreBackup>((ref) async {
     unitOfWork: unitOfWork,
   );
 });
+
+final createSpreadsheetExportProvider = FutureProvider<CreateSpreadsheetExport>(
+  (ref) async {
+    final eventStore = await ref.watch(eventStoreProvider.future);
+    final catalog = await ref.watch(catalogRepositoryProvider.future);
+    return CreateSpreadsheetExport(eventStore: eventStore, catalog: catalog);
+  },
+);
 
 final systemShareProvider = Provider<SystemShare>(
   (ref) => const MethodChannelSystemShare(),
