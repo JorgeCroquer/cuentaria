@@ -41,20 +41,26 @@ class NdjsonRateStore {
       '${observation.currency.value}|${observation.source}|'
       '${observation.observedAt.toUtc().toIso8601String()}';
 
-  static String _encode(RateObservation observation) => jsonEncode({
+  /// The published line shape, reused by the Backup File's `rate` lines
+  /// (ADR-0021 §2) so both formats stay byte-for-byte the same JSON object.
+  static Map<String, dynamic> toJson(RateObservation observation) => {
     'currency': observation.currency.value,
     'source': observation.source,
     'nativePerUsd': observation.nativePerUsd.toString(),
     'observedAt': observation.observedAt.toUtc().toIso8601String(),
-  });
+  };
 
-  static RateObservation _decode(String line) {
-    final map = jsonDecode(line) as Map<String, dynamic>;
-    return RateObservation(
-      currency: CurrencyCode(map['currency'] as String),
-      source: map['source'] as String,
-      nativePerUsd: Decimal.parse(map['nativePerUsd'] as String),
-      observedAt: DateTime.parse(map['observedAt'] as String),
-    );
-  }
+  static RateObservation fromJson(Map<String, dynamic> json) =>
+      RateObservation(
+        currency: CurrencyCode(json['currency'] as String),
+        source: json['source'] as String,
+        nativePerUsd: Decimal.parse(json['nativePerUsd'] as String),
+        observedAt: DateTime.parse(json['observedAt'] as String),
+      );
+
+  static String _encode(RateObservation observation) =>
+      jsonEncode(toJson(observation));
+
+  static RateObservation _decode(String line) =>
+      fromJson(jsonDecode(line) as Map<String, dynamic>);
 }

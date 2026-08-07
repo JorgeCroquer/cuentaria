@@ -132,6 +132,14 @@ class DriftEventStore implements EventStore {
     return payloads.map(_codec.decode).toList();
   }
 
+  // -------------------------------------------------------------------------
+  // queryRawPayloads
+  // -------------------------------------------------------------------------
+
+  @override
+  Future<List<String>> queryRawPayloads({LogFilters? filters}) =>
+      _queryPayloads(filters);
+
   /// Returns canonical-ordered payload strings matching [filters].
   ///
   /// Account/envelope filters use `event_targets` EXISTS subqueries (index,

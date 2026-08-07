@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Matches the cache subdirectory MainActivity.shareFile writes the
+         staged Backup File into before handing it to the share sheet. -->
+    <cache-path name="backup" path="backup/" />
+</paths>
