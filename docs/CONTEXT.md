@@ -29,6 +29,10 @@ _Avoid_: treating it as a domain event.
 Materialized view recomputable from the event log (balance by Account, balance by Envelope, cash flow). Disposable and reconstructible.
 _Avoid_: "balances table" as if it were a source of truth.
 
+**Catalog**
+The user's Accounts and Envelopes as durable configuration — name, native currency, role, appearance, Funding Target. It is **not** event-sourced: it is last-write-wins config merged on `updatedAt`, exactly like the Cascade. Catalog and Cascade together are the part of the user's state the event log does **not** contain, which is why replaying the log alone yields correct balances hanging off anonymous identifiers. See [ADR-0021](adr/ADR-0021-respaldo-portable-en-claro.md).
+_Avoid_: calling it a Projection (a Projection is recomputable from the log; the Catalog is not).
+
 **Port / Adapter**
 Hexagonal boundary: the core defines ports (interfaces); adapters (Drift, Supabase, Binance, BCV) implement them. Supabase Postgres is a persistence/sync adapter, never the backend with logic.
 
@@ -133,6 +137,18 @@ The USD side of an operation that actually happened and was seen: the USD receiv
 **Valuation from the Series**
 The rule for freezing real cost when there is no Observed Counterparty: `amount_usd` comes from the latest **parallel** Rate Observation of that currency. It does not contradict "the parallel values, the BCV informs" — when no rate was ever executed, the liquidation rate *is* the real cost; any other figure would be invented. The app always announces which rate it froze and its date, and warns when the observation is not from today. See [ADR-0018](adr/ADR-0018-valoracion-sin-contraparte-observada.md).
 _Avoid_: treating it as an overlay valuation — this one **is posted** and frozen forever.
+
+**Backup File**
+The single portable file that carries everything needed to rebuild the user's state on a clean device: the Domain Event log, the Catalog, the Cascade and the Rate Observations. Plaintext and open by design (principle 9, no lock-in) — it is the one artifact that deliberately leaves the device unencrypted, so the app warns at the moment of sharing. See [ADR-0021](adr/ADR-0021-respaldo-portable-en-claro.md).
+_Avoid_: "export" unqualified (it collides with the Spreadsheet Export, which restores nothing).
+
+**Restore**
+Reading a Backup File into a device. Idempotent by `EventId` and last-write-wins on config, so restoring onto a device that already holds data adds only what is missing — it never duplicates and never overwrites something newer. All-or-nothing: a file with one unreadable line is rejected whole, naming the line.
+_Avoid_: "sync" (nothing negotiates with a server — a file is read), "merge" (no conflict is resolved by the user).
+
+**Spreadsheet Export**
+The disposable CSV for humans: one row per **Posting**, never read back by the app. Regenerable from a Backup File at any time. Its unit is the Posting and not the transaction because a single Ledger Transaction can touch one Account and several Envelopes at once.
+_Avoid_: treating it as a backup — it cannot restore.
 
 ## Relationships
 
