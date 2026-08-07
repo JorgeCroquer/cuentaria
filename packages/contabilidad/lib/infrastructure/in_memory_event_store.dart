@@ -3,9 +3,11 @@ import '../domain/transaction.dart';
 import '../domain/ports/event_store.dart';
 import '../domain/ports/log_filters.dart';
 import '../domain/posting_target.dart';
+import 'codec/event_codec.dart';
 
 class InMemoryEventStore implements EventStore {
   final Map<EventId, Transaction> _store = {};
+  final EventCodec _codec = const EventCodec();
 
   @override
   Future<bool> append(Transaction event) async {
@@ -74,6 +76,12 @@ class InMemoryEventStore implements EventStore {
 
     final list = result.toList()..sort(_canonicalOrder);
     return list;
+  }
+
+  @override
+  Future<List<String>> queryRawPayloads({LogFilters? filters}) async {
+    final transactions = await queryLog(filters: filters);
+    return transactions.map(_codec.encode).toList();
   }
 
   // Canonical order C1-9: occurredAt -> recordedAt -> eventId.

@@ -112,4 +112,27 @@ class DriftRateSeries implements RateSeries {
     }
     return candidates;
   }
+
+  @override
+  Future<List<RateObservation>> allObservations() async {
+    final rows =
+        await (_db.select(_db.rateObservations)..orderBy([
+          (t) => OrderingTerm.asc(t.observedAt),
+          (t) => OrderingTerm.asc(t.id),
+        ])).get();
+
+    return rows
+        .map(
+          (row) => RateObservation(
+            currency: CurrencyCode(row.currency),
+            nativePerUsd: Decimal.parse(row.nativePerUsd),
+            observedAt: DateTime.fromMicrosecondsSinceEpoch(
+              row.observedAt,
+              isUtc: true,
+            ),
+            source: row.source,
+          ),
+        )
+        .toList();
+  }
 }

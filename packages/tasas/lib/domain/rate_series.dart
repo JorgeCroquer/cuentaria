@@ -27,4 +27,9 @@ abstract class RateSeries {
     CurrencyCode currency, {
     DateTime? asOf,
   });
+
+  /// Every observation ever appended, across all currencies and sources, in
+  /// `observedAt` order — the full dump a Backup File needs (ADR-0021 §1),
+  /// as opposed to the per-currency lookups the Rate Resolution Chain uses.
+  Future<List<RateObservation>> allObservations();
 }

@@ -350,6 +350,35 @@ void _runContractSuite(
         );
       },
     );
+
+    test('allObservations returns an empty list for a fresh series', () async {
+      expect(await series.allObservations(), isEmpty);
+    });
+
+    test('allObservations returns every observation across currencies and '
+        'sources, ordered by observedAt', () async {
+      final ves = _obs(
+        currency: 'VES',
+        observedAt: DateTime.utc(2026, 7, 23),
+        source: 'manual:paralelo',
+      );
+      final usd = _obs(
+        currency: 'USD',
+        rate: '1',
+        observedAt: DateTime.utc(2026, 7, 1),
+      );
+      final bcv = _obs(
+        currency: 'VES',
+        observedAt: DateTime.utc(2026, 7, 10),
+        source: 'manual:bcv',
+      );
+
+      await series.append(ves);
+      await series.append(usd);
+      await series.append(bcv);
+
+      expect(await series.allObservations(), equals([usd, bcv, ves]));
+    });
   });
 }
 

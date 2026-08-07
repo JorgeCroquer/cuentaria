@@ -10,6 +10,7 @@ import 'package:tasas/domain/rate_resolver.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
+import '../../../backup/ui/widgets/restore_backup_button.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -115,6 +116,7 @@ class PatrimonioScreen extends ConsumerWidget {
           _ManageEnvelopesAction(),
           _EditCascadeAction(),
           _RecordRatesAction(),
+          _OverflowMenu(),
         ],
       ),
       body: snapshotAsync.when(
@@ -435,13 +437,20 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'No accounts yet. Add an account to see your net worth here.',
-          key: Key('patrimonioEmptyState'),
-          textAlign: TextAlign.center,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text(
+              'Todavía no hay cuentas',
+              key: Key('patrimonioEmptyState'),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            RestoreBackupButton(),
+          ],
         ),
       ),
     );
@@ -515,6 +524,31 @@ class _RecordRatesAction extends StatelessWidget {
             context: context,
             builder: (context) => const RecordRatesDialog(),
           ),
+    );
+  }
+}
+
+/// Overflow menu (#192, ADR-0021): a single ⋮ next to the four existing
+/// icons rather than a fifth one, since Respaldo is reached rarely — unlike
+/// the daily-use actions it sits beside.
+class _OverflowMenu extends StatelessWidget {
+  const _OverflowMenu();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: const Key('patrimonioOverflowMenu'),
+      onSelected: (value) {
+        if (value == 'backup') context.push('/backup');
+      },
+      itemBuilder:
+          (context) => const [
+            PopupMenuItem(
+              key: Key('backupMenuItem'),
+              value: 'backup',
+              child: Text('Respaldo'),
+            ),
+          ],
     );
   }
 }
