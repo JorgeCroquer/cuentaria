@@ -47,4 +47,11 @@ class InMemoryRateSeries implements RateSeries {
     }
     return latestBySource.values.toList();
   }
+
+  @override
+  Future<List<RateObservation>> allObservations() async {
+    final sorted = List<RateObservation>.from(_observations)
+      ..sort((a, b) => a.observedAt.compareTo(b.observedAt));
+    return sorted;
+  }
 }

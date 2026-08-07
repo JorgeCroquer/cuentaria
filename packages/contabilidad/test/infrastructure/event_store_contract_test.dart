@@ -33,6 +33,7 @@ import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
+import 'package:contabilidad/infrastructure/codec/event_codec.dart';
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
 import 'package:contabilidad/infrastructure/database/drift_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
@@ -469,6 +470,71 @@ void runEventStoreContract(
         );
         expect(await store.hasReversal(idA), isTrue);
         expect(await store.hasReversal(idB), isFalse);
+      });
+    });
+
+    // ------------------------------------------------------------------ queryRawPayloads
+    group('queryRawPayloads', () {
+      const codec = EventCodec();
+
+      test(
+        'returns the exact stored payload, not a decode/re-encode round-trip',
+        () async {
+          final tx = makeTx(eventId: 'evt-raw');
+          await store.append(tx);
+
+          final payloads = await store.queryRawPayloads();
+          expect(payloads, equals([codec.encode(tx)]));
+        },
+      );
+
+      test(
+        'canonical order matches queryLog: (occurredAt, recordedAt, eventId)',
+        () async {
+          final txA = makeTx(
+            eventId: 'evt-a',
+            occurredAt: DateTime.utc(2026, 6, 3),
+            recordedAt: DateTime.utc(2026, 6, 10),
+          );
+          final txB = makeTx(
+            eventId: 'evt-b',
+            occurredAt: DateTime.utc(2026, 6, 1),
+          );
+          final txC = makeTx(
+            eventId: 'evt-c',
+            occurredAt: DateTime.utc(2026, 6, 3),
+            recordedAt: DateTime.utc(2026, 6, 9),
+          );
+
+          await store.append(txC);
+          await store.append(txA);
+          await store.append(txB);
+
+          final payloads = await store.queryRawPayloads();
+          expect(
+            payloads.map(codec.decode).map((t) => t.metadata.eventId.value),
+            equals(['evt-b', 'evt-c', 'evt-a']),
+          );
+        },
+      );
+
+      test('applies the same account filter as queryLog', () async {
+        final acc1 = AccountId('acc-1');
+        final acc2 = AccountId('acc-2');
+        await store.append(makeTx(eventId: 'evt-acc1', accountId: acc1));
+        await store.append(makeTx(eventId: 'evt-acc2', accountId: acc2));
+
+        final payloads = await store.queryRawPayloads(
+          filters: LogFilters(account: acc1),
+        );
+        expect(
+          payloads.map(codec.decode).map((t) => t.metadata.eventId.value),
+          equals(['evt-acc1']),
+        );
+      });
+
+      test('empty store returns empty list', () async {
+        expect(await store.queryRawPayloads(), isEmpty);
       });
     });
   });

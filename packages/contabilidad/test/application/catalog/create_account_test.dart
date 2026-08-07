@@ -28,6 +28,9 @@ class _ThrowingEventStore implements EventStore {
 
   @override
   Future<List<Transaction>> queryLog({LogFilters? filters}) async => [];
+
+  @override
+  Future<List<String>> queryRawPayloads({LogFilters? filters}) async => [];
 }
 
 void main() {

@@ -44,3 +44,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // ContextCompat.RECEIVER_NOT_EXPORTED (registerReceiver flag used by the
+    // Backup File share sheet, #192) needs core 1.9.0+; don't rely on
+    // whatever version Flutter happens to pull in transitively.
+    implementation("androidx.core:core-ktx:1.13.1")
+}
