@@ -3,6 +3,7 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:cuentaria_app/features/backup/application/backup_providers.dart';
 import 'package:cuentaria_app/features/backup/application/create_backup.dart';
+import 'package:cuentaria_app/features/backup/application/create_spreadsheet_export.dart';
 import 'package:cuentaria_app/features/backup/application/system_share.dart';
 import 'package:cuentaria_app/features/backup/ui/screens/backup_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
@@ -40,6 +41,15 @@ final _createBackupOverride = createBackupProvider.overrideWith(
   ),
 );
 
+final _createSpreadsheetExportOverride = createSpreadsheetExportProvider
+    .overrideWith(
+      (ref) async => CreateSpreadsheetExport(
+        eventStore: InMemoryEventStore(),
+        catalog: InMemoryCatalogRepository(),
+        now: () => DateTime.utc(2026, 8, 7),
+      ),
+    );
+
 Future<void> _pumpBackupScreen(
   WidgetTester tester, {
   required SystemShare share,
@@ -49,6 +59,7 @@ Future<void> _pumpBackupScreen(
       overrides: [
         isWebProvider.overrideWithValue(true),
         _createBackupOverride,
+        _createSpreadsheetExportOverride,
         systemShareProvider.overrideWithValue(share),
       ],
       child: const MaterialApp(home: BackupScreen()),
@@ -146,5 +157,63 @@ void main() {
 
     expect(share.called, isTrue);
     expect(find.text('Último respaldo: nunca'), findsOneWidget);
+  });
+
+  testWidgets('Respaldar and Exportar a Excel are two separate buttons', (
+    tester,
+  ) async {
+    await _pumpBackupScreen(tester, share: _FakeSystemShare());
+
+    expect(find.widgetWithText(ElevatedButton, 'Respaldar'), findsOneWidget);
+    expect(
+      find.widgetWithText(ElevatedButton, 'Exportar a Excel'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tapping Exportar a Excel shows the plaintext warning first', (
+    tester,
+  ) async {
+    await _pumpBackupScreen(tester, share: _FakeSystemShare());
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Exportar a Excel'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Este archivo lleva tus finanzas en texto legible. '
+        'Mandalo solo a donde vos controles.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('proceeding past the warning shares the .csv file', (
+    tester,
+  ) async {
+    final share = _FakeSystemShare();
+    await _pumpBackupScreen(tester, share: share);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Exportar a Excel'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('proceedShareWarningAction')));
+    await tester.pumpAndSettle();
+
+    expect(share.called, isTrue);
+    expect(share.sharedFilename, equals('cuentaria-2026-08-07.csv'));
+  });
+
+  testWidgets('Respaldar shares only the .ndjson file, never the .csv', (
+    tester,
+  ) async {
+    final share = _FakeSystemShare();
+    await _pumpBackupScreen(tester, share: share);
+
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Respaldar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('proceedShareWarningAction')));
+    await tester.pumpAndSettle();
+
+    expect(share.sharedFilename, equals('cuentaria-2026-08-07.ndjson'));
   });
 }

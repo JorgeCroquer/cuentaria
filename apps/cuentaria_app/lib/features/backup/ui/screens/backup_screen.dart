@@ -20,8 +20,11 @@ String _lastBackupLabel(DateTime? lastBackup) {
   return 'Último respaldo: hace ${diff.inDays} día${diff.inDays == 1 ? '' : 's'}';
 }
 
-/// Backup screen (#192, ADR-0021): shows the age of the last share and a
-/// single Respaldar action. The plaintext warning appears only when actually
+/// Backup screen (#192/#195, ADR-0021): shows the age of the last share and
+/// two separate actions — Respaldar (`.ndjson`) and Exportar a Excel
+/// (`.csv`, ADR-0021 §8). Separate on purpose: a single button would attach
+/// a redundant CSV to every backup and leave two same-day files to guess
+/// between when restoring. The plaintext warning appears only when actually
 /// sharing (§3) — not on entry, which would just be noise on every visit.
 class BackupScreen extends ConsumerStatefulWidget {
   const BackupScreen({super.key});
@@ -32,8 +35,11 @@ class BackupScreen extends ConsumerStatefulWidget {
 
 class _BackupScreenState extends ConsumerState<BackupScreen> {
   final _respaldarButtonKey = GlobalKey();
-  bool _isSharing = false;
-  String? _error;
+  final _exportarExcelButtonKey = GlobalKey();
+  bool _isSharingBackup = false;
+  bool _isSharingCsv = false;
+  String? _backupError;
+  String? _csvError;
 
   Future<bool> _confirmShareWarning() async {
     final proceed = await showDialog<bool>(
@@ -58,9 +64,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     return proceed ?? false;
   }
 
-  Rect? _shareOrigin() {
-    final box =
-        _respaldarButtonKey.currentContext?.findRenderObject() as RenderBox?;
+  Rect? _originOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.attached) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
@@ -70,8 +75,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
     if (!mounted) return;
 
     setState(() {
-      _isSharing = true;
-      _error = null;
+      _isSharingBackup = true;
+      _backupError = null;
     });
 
     try {
@@ -82,7 +87,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       final completed = await share.shareFile(
         filename: result.filename,
         content: result.content,
-        sharePositionOrigin: _shareOrigin(),
+        sharePositionOrigin: _originOf(_respaldarButtonKey),
       );
 
       if (completed) {
@@ -91,9 +96,37 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
             .stamp(DateTime.now().toUtc());
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _backupError = e.toString());
     } finally {
-      if (mounted) setState(() => _isSharing = false);
+      if (mounted) setState(() => _isSharingBackup = false);
+    }
+  }
+
+  Future<void> _onExportarExcel() async {
+    if (!await _confirmShareWarning()) return;
+    if (!mounted) return;
+
+    setState(() {
+      _isSharingCsv = true;
+      _csvError = null;
+    });
+
+    try {
+      final createExport = await ref.read(
+        createSpreadsheetExportProvider.future,
+      );
+      final result = await createExport();
+
+      final SystemShare share = ref.read(systemShareProvider);
+      await share.shareFile(
+        filename: result.filename,
+        content: result.content,
+        sharePositionOrigin: _originOf(_exportarExcelButtonKey),
+      );
+    } catch (e) {
+      setState(() => _csvError = e.toString());
+    } finally {
+      if (mounted) setState(() => _isSharingCsv = false);
     }
   }
 
@@ -119,12 +152,23 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 error: (error, stackTrace) => Text('Error: $error'),
               ),
               const SizedBox(height: 24),
-              if (_error != null)
+              if (_backupError != null)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(
-                    _error!,
+                    _backupError!,
                     key: const Key('backupErrorText'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
+              if (_csvError != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    _csvError!,
+                    key: const Key('csvErrorText'),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),
@@ -132,8 +176,14 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 ),
               ElevatedButton(
                 key: _respaldarButtonKey,
-                onPressed: _isSharing ? null : _onRespaldar,
+                onPressed: _isSharingBackup ? null : _onRespaldar,
                 child: const Text('Respaldar'),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                key: _exportarExcelButtonKey,
+                onPressed: _isSharingCsv ? null : _onExportarExcel,
+                child: const Text('Exportar a Excel'),
               ),
             ],
           ),
