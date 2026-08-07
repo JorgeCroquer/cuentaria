@@ -10,6 +10,7 @@ import 'package:tasas/domain/rate_resolver.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
+import '../../../backup/ui/widgets/restore_backup_button.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -436,13 +437,20 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
-        child: Text(
-          'No accounts yet. Add an account to see your net worth here.',
-          key: Key('patrimonioEmptyState'),
-          textAlign: TextAlign.center,
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Text(
+              'Todavía no hay cuentas',
+              key: Key('patrimonioEmptyState'),
+              textAlign: TextAlign.center,
+            ),
+            SizedBox(height: 16),
+            RestoreBackupButton(),
+          ],
         ),
       ),
     );

@@ -1,9 +1,12 @@
 import Flutter
 import UIKit
+import UniformTypeIdentifiers
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, UIDocumentPickerDelegate {
   private let systemShareChannelName = "cuentaria/system_share"
+  private let systemFilePickerChannelName = "cuentaria/system_file_picker"
+  private var pendingPickResult: FlutterResult?
 
   override func application(
     _ application: UIApplication,
@@ -12,19 +15,69 @@ import UIKit
     GeneratedPluginRegistrant.register(with: self)
 
     if let controller = window?.rootViewController as? FlutterViewController {
-      let channel = FlutterMethodChannel(
+      let shareChannel = FlutterMethodChannel(
         name: systemShareChannelName,
         binaryMessenger: controller.binaryMessenger)
-      channel.setMethodCallHandler { [weak self] call, result in
+      shareChannel.setMethodCallHandler { [weak self] call, result in
         guard call.method == "shareFile" else {
           result(FlutterMethodNotImplemented)
           return
         }
         self?.shareFile(call: call, from: controller, result: result)
       }
+
+      let filePickerChannel = FlutterMethodChannel(
+        name: systemFilePickerChannelName,
+        binaryMessenger: controller.binaryMessenger)
+      filePickerChannel.setMethodCallHandler { [weak self] call, result in
+        guard call.method == "pickFile" else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        self?.pickFile(from: controller, result: result)
+      }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  /// Backs [SystemFilePicker] (#193, ADR-0021 §7) via
+  /// `UIDocumentPickerViewController`: works for any provider the Files app
+  /// exposes (iCloud Drive, a WhatsApp download, ...) with no extra
+  /// entitlement beyond what the picker already grants for the read.
+  private func pickFile(from controller: FlutterViewController, result: @escaping FlutterResult) {
+    pendingPickResult = result
+
+    let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.item])
+    picker.delegate = self
+    controller.present(picker, animated: true)
+  }
+
+  func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+    guard let url = urls.first else {
+      pendingPickResult?(nil)
+      pendingPickResult = nil
+      return
+    }
+
+    let didStartAccessing = url.startAccessingSecurityScopedResource()
+    defer {
+      if didStartAccessing { url.stopAccessingSecurityScopedResource() }
+    }
+
+    do {
+      let content = try String(contentsOf: url, encoding: .utf8)
+      pendingPickResult?(content)
+    } catch {
+      pendingPickResult?(
+        FlutterError(code: "pick_failed", message: error.localizedDescription, details: nil))
+    }
+    pendingPickResult = nil
+  }
+
+  func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+    pendingPickResult?(nil)
+    pendingPickResult = nil
   }
 
   /// Backs [SystemShare] (#192, ADR-0021 §5) via `UIActivityViewController`.

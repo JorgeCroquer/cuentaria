@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/backup_providers.dart';
 import '../../application/system_share.dart';
+import '../widgets/restore_backup_button.dart';
 
 const _shareWarning =
     'Este archivo lleva tus finanzas en texto legible. '
@@ -135,6 +136,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 onPressed: _isSharing ? null : _onRespaldar,
                 child: const Text('Respaldar'),
               ),
+              const SizedBox(height: 16),
+              const RestoreBackupButton(),
             ],
           ),
         ),
