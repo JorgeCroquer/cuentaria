@@ -121,5 +121,21 @@ void main() {
       expect(lines, everyElement(contains('evt-1')));
       expect(lines, hasLength(2));
     });
+
+    test(
+      'a one-to-three distribution produces four rows with the same event_id',
+      () {
+        final rows = [
+          _row(eventId: 'evt-1', dimension: 'sobre', nombre: 'Origen'),
+          _row(eventId: 'evt-1', dimension: 'sobre', nombre: 'Destino 1'),
+          _row(eventId: 'evt-1', dimension: 'sobre', nombre: 'Destino 2'),
+          _row(eventId: 'evt-1', dimension: 'sobre', nombre: 'Destino 3'),
+        ];
+        final csv = writer.writeCsv(rows);
+        final lines = csv.split('\n').skip(1);
+        expect(lines, everyElement(contains('evt-1')));
+        expect(lines, hasLength(4));
+      },
+    );
   });
 }

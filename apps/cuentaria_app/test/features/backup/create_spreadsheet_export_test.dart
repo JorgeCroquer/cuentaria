@@ -98,6 +98,103 @@ void main() {
     expect(lines[2], contains('evt-1'));
   });
 
+  test('flattens a one-to-three distribution into four CSV rows', () async {
+    final eventStore = InMemoryEventStore();
+    final envOrigen = EnvelopeId('env-origen');
+    final envDestino1 = EnvelopeId('env-destino-1');
+    final envDestino2 = EnvelopeId('env-destino-2');
+    final envDestino3 = EnvelopeId('env-destino-3');
+
+    await eventStore.append(
+      Transaction.create(
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-distribucion'),
+          type: 'Distribution',
+          occurredAt: DomainTimestamp(DateTime.utc(2026, 8, 1)),
+          recordedAt: DomainTimestamp(DateTime.utc(2026, 8, 1, 0, 1)),
+          deviceId: 'device-test',
+          schemaVersion: 1,
+        ),
+        postings: [
+          Posting(
+            target: EnvelopeTarget(envOrigen),
+            amountNative: Money(
+              amount: BigInt.from(-150),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: -150,
+          ),
+          Posting(
+            target: EnvelopeTarget(envDestino1),
+            amountNative: Money(
+              amount: BigInt.from(50),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 50,
+          ),
+          Posting(
+            target: EnvelopeTarget(envDestino2),
+            amountNative: Money(
+              amount: BigInt.from(50),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 50,
+          ),
+          Posting(
+            target: EnvelopeTarget(envDestino3),
+            amountNative: Money(
+              amount: BigInt.from(50),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 50,
+          ),
+        ],
+      ),
+    );
+
+    final catalog = InMemoryCatalogRepository();
+    for (final entry
+        in {
+          envOrigen: 'Origen',
+          envDestino1: 'Destino 1',
+          envDestino2: 'Destino 2',
+          envDestino3: 'Destino 3',
+        }.entries) {
+      await catalog.saveEnvelope(
+        Envelope(
+          id: entry.key,
+          name: entry.value,
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.utc(2026, 8, 1),
+        ),
+      );
+    }
+
+    final createExport = CreateSpreadsheetExport(
+      eventStore: eventStore,
+      catalog: catalog,
+      now: () => DateTime.utc(2026, 8, 7),
+    );
+
+    final result = await createExport();
+
+    expect(result.rowCount, equals(4));
+    final lines = result.content.split('\n');
+    expect(lines, hasLength(5));
+    final dataLines = lines.skip(1);
+    expect(dataLines, everyElement(contains('evt-distribucion')));
+    expect(dataLines, everyElement(contains('sobre,')));
+    expect(dataLines.elementAt(0), contains('Origen'));
+    expect(dataLines.elementAt(1), contains('Destino 1'));
+    expect(dataLines.elementAt(2), contains('Destino 2'));
+    expect(dataLines.elementAt(3), contains('Destino 3'));
+  });
+
   test('resolves an archived account name from the catalog', () async {
     final eventStore = InMemoryEventStore();
     await eventStore.append(_expenseTx('evt-1'));
