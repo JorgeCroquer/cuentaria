@@ -109,4 +109,56 @@ void main() {
     expect(find.byKey(const Key('restoreErrorText')), findsOneWidget);
     expect(find.byKey(const Key('restoreCountMessage')), findsNothing);
   });
+
+  testWidgets('a file with a broken line names the line and changes nothing', (
+    tester,
+  ) async {
+    const brokenContent =
+        '{"kind":"header","format":1,"app":"cuentaria",'
+        '"exportedAt":"2026-08-07T00:00:00.000Z",'
+        '"counts":{"event":1,"account":0,"envelope":0,"cascade":0,"rate":0}}\n'
+        '{"kind":"event","data":{"device_id":"d","event_id":"evt-1",'; // cut mid-line, as if line 2 got chopped
+
+    await _pumpButton(
+      tester,
+      picker: _FakeSystemFilePicker(content: brokenContent),
+    );
+
+    await tester.tap(find.byKey(const Key('restoreBackupButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'No se pudo restaurar: el renglón 2 está incompleto. No se cambió nada.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('restoreCountMessage')), findsNothing);
+  });
+
+  testWidgets('a file from a newer format shows a distinct upgrade message', (
+    tester,
+  ) async {
+    const newerFormatContent =
+        '{"kind":"header","format":9,"app":"cuentaria",'
+        '"exportedAt":"2026-08-07T00:00:00.000Z",'
+        '"counts":{"event":0,"account":0,"envelope":0,"cascade":0,"rate":0}}';
+
+    await _pumpButton(
+      tester,
+      picker: _FakeSystemFilePicker(content: newerFormatContent),
+    );
+
+    await tester.tap(find.byKey(const Key('restoreBackupButton')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Este respaldo es de una versión más nueva de Cuentaria. '
+        'Actualizá la app para poder restaurarlo. No se cambió nada.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('restoreCountMessage')), findsNothing);
+  });
 }

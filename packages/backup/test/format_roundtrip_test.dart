@@ -135,7 +135,7 @@ void main() {
           '"exportedAt":"2026-01-01T00:00:00.000Z",'
           '"counts":{"event":0,"account":0,"envelope":0,"cascade":0,"rate":0}}';
 
-      expect(() => reader.parse(ndjson), throwsFormatException);
+      expect(() => reader.parse(ndjson), throwsA(isA<UnknownFormatVersion>()));
     });
   });
 }

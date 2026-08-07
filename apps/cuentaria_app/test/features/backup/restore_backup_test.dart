@@ -213,6 +213,92 @@ void main() {
     expect(await destination.rates.allObservations(), isEmpty);
   });
 
+  test('a broken line leaves zero new rows on a device that already has data '
+      'and keeps the existing rows intact', () async {
+    final source = _Source();
+    await source.seed();
+    final content = await source.backupContent();
+
+    final destination = _Destination();
+    await destination.catalog.saveAccount(
+      Account(
+        id: AccountId('acc-existing'),
+        name: 'Cuenta existente',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.utc(2026, 7, 1),
+      ),
+    );
+    await destination.catalog.saveEnvelope(
+      Envelope(
+        id: EnvelopeId('env-existing'),
+        name: 'Sobre existente',
+        role: EnvelopeRole.none,
+        isArchived: false,
+        updatedAt: DateTime.utc(2026, 7, 1),
+      ),
+    );
+    await destination.cascade.save(
+      Cascade(
+        steps: [CascadeStep.fillToCap(envelopeId: EnvelopeId('env-existing'))],
+        updatedAt: DateTime.utc(2026, 7, 1),
+      ),
+    );
+    await destination.eventStore.append(_makeTx('evt-existing'));
+    await destination.rates.append(
+      RateObservation(
+        currency: CurrencyCode('VES'),
+        nativePerUsd: Decimal.parse('40'),
+        observedAt: DateTime.utc(2026, 7, 1),
+        source: 'manual:bcv',
+      ),
+    );
+
+    final preEventCount = destination.eventStore.events.length;
+    final preAccountCount = destination.catalog.accounts.length;
+    final preEnvelopeCount = destination.catalog.envelopes.length;
+    final preRateCount = (await destination.rates.allObservations()).length;
+
+    // Corrupt an event line by chopping it in half, like a file that got
+    // cut in transit (ADR-0021 §6).
+    final lines = content.split('\n');
+    final lastEventLineIndex = lines.lastIndexWhere(
+      (l) => l.contains('"kind":"event"'),
+    );
+    final original = lines[lastEventLineIndex];
+    lines[lastEventLineIndex] = original.substring(0, original.length ~/ 2);
+    final brokenContent = lines.join('\n');
+
+    await expectLater(
+      () => destination.useCase().call(brokenContent),
+      throwsA(
+        isA<RestoreBackupError>().having(
+          (e) => e.message,
+          'message',
+          contains('renglón'),
+        ),
+      ),
+    );
+
+    expect(destination.eventStore.events.length, equals(preEventCount));
+    expect(destination.catalog.accounts.length, equals(preAccountCount));
+    expect(destination.catalog.envelopes.length, equals(preEnvelopeCount));
+    expect(
+      (await destination.rates.allObservations()).length,
+      equals(preRateCount),
+    );
+    final cascade = await destination.cascade.load();
+    expect(cascade?.steps, hasLength(1));
+    expect(
+      destination.catalog.getAccount(AccountId('acc-existing'))?.name,
+      equals('Cuenta existente'),
+    );
+    expect(
+      destination.catalog.getEnvelope(EnvelopeId('env-existing'))?.name,
+      equals('Sobre existente'),
+    );
+  });
+
   test('a commit that fails leaves projections and rates untouched', () async {
     final source = _Source();
     await source.seed();
