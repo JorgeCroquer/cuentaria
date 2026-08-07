@@ -1,6 +1,7 @@
 import 'package:contabilidad/application/cascade/cascade_repository.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
+import 'package:contabilidad/application/unit_of_work.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/infrastructure/cascade/drift_cascade_repository.dart';
 import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository.dart';
@@ -9,7 +10,9 @@ import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
 import 'package:contabilidad/infrastructure/database/device_id_provider.dart';
 import 'package:contabilidad/infrastructure/database/drift_event_store.dart';
+import 'package:contabilidad/infrastructure/database/drift_unit_of_work.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
+import 'package:contabilidad/infrastructure/in_memory_unit_of_work.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -63,6 +66,24 @@ final catalogRepositoryProvider = FutureProvider<CatalogRepository>((
 
 final ledgerProjectionsProvider = Provider<LedgerProjections>((ref) {
   return InMemoryLedgerProjections();
+});
+
+/// Groups writes that must land together, used by the restore flow
+/// (ADR-0021 §6). The Drift adapter is handed the two repositories that cache
+/// rows in memory, so a rollback reloads them instead of leaving reads
+/// serving accounts that never reached disk.
+final unitOfWorkProvider = FutureProvider<UnitOfWork>((ref) async {
+  if (ref.watch(isWebProvider)) return const InMemoryUnitOfWork();
+  final db = await ref.watch(databaseProvider.future);
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  final cascade = await ref.watch(cascadeRepositoryProvider.future);
+  return DriftUnitOfWork(
+    db,
+    onRollback: [
+      if (catalog is DriftCatalogRepository) catalog.hydrate,
+      if (cascade is DriftCascadeRepository) cascade.hydrate,
+    ],
+  );
 });
 
 /// The single saved cascade plan (ADR-0015 §1), read by the distribute flow

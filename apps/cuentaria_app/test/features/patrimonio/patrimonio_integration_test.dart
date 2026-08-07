@@ -292,6 +292,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('patrimonioEmptyState')), findsOneWidget);
+      expect(find.text('Todavía no hay cuentas'), findsOneWidget);
+      expect(find.byKey(const Key('restoreBackupButton')), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.text('\$0.00'), findsNothing);
     },

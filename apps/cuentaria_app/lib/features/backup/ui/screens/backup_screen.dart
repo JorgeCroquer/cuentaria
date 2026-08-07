@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../application/backup_providers.dart';
 import '../../application/system_share.dart';
+import '../widgets/restore_backup_button.dart';
 
 const _shareWarning =
     'Este archivo lleva tus finanzas en texto legible. '
@@ -185,6 +186,11 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                 onPressed: _isSharingCsv ? null : _onExportarExcel,
                 child: const Text('Exportar a Excel'),
               ),
+              // The two ways data leaves the phone first, then the one that
+              // brings it back — a wider gap so it does not read as a third
+              // flavour of export.
+              const SizedBox(height: 16),
+              const RestoreBackupButton(),
             ],
           ),
         ),

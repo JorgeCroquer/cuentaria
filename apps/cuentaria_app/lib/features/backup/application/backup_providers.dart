@@ -5,6 +5,8 @@ import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
 import 'create_backup.dart';
 import 'create_spreadsheet_export.dart';
+import 'restore_backup.dart';
+import 'system_file_picker.dart';
 import 'system_share.dart';
 
 final createBackupProvider = FutureProvider<CreateBackup>((ref) async {
@@ -20,6 +22,25 @@ final createBackupProvider = FutureProvider<CreateBackup>((ref) async {
   );
 });
 
+final restoreBackupProvider = FutureProvider<RestoreBackup>((ref) async {
+  final eventStore = await ref.watch(eventStoreProvider.future);
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  final cascade = await ref.watch(cascadeRepositoryProvider.future);
+  final rates = await ref.watch(rateSeriesProvider.future);
+  final projections = ref.watch(ledgerProjectionsProvider);
+  final eventBus = ref.watch(eventBusProvider);
+  final unitOfWork = await ref.watch(unitOfWorkProvider.future);
+  return RestoreBackup(
+    eventStore: eventStore,
+    catalog: catalog,
+    cascade: cascade,
+    rates: rates,
+    projections: projections,
+    eventBus: eventBus,
+    unitOfWork: unitOfWork,
+  );
+});
+
 final createSpreadsheetExportProvider = FutureProvider<CreateSpreadsheetExport>(
   (ref) async {
     final eventStore = await ref.watch(eventStoreProvider.future);
@@ -30,6 +51,10 @@ final createSpreadsheetExportProvider = FutureProvider<CreateSpreadsheetExport>(
 
 final systemShareProvider = Provider<SystemShare>(
   (ref) => const MethodChannelSystemShare(),
+);
+
+final systemFilePickerProvider = Provider<SystemFilePicker>(
+  (ref) => const MethodChannelSystemFilePicker(),
 );
 
 /// Local-only stamp of the last successful share (ADR-0021 §4/Consequence),
