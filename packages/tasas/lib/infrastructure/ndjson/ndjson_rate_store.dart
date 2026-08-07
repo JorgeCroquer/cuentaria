@@ -50,13 +50,12 @@ class NdjsonRateStore {
     'observedAt': observation.observedAt.toUtc().toIso8601String(),
   };
 
-  static RateObservation fromJson(Map<String, dynamic> json) =>
-      RateObservation(
-        currency: CurrencyCode(json['currency'] as String),
-        source: json['source'] as String,
-        nativePerUsd: Decimal.parse(json['nativePerUsd'] as String),
-        observedAt: DateTime.parse(json['observedAt'] as String),
-      );
+  static RateObservation fromJson(Map<String, dynamic> json) => RateObservation(
+    currency: CurrencyCode(json['currency'] as String),
+    source: json['source'] as String,
+    nativePerUsd: Decimal.parse(json['nativePerUsd'] as String),
+    observedAt: DateTime.parse(json['observedAt'] as String),
+  );
 
   static String _encode(RateObservation observation) =>
       jsonEncode(toJson(observation));
