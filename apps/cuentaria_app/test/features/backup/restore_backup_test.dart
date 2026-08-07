@@ -3,6 +3,7 @@ import 'package:contabilidad/application/cascade/cascade_step.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/funding_target.dart';
+import 'package:contabilidad/application/unit_of_work.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
@@ -11,6 +12,7 @@ import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
+import 'package:contabilidad/infrastructure/in_memory_unit_of_work.dart';
 import 'package:cuentaria_app/features/backup/application/create_backup.dart';
 import 'package:cuentaria_app/features/backup/application/restore_backup.dart';
 import 'package:decimal/decimal.dart';
@@ -116,14 +118,28 @@ class _Destination {
   final projections = InMemoryLedgerProjections();
   final eventBus = SyncEventBus();
 
-  RestoreBackup useCase() => RestoreBackup(
-    eventStore: eventStore,
-    catalog: catalog,
-    cascade: cascade,
-    rates: rates,
-    projections: projections,
-    eventBus: eventBus,
-  );
+  RestoreBackup useCase({UnitOfWork unitOfWork = const InMemoryUnitOfWork()}) =>
+      RestoreBackup(
+        eventStore: eventStore,
+        catalog: catalog,
+        cascade: cascade,
+        rates: rates,
+        projections: projections,
+        eventBus: eventBus,
+        unitOfWork: unitOfWork,
+      );
+}
+
+/// Runs the body — the in-memory adapters have no transaction to open — and
+/// then fails, standing in for a commit that does not land.
+class _FailingUnitOfWork implements UnitOfWork {
+  const _FailingUnitOfWork();
+
+  @override
+  Future<T> run<T>(Future<T> Function() body) async {
+    await body();
+    throw StateError('commit failed');
+  }
 }
 
 void main() {
@@ -194,6 +210,32 @@ void main() {
     expect(destination.eventStore.events, isEmpty);
     expect(destination.catalog.accounts, isEmpty);
     expect(await destination.cascade.load(), isNull);
+    expect(await destination.rates.allObservations(), isEmpty);
+  });
+
+  test('a commit that fails leaves projections and rates untouched', () async {
+    final source = _Source();
+    await source.seed();
+    final content = await source.backupContent();
+
+    final destination = _Destination();
+    await expectLater(
+      () => destination
+          .useCase(unitOfWork: const _FailingUnitOfWork())
+          .call(content),
+      throwsA(isA<StateError>()),
+    );
+
+    // The in-memory adapters have no rollback, so the rows written inside the
+    // unit do survive here. What this pins down is the other half: the write
+    // pass runs *inside* the unit, and everything that cannot be rolled back
+    // — projections, the EventBus, the Rate Series in its own database — is
+    // left for after the commit. Real rollback is proven against Drift in
+    // `packages/contabilidad/test/infrastructure/drift_unit_of_work_test.dart`.
+    expect(
+      destination.projections.accountBalance(AccountId('acc-1')).usd,
+      equals(0),
+    );
     expect(await destination.rates.allObservations(), isEmpty);
   });
 

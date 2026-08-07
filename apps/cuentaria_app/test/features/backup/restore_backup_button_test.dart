@@ -2,6 +2,7 @@ import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
+import 'package:contabilidad/infrastructure/in_memory_unit_of_work.dart';
 import 'package:cuentaria_app/features/backup/application/backup_providers.dart';
 import 'package:cuentaria_app/features/backup/application/restore_backup.dart';
 import 'package:cuentaria_app/features/backup/application/system_file_picker.dart';
@@ -30,6 +31,7 @@ final _restoreBackupOverride = restoreBackupProvider.overrideWith(
     rates: InMemoryRateSeries(),
     projections: InMemoryLedgerProjections(),
     eventBus: SyncEventBus(),
+    unitOfWork: const InMemoryUnitOfWork(),
   ),
 );
 

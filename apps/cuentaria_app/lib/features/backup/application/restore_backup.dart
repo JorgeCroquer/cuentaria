@@ -7,6 +7,7 @@ import 'package:contabilidad/application/cascade/cascade_repository.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/unit_of_work.dart';
 import 'package:contabilidad/domain/ports/event_store.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/domain/transaction.dart';
@@ -50,6 +51,11 @@ class RestoreBackupResult {
 /// has data, or restoring the same file twice, is safe with no new merge
 /// code.
 ///
+/// The write pass runs inside a [UnitOfWork] so it is all-or-nothing even if
+/// the process dies in the middle of it, not just when the file fails to
+/// parse — a half-restored device is the one broken state the ledger cannot
+/// detect (ADR-0021 §6).
+///
 /// App-layer wiring, not a `backup`-package use case, for the same reason as
 /// [CreateBackup]: `backup` depends only on `shared_kernel`.
 class RestoreBackup {
@@ -59,6 +65,7 @@ class RestoreBackup {
   final RateSeries rates;
   final LedgerProjections projections;
   final EventBus eventBus;
+  final UnitOfWork unitOfWork;
   final BackupReader _reader;
 
   RestoreBackup({
@@ -68,6 +75,7 @@ class RestoreBackup {
     required this.rates,
     required this.projections,
     required this.eventBus,
+    required this.unitOfWork,
     BackupReader reader = const BackupReader(),
   }) : _reader = reader;
 
@@ -91,22 +99,37 @@ class RestoreBackup {
       throw RestoreBackupError('El archivo de respaldo no se pudo leer: $e');
     }
 
-    for (final account in accounts) {
-      await catalog.saveAccount(account);
-    }
-    for (final envelope in envelopes) {
-      await catalog.saveEnvelope(envelope);
-    }
-    if (cascadeDoc != null) {
-      await cascade.save(cascadeDoc);
-    }
-    for (final transaction in transactions) {
-      final isNew = await eventStore.append(transaction);
-      if (isNew) {
-        projections.apply(transaction);
-        eventBus.publish(transaction);
+    // Everything that lives in the local database goes in one unit: Catalog
+    // and Cascade first so the UI has names, then the events.
+    final applied = <Transaction>[];
+    await unitOfWork.run(() async {
+      for (final account in accounts) {
+        await catalog.saveAccount(account);
       }
+      for (final envelope in envelopes) {
+        await catalog.saveEnvelope(envelope);
+      }
+      if (cascadeDoc != null) {
+        await cascade.save(cascadeDoc);
+      }
+      for (final transaction in transactions) {
+        if (await eventStore.append(transaction)) applied.add(transaction);
+      }
+    });
+
+    // Only after the rows are committed. Projections and the EventBus live in
+    // memory and cannot be rolled back, so firing them inside the unit would
+    // leave balances counting events that no longer exist on disk.
+    for (final transaction in applied) {
+      projections.apply(transaction);
+      eventBus.publish(transaction);
     }
+
+    // ponytail: the Rate Series lives in a separate physical database, so it
+    // cannot join the unit above and there is no two-phase commit here. It is
+    // written after the commit and the sync dedups by
+    // `(currency, source, observedAt)`, so a failure at this point leaves
+    // nothing half-done that restoring the same file again won't finish.
     await SyncRateSeriesUseCase(rateFeed, rates).sync();
 
     return RestoreBackupResult(eventsRestored: transactions.length);

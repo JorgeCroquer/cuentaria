@@ -28,6 +28,7 @@ final restoreBackupProvider = FutureProvider<RestoreBackup>((ref) async {
   final rates = await ref.watch(rateSeriesProvider.future);
   final projections = ref.watch(ledgerProjectionsProvider);
   final eventBus = ref.watch(eventBusProvider);
+  final unitOfWork = await ref.watch(unitOfWorkProvider.future);
   return RestoreBackup(
     eventStore: eventStore,
     catalog: catalog,
@@ -35,6 +36,7 @@ final restoreBackupProvider = FutureProvider<RestoreBackup>((ref) async {
     rates: rates,
     projections: projections,
     eventBus: eventBus,
+    unitOfWork: unitOfWork,
   );
 });
 
