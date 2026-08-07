@@ -2,7 +2,14 @@ name: Publish rates
 
 on:
   schedule:
-    - cron: '10 4,10,16,22 * * *'
+    # Every 2 hours, not because rates move that often, but because GitHub's
+    # scheduler delays or silently discards runs under load (see #187) — a
+    # tight cadence makes a late or dropped run harmless. Minute 10 keeps a
+    # slot anchored at Venezuela midnight (04:10 UTC), the anchor ADR-0020
+    # §S1-1 relies on. Extra runs are free: the append logic dedupes by
+    # (currency, source, observedAt), so a run with no new observations adds
+    # zero lines (ADR-0020).
+    - cron: '10 */2 * * *'
   workflow_dispatch:
 
 permissions:
