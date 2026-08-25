@@ -522,6 +522,87 @@ void main() {
       expect(snapshot.todayValueUsdCents, 50000 + 20000 + 8000);
       expect(snapshot.unrealizedPnlUsdCents, 8000 - 10000);
     });
+
+    test('the BCV reference folds Debt Accounts\' valuation too, not just '
+        'their parallel-rate today value', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+
+      final anaId = AccountId('ana');
+      await catalog.saveAccount(
+        Account(
+          id: anaId,
+          name: 'Ana',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Ana'},
+        ),
+      );
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(anaId),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-ana-bcv-fold'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('40'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'dolarapi:oficial',
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+
+      // No non-debt accounts, so the patrimonio engine alone contributes 0;
+      // Ana's Debt Account values at BCV 40 (4000/40 = $100).
+      expect(snapshot.bcvReferenceUsdCents, 10000);
+    });
   });
 
   group('patrimonioSnapshotProvider envelopes', () {

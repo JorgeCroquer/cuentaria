@@ -224,6 +224,67 @@ void main() {
       expect(snapshot.calculatedAt, now);
     });
 
+    test('BCV reference: folds every account\'s BCV valuation, USD at par, '
+        'VES with a BCV rate, never feeding globalNetoUsdCents', () {
+      final rates = {
+        ves: RateView(
+          currency: ves,
+          parallel: RateObservationView(
+            nativePerUsd: Decimal.parse('50'),
+            observedAt: now,
+            source: 'binancep2p:ask',
+          ),
+          bcv: RateObservationView(
+            nativePerUsd: Decimal.parse('40'),
+            observedAt: now,
+            source: 'dolarapi:oficial',
+          ),
+        ),
+      };
+
+      final snapshot = engine(
+        [
+          account(
+            id: 'acc-usd',
+            person: 'Ana',
+            currency: usd,
+            native: BigInt.from(5000),
+            realCostUsdCents: 5000,
+          ),
+          account(
+            id: 'acc-ves',
+            person: 'Ana',
+            native: BigInt.from(400000),
+            realCostUsdCents: 10000,
+          ),
+        ],
+        rates,
+        now,
+      );
+
+      // USD leg at par ($50) + VES leg at BCV 40 (4000/40 = $100) = $150.
+      expect(snapshot.bcvReferenceUsdCents, 15000);
+      // Parallel-valued neto stays independent: 50 + 80 (VES @ 50) = 130.
+      expect(snapshot.globalNetoUsdCents, 13000);
+    });
+
+    test('BCV reference falls back to frozen cost when no BCV observation '
+        'exists, never a silent 1:1', () {
+      final snapshot = engine(
+        [
+          account(
+            person: 'Ana',
+            native: BigInt.from(400000),
+            realCostUsdCents: 10000,
+          ),
+        ],
+        const {},
+        now,
+      );
+
+      expect(snapshot.bcvReferenceUsdCents, 10000);
+    });
+
     test('single rounding per account: native/rate rounds once, half away '
         'from zero', () {
       final rates = {

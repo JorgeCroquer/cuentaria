@@ -21,6 +21,7 @@ class DebtsEngine {
     DateTime now,
   ) {
     final personGroups = <String, Map<CurrencyCode, _MutableCurrencyGroup>>{};
+    var bcvReferenceUsdCents = 0;
 
     for (final account in accounts) {
       if (account.isArchived) continue;
@@ -38,10 +39,13 @@ class DebtsEngine {
 
       if (account.currency == _usd) {
         group.todayValueUsdCents += account.realCostUsdCents;
+        bcvReferenceUsdCents += account.realCostUsdCents;
         continue;
       }
 
-      final parallel = rates[account.currency]?.parallel;
+      final rate = rates[account.currency];
+
+      final parallel = rate?.parallel;
       if (parallel == null) {
         group.todayValueUsdCents += account.realCostUsdCents;
         group.hasRate = false;
@@ -51,6 +55,16 @@ class DebtsEngine {
           parallel.nativePerUsd,
         );
         group.parallelRate = parallel;
+      }
+
+      final bcv = rate?.bcv;
+      if (bcv == null) {
+        bcvReferenceUsdCents += account.realCostUsdCents;
+      } else {
+        bcvReferenceUsdCents += _convert(
+          account.nativeMinorAmount,
+          bcv.nativePerUsd,
+        );
       }
     }
 
@@ -81,6 +95,7 @@ class DebtsEngine {
     return DebtsSnapshot(
       personas: personas,
       globalNetoUsdCents: globalNeto,
+      bcvReferenceUsdCents: bcvReferenceUsdCents,
       calculatedAt: now,
     );
   }

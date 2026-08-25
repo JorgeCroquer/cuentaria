@@ -3,6 +3,7 @@ import 'package:deudas/deudas.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/application/rate_resolution_service.dart';
+import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
@@ -46,15 +47,30 @@ final debtsSnapshotProvider = FutureProvider<DebtsSnapshot>((ref) async {
   final rates = <CurrencyCode, RateView>{};
   for (final currency in foreignCurrencies) {
     final parallel = await RateResolutionService(series)(currency);
-    if (parallel == null) continue;
+    final bcv = await RateResolutionService(series)(
+      currency,
+      sourcePriority: oficialSourcePriority,
+    );
+    if (parallel == null && bcv == null) continue;
 
     rates[currency] = RateView(
       currency: currency,
-      parallel: RateObservationView(
-        nativePerUsd: parallel.nativePerUsd,
-        observedAt: parallel.observedAt,
-        source: parallel.source,
-      ),
+      parallel:
+          parallel == null
+              ? null
+              : RateObservationView(
+                nativePerUsd: parallel.nativePerUsd,
+                observedAt: parallel.observedAt,
+                source: parallel.source,
+              ),
+      bcv:
+          bcv == null
+              ? null
+              : RateObservationView(
+                nativePerUsd: bcv.nativePerUsd,
+                observedAt: bcv.observedAt,
+                source: bcv.source,
+              ),
     );
   }
 

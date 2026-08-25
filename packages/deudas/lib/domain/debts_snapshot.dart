@@ -64,17 +64,28 @@ class PersonDebts extends Equatable {
 /// The Deudas engine's output: every counterparty's net debt and the global
 /// net (signed sum of all personas — positive means net creditor).
 /// Archived Debt Accounts never enter this projection (ADR-0022 §1).
+/// [bcvReferenceUsdCents] is the same labeled reference Patrimonio computes
+/// for its own accounts (ADR-0016 §5) — it never feeds [globalNetoUsdCents];
+/// app-layer wiring folds it into Patrimonio's total when debts are
+/// segregated (#207) so the header stays whole across that split.
 class DebtsSnapshot extends Equatable {
   final List<PersonDebts> personas;
   final int globalNetoUsdCents;
+  final int bcvReferenceUsdCents;
   final DateTime calculatedAt;
 
   const DebtsSnapshot({
     required this.personas,
     required this.globalNetoUsdCents,
+    required this.bcvReferenceUsdCents,
     required this.calculatedAt,
   });
 
   @override
-  List<Object?> get props => [personas, globalNetoUsdCents, calculatedAt];
+  List<Object?> get props => [
+    personas,
+    globalNetoUsdCents,
+    bcvReferenceUsdCents,
+    calculatedAt,
+  ];
 }

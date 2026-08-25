@@ -113,12 +113,14 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
   final realCostUsdCents = snapshot.realCostUsdCents + debtsRealCostUsdCents;
   final todayValueUsdCents =
       snapshot.todayValueUsdCents + debts.globalNetoUsdCents;
+  final bcvReferenceUsdCents =
+      snapshot.bcvReferenceUsdCents + debts.bcvReferenceUsdCents;
 
   return PatrimonioSnapshot(
     realCostUsdCents: realCostUsdCents,
     todayValueUsdCents: todayValueUsdCents,
     unrealizedPnlUsdCents: todayValueUsdCents - realCostUsdCents,
-    bcvReferenceUsdCents: snapshot.bcvReferenceUsdCents,
+    bcvReferenceUsdCents: bcvReferenceUsdCents,
     hasMissingRate: snapshot.hasMissingRate,
     accountGroups: snapshot.accountGroups,
     envelopes: snapshot.envelopes,
