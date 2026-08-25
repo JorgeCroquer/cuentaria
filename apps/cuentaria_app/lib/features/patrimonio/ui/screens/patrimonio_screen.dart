@@ -529,8 +529,8 @@ class _RecordRatesAction extends StatelessWidget {
 }
 
 /// Overflow menu (#192, ADR-0021): a single ⋮ next to the four existing
-/// icons rather than a fifth one, since Respaldo is reached rarely — unlike
-/// the daily-use actions it sits beside.
+/// icons rather than a fifth one, since Respaldo and Deudas (#205) are
+/// reached rarely — unlike the daily-use actions it sits beside.
 class _OverflowMenu extends StatelessWidget {
   const _OverflowMenu();
 
@@ -540,6 +540,7 @@ class _OverflowMenu extends StatelessWidget {
       key: const Key('patrimonioOverflowMenu'),
       onSelected: (value) {
         if (value == 'backup') context.push('/backup');
+        if (value == 'debts') context.push('/debts');
       },
       itemBuilder:
           (context) => const [
@@ -547,6 +548,11 @@ class _OverflowMenu extends StatelessWidget {
               key: Key('backupMenuItem'),
               value: 'backup',
               child: Text('Respaldo'),
+            ),
+            PopupMenuItem(
+              key: Key('debtsMenuItem'),
+              value: 'debts',
+              child: Text('Deudas'),
             ),
           ],
     );

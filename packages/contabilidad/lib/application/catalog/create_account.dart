@@ -31,6 +31,7 @@ class CreateAccount {
     required String name,
     required CurrencyCode nativeCurrency,
     String? colorHex,
+    String? counterpartyName,
     Money? openingBalance,
     int? openingBalanceUsd,
     Decimal? openingBalanceRate,
@@ -50,6 +51,11 @@ class CreateAccount {
       );
     }
 
+    final meta = <String, dynamic>{
+      if (colorHex != null) 'color': colorHex,
+      if (counterpartyName != null) 'counterpartyName': counterpartyName,
+    };
+
     final id = AccountId(_uuid.v4());
     await _catalog.saveAccount(
       Account(
@@ -58,7 +64,7 @@ class CreateAccount {
         nativeCurrency: nativeCurrency,
         isArchived: false,
         updatedAt: DateTime.now().toUtc(),
-        meta: colorHex != null ? {'color': colorHex} : null,
+        meta: meta.isEmpty ? null : meta,
       ),
     );
 

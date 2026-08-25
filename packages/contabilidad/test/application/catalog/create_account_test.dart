@@ -91,6 +91,43 @@ void main() {
       expect(catalog.getAccount(id)?.colorHex, '#FF5500');
     });
 
+    test('persists the counterparty name tag, marking it a Debt Account '
+        '(ADR-0022)', () async {
+      final id = await createAccount(
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        counterpartyName: 'Pedro',
+        eventId: EventId('evt-create-debt-1'),
+        deviceId: 'dev-1',
+      );
+
+      final saved = catalog.getAccount(id);
+      expect(saved?.counterpartyName, 'Pedro');
+      expect(saved?.isDebtAccount, isTrue);
+      expect(saved?.nativeCurrency, CurrencyCode('USD'));
+      expect(
+        store.events,
+        isEmpty,
+        reason:
+            'a debt is born from a movement, '
+            'not from an opening balance',
+      );
+    });
+
+    test('a Debt Account can carry the pact currency, e.g. VES', () async {
+      final id = await createAccount(
+        name: 'Ana',
+        nativeCurrency: CurrencyCode('VES'),
+        counterpartyName: 'Ana',
+        eventId: EventId('evt-create-debt-2'),
+        deviceId: 'dev-1',
+      );
+
+      final saved = catalog.getAccount(id);
+      expect(saved?.counterpartyName, 'Ana');
+      expect(saved?.nativeCurrency, CurrencyCode('VES'));
+    });
+
     test('a non-zero opening balance posts to the Apertura envelope through '
         'RecordOpening', () async {
       final id = await createAccount(
