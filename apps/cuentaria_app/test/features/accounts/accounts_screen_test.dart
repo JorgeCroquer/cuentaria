@@ -668,6 +668,44 @@ void main() {
     },
   );
 
+  testWidgets('Debt Accounts are excluded from the main list and appear in a '
+      'collapsible "Deudas" section instead (ADR-0022, #205)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    await catalog.saveAccount(
+      Account(
+        id: AccountId('acc-cash'),
+        name: 'Efectivo',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      ),
+    );
+    await catalog.saveAccount(
+      Account(
+        id: AccountId('acc-pedro'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+        meta: {'counterpartyName': 'Pedro'},
+      ),
+    );
+
+    await pumpWithContainer(tester, container);
+
+    expect(find.text('Efectivo'), findsOneWidget);
+    expect(find.text('Pedro'), findsNothing);
+
+    await tester.tap(find.byKey(const Key('debtsSection')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pedro'), findsOneWidget);
+  });
+
   testWidgets(
     'tapping an account row opens the Reconciliation sheet for it (#147)',
     (tester) async {
