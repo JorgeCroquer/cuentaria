@@ -20,14 +20,18 @@ class RateObservationView extends Equatable {
   List<Object?> get props => [nativePerUsd, observedAt, source];
 }
 
-/// Deudas-owned read view of a currency's known parallel rate. Absent when
-/// no observation has been captured yet.
+/// Deudas-owned read view of a currency's known rates. [parallel] values the
+/// today amount shown per person; [bcv] is only a labeled reference folded
+/// into Patrimonio's BCV total when debts are segregated (#207) — it never
+/// feeds [parallel]. Either may be absent when no observation has been
+/// captured yet.
 class RateView extends Equatable {
   final CurrencyCode currency;
   final RateObservationView? parallel;
+  final RateObservationView? bcv;
 
-  const RateView({required this.currency, this.parallel});
+  const RateView({required this.currency, this.parallel, this.bcv});
 
   @override
-  List<Object?> get props => [currency, parallel];
+  List<Object?> get props => [currency, parallel, bcv];
 }

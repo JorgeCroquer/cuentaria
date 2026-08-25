@@ -1,3 +1,4 @@
+import 'package:deudas/deudas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
@@ -6,13 +7,44 @@ import '../../../../providers/composition_root.dart';
 import '../../../accounts/application/account_providers.dart';
 import '../../../accounts/ui/account_form_validators.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
+import '../../application/debts_providers.dart';
 
 const _debtCurrencies = ['USD', 'VES'];
 
-/// Debts screen (S3, #205): lists Debt Accounts — Catalog Accounts tagged
-/// with a counterparty person label (ADR-0022) — reachable from Patrimonio's
-/// overflow menu. Balances arrive with the motor slice (patrimonio/ledger
-/// projections); until then a row is just the person's name existing.
+String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+bool _isFromToday(DateTime date) {
+  final now = DateTime.now();
+  return date.year == now.year &&
+      date.month == now.month &&
+      date.day == now.day;
+}
+
+const _monthAbbreviations = [
+  'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+  'jul', 'ago', 'sep', 'oct', 'nov', 'dic', //
+];
+
+String _formatShortDate(DateTime date) =>
+    '${date.day} ${_monthAbbreviations[date.month - 1]}';
+
+/// Announces what a currency leg valued today with (ADR-0018 §4: never a
+/// silent 1:1) — "tasa 50.00, hoy"/"tasa 50.00, 3 ago", or "sin tasa" when
+/// no parallel observation exists.
+String _rateAnnouncement(RateObservationView? rate) {
+  if (rate == null) return 'sin tasa';
+  final observedLocal = rate.observedAt.toLocal();
+  final dateLabel =
+      _isFromToday(observedLocal) ? 'hoy' : _formatShortDate(observedLocal);
+  return 'tasa ${rate.nativePerUsd.toStringAsFixed(2)}, $dateLabel';
+}
+
+/// Debts screen (S3, #205/#207): lists Debt Accounts — Catalog Accounts
+/// tagged with a counterparty person label (ADR-0022) — reachable from
+/// Patrimonio's overflow menu. Balances come from [debtsSnapshotProvider]
+/// (the deudas motor's own composition-root mapping, mirroring
+/// patrimonioSnapshotProvider's pattern), with the sign spoken in the
+/// user's language rather than a raw signed number.
 class DebtsScreen extends ConsumerStatefulWidget {
   const DebtsScreen({super.key});
 
@@ -31,26 +63,27 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final catalogAsync = ref.watch(catalogRepositoryProvider);
+    final snapshotAsync = ref.watch(debtsSnapshotProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Deudas')),
-      body: catalogAsync.when(
-        data: (catalog) {
-          final debtAccounts =
-              catalog.accounts
-                  .where((a) => !a.isArchived && a.isDebtAccount)
-                  .toList();
-          if (debtAccounts.isEmpty) {
+      body: snapshotAsync.when(
+        data: (snapshot) {
+          if (snapshot.personas.isEmpty) {
             return _EmptyState(onCreate: _openCreateDialog);
           }
           return ListView(
             children: [
-              for (final account in debtAccounts)
-                ListTile(
-                  key: Key('debtAccount_${account.id.value}'),
-                  title: Text(account.counterpartyName!),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  _formatUsdCents(snapshot.globalNetoUsdCents),
+                  key: const Key('debtsGlobalAmount'),
+                  style: Theme.of(context).textTheme.headlineMedium,
                 ),
+              ),
+              for (final persona in snapshot.personas)
+                _PersonTile(persona: persona),
             ],
           );
         },
@@ -63,6 +96,54 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
         child: const Icon(Icons.add),
       ),
     );
+  }
+}
+
+/// One counterparty's row: sign spoken in the user's language ("Pedro te
+/// debe $200.00" / "le debés $12.00 a Ana") plus one detail line per
+/// currency leg — always visible so a two-currency person shows both, and a
+/// non-USD leg announces the rate it valued at (or "sin tasa").
+class _PersonTile extends StatelessWidget {
+  const _PersonTile({required this.persona});
+
+  final PersonDebts persona;
+
+  @override
+  Widget build(BuildContext context) {
+    final headline =
+        persona.netoUsdCents >= 0
+            ? '${persona.personName} te debe '
+                '${_formatUsdCents(persona.netoUsdCents)}'
+            : 'le debés ${_formatUsdCents(-persona.netoUsdCents)} a '
+                '${persona.personName}';
+
+    return ListTile(
+      key: Key('debtPerson_${persona.personName}'),
+      title: Text(headline),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
+        ],
+      ),
+    );
+  }
+}
+
+class _CurrencyLegLine extends StatelessWidget {
+  const _CurrencyLegLine({required this.leg});
+
+  final PersonCurrencyDebt leg;
+
+  static final _usd = CurrencyCode('USD');
+
+  @override
+  Widget build(BuildContext context) {
+    final valueText =
+        '${leg.currency.value}: ${_formatUsdCents(leg.todayValueUsdCents)}';
+    if (leg.currency == _usd) return Text(valueText);
+    return Text('$valueText · ${_rateAnnouncement(leg.parallelRate)}');
   }
 }
 
@@ -148,6 +229,7 @@ class _PersonFormDialogState extends ConsumerState<_PersonFormDialog> {
       );
 
       ref.invalidate(patrimonioSnapshotProvider);
+      ref.invalidate(debtsSnapshotProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _error = e.toString());

@@ -1,10 +1,19 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
+import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/domain/posting.dart';
+import 'package:contabilidad/domain/posting_target.dart';
+import 'package:contabilidad/domain/transaction.dart';
+import 'package:contabilidad/domain/transaction_metadata.dart';
+import 'package:cuentaria_app/features/debts/application/debts_providers.dart';
 import 'package:cuentaria_app/features/debts/ui/screens/debts_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 Future<void> pumpWithContainer(
   WidgetTester tester,
@@ -48,7 +57,7 @@ void main() {
     await tester.tap(find.byKey(const Key('savePersonButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pedro'), findsOneWidget);
+    expect(find.byKey(const Key('debtPerson_Pedro')), findsOneWidget);
     expect(find.byKey(const Key('debtsEmptyState')), findsNothing);
 
     final catalog = await container.read(catalogRepositoryProvider.future);
@@ -76,8 +85,8 @@ void main() {
     await tester.tap(find.byKey(const Key('savePersonButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Pedro'), findsOneWidget);
-    expect(find.text('Ana'), findsOneWidget);
+    expect(find.byKey(const Key('debtPerson_Pedro')), findsOneWidget);
+    expect(find.byKey(const Key('debtPerson_Ana')), findsOneWidget);
 
     final catalog = await container.read(catalogRepositoryProvider.future);
     final ana = catalog.accounts.singleWhere((a) => a.name == 'Ana');
@@ -133,4 +142,145 @@ void main() {
     expect(find.text('Binance'), findsNothing);
     expect(find.byKey(const Key('debtsEmptyState')), findsOneWidget);
   });
+
+  testWidgets('Pedro (USD, \$200) reads "Pedro te debe \$200.00" and sets '
+      'the global net to \$200.00', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final deviceId = await container.read(deviceIdProvider.future);
+    final projections = container.read(ledgerProjectionsProvider);
+    final pedroId = AccountId('pedro');
+    await catalog.saveAccount(
+      Account(
+        id: pedroId,
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+        meta: {'counterpartyName': 'Pedro'},
+      ),
+    );
+    final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+    projections.apply(
+      Transaction.create(
+        postings: [
+          Posting(
+            target: AccountTarget(pedroId),
+            amountNative: Money(
+              amount: BigInt.from(20000),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 20000,
+          ),
+          Posting(
+            target: EnvelopeTarget(stageEnvelope),
+            amountNative: Money(
+              amount: BigInt.from(20000),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 20000,
+          ),
+        ],
+        metadata: TransactionMetadata(
+          eventId: EventId('evt-pedro'),
+          type: 'Adjustment',
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+          recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+          deviceId: deviceId,
+          schemaVersion: 1,
+        ),
+      ),
+    );
+
+    await pumpWithContainer(tester, container);
+
+    expect(find.text('Pedro te debe \$200.00'), findsOneWidget);
+    expect(find.text('\$200.00'), findsWidgets);
+  });
+
+  testWidgets(
+    'Ana (VES, 4.000 Bs, frozen \$100) with parallel rate 50 registered '
+    'shows \$80.00 announcing the rate and its date; without a rate shows '
+    '\$100.00 and "sin tasa"',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final anaId = AccountId('ana');
+      await catalog.saveAccount(
+        Account(
+          id: anaId,
+          name: 'Ana',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Ana'},
+        ),
+      );
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(anaId),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-ana'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      expect(find.text('Ana te debe \$100.00'), findsOneWidget);
+      expect(find.textContaining('sin tasa'), findsOneWidget);
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+      container.invalidate(debtsSnapshotProvider);
+      await pumpWithContainer(tester, container);
+
+      expect(find.text('Ana te debe \$80.00'), findsOneWidget);
+      expect(find.textContaining('tasa 50.00, hoy'), findsOneWidget);
+    },
+  );
 }
