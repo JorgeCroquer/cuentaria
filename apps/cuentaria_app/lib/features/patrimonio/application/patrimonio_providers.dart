@@ -10,6 +10,7 @@ import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../providers/composition_root.dart';
 import '../../../providers/tasas_providers.dart';
+import '../../debts/application/debts_providers.dart';
 
 const _engine = PatrimonioEngine();
 
@@ -38,13 +39,15 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
 
   final accounts = [
     for (final account in catalog.accounts)
-      AccountView(
-        id: account.id,
-        currency: account.nativeCurrency,
-        nativeMinorAmount: projections.accountBalance(account.id).native.amount,
-        realCostUsdCents: projections.accountBalance(account.id).usd,
-        isArchived: account.isArchived,
-      ),
+      if (!account.isDebtAccount)
+        AccountView(
+          id: account.id,
+          currency: account.nativeCurrency,
+          nativeMinorAmount:
+              projections.accountBalance(account.id).native.amount,
+          realCostUsdCents: projections.accountBalance(account.id).usd,
+          isArchived: account.isArchived,
+        ),
   ];
 
   final usd = CurrencyCode('USD');
@@ -95,7 +98,31 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
         ),
   ];
 
-  return _engine(accounts, rates, envelopes, DateTime.now().toUtc());
+  final snapshot = _engine(accounts, rates, envelopes, DateTime.now().toUtc());
+
+  // Debt Accounts are excluded from `accounts` above (#207) so they never
+  // land in a currency group — the Deudas screen owns their presentation.
+  // Their value is added back into the totals here so segregating moves
+  // presentation, not numbers: net worth stays identical to when they were
+  // still mixed into their currency's group.
+  final debts = await ref.watch(debtsSnapshotProvider.future);
+  final debtsRealCostUsdCents = [
+    for (final persona in debts.personas)
+      for (final leg in persona.currencies) leg.realCostUsdCents,
+  ].fold(0, (sum, cost) => sum + cost);
+  final realCostUsdCents = snapshot.realCostUsdCents + debtsRealCostUsdCents;
+  final todayValueUsdCents =
+      snapshot.todayValueUsdCents + debts.globalNetoUsdCents;
+
+  return PatrimonioSnapshot(
+    realCostUsdCents: realCostUsdCents,
+    todayValueUsdCents: todayValueUsdCents,
+    unrealizedPnlUsdCents: todayValueUsdCents - realCostUsdCents,
+    bcvReferenceUsdCents: snapshot.bcvReferenceUsdCents,
+    hasMissingRate: snapshot.hasMissingRate,
+    accountGroups: snapshot.accountGroups,
+    envelopes: snapshot.envelopes,
+  );
 });
 
 EnvelopeRoleView _mapRole(EnvelopeRole role) => switch (role) {

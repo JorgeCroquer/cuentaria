@@ -348,6 +348,182 @@ void main() {
     });
   });
 
+  group('patrimonioSnapshotProvider debts segregation (#207)', () {
+    test('Debt Accounts never appear in a currency group, and the segregation '
+        'moves presentation, not numbers: net worth includes their value '
+        'today the same as before segregating', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+
+      final efectivoId = AccountId('efectivo');
+      await catalog.saveAccount(
+        Account(
+          id: efectivoId,
+          name: 'Efectivo',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(efectivoId),
+              amountNative: Money(
+                amount: BigInt.from(50000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 50000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(50000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 50000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-efectivo'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final pedroId = AccountId('pedro');
+      await catalog.saveAccount(
+        Account(
+          id: pedroId,
+          name: 'Pedro',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Pedro'},
+        ),
+      );
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(pedroId),
+              amountNative: Money(
+                amount: BigInt.from(20000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 20000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(20000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 20000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-pedro'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final anaId = AccountId('ana');
+      await catalog.saveAccount(
+        Account(
+          id: anaId,
+          name: 'Ana',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Ana'},
+        ),
+      );
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(anaId),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(400000),
+                currency: CurrencyCode('VES'),
+              ),
+              currency: CurrencyCode('VES'),
+              amountUsd: 10000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-ana'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      final snapshot = await container.read(patrimonioSnapshotProvider.future);
+
+      expect(
+        snapshot.accountGroups.where((g) => g.currency == CurrencyCode('VES')),
+        isEmpty,
+      );
+      expect(
+        snapshot.accountGroups
+            .singleWhere((g) => g.currency == CurrencyCode('USD'))
+            .realCostUsdCents,
+        50000,
+      );
+
+      // Pedro ($200) + Ana (4.000 Bs at 50 => $80) = $280 on top of
+      // Efectivo's $500 — the same total as if they were never segregated.
+      expect(snapshot.realCostUsdCents, 50000 + 20000 + 10000);
+      expect(snapshot.todayValueUsdCents, 50000 + 20000 + 8000);
+      expect(snapshot.unrealizedPnlUsdCents, 8000 - 10000);
+    });
+  });
+
   group('patrimonioSnapshotProvider envelopes', () {
     test('maps a user envelope with a GoalLine target into metadata', () async {
       final container = ProviderContainer(
