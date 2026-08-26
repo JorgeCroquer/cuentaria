@@ -237,6 +237,102 @@ void main() {
       expect(projections.accountBalance(accountId).usd, equals(4000));
     });
 
+    // 209. A negative adjustment that crosses the known balance (Debt
+    // Account overdraft, ADR-0017 "sobregiro registrable" applied to C3)
+    // values the covered part at frozen cost and the excess at the observed
+    // rate — mirrors RecordTransfer's splitByBalance/RateRequiredForExcess.
+    test('decrement crossing the known balance splits: covered at frozen cost, '
+        'excess at the provided rate', () async {
+      final accountId = AccountId('acc-ves-cross');
+
+      catalog.saveAccount(
+        Account(
+          id: accountId,
+          name: 'Claudia',
+          nativeCurrency: CurrencyCode('VES'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Claudia'},
+        ),
+      );
+
+      // Opening: 1000 VES with a frozen cost of $50.00 (5000 cents).
+      final metadataOrig = TransactionMetadata(
+        eventId: EventId('evt-cross-orig'),
+        type: 'Income',
+        occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+        deviceId: 'dev-1',
+        schemaVersion: 1,
+      );
+      await recordTransaction(
+        postings: [
+          Posting(
+            target: AccountTarget(accountId),
+            amountNative: Money(
+              amount: BigInt.from(1000),
+              currency: CurrencyCode('VES'),
+            ),
+            currency: CurrencyCode('VES'),
+            amountUsd: 5000,
+          ),
+          Posting(
+            target: EnvelopeTarget(
+              catalog.getSystemEnvelope(EnvelopeRole.stage),
+            ),
+            amountNative: Money(
+              amount: BigInt.from(5000),
+              currency: CurrencyCode('USD'),
+            ),
+            currency: CurrencyCode('USD'),
+            amountUsd: 5000,
+          ),
+        ],
+        metadata: metadataOrig,
+      );
+
+      // Declared real balance: -500 VES (crosses zero). Delta = -1500 VES:
+      // 1000 covered at frozen cost ($50.00) + 500 excess at 100 VES/USD.
+      await expectLater(
+        () => recordAdjustment(
+          eventId: EventId('evt-cross-1'),
+          deviceId: 'dev-1',
+          accountId: accountId,
+          realNativeBalance: Money(
+            amount: BigInt.from(-500),
+            currency: CurrencyCode('VES'),
+          ),
+        ),
+        throwsA(isA<RateRequiredForExcess>()),
+      );
+
+      await recordAdjustment(
+        eventId: EventId('evt-cross-1'),
+        deviceId: 'dev-1',
+        accountId: accountId,
+        realNativeBalance: Money(
+          amount: BigInt.from(-500),
+          currency: CurrencyCode('VES'),
+        ),
+        rate: Decimal.parse('100'),
+      );
+
+      final tx = store.events.last;
+      final pAcc = tx.postings.firstWhere((p) => p.target is AccountTarget);
+      final pEnv = tx.postings.firstWhere((p) => p.target is EnvelopeTarget);
+
+      expect(pAcc.amountNative.amount, equals(BigInt.from(-1500)));
+      // 5000 (covered, frozen cost) + 500 (excess) / 100 = 5 -> 5005.
+      expect(pAcc.amountUsd, equals(-5005));
+      expect(pEnv.amountUsd, equals(-5005));
+
+      expect(
+        projections.accountBalance(accountId).native.amount,
+        equals(BigInt.from(-500)),
+      );
+      expect(projections.accountBalance(accountId).usd, equals(-5));
+    });
+
     // 8. Adjust rejects if no difference
     test('throws AdjustmentWithNoDifference if delta is 0', () async {
       final accountId = AccountId('acc-usd');

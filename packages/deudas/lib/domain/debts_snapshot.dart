@@ -9,8 +9,11 @@ import 'rate_view.dart';
 /// Account this person holds in [currency]; [todayValueUsdCents] falls back
 /// to real cost with [hasRate] false when no parallel observation exists —
 /// never a silent 1:1 (S2-8). [parallelRate] carries the actual observation
-/// used so the UI can announce it.
+/// used so the UI can announce it. [accountId] is the underlying Catalog
+/// Account for this leg (ADR-0022 §3: one account per person per currency)
+/// — the UI needs it to launch Conciliar/Archivar against the right Account.
 class PersonCurrencyDebt extends Equatable {
+  final AccountId accountId;
   final CurrencyCode currency;
   final BigInt nativeMinorAmount;
   final int realCostUsdCents;
@@ -19,6 +22,7 @@ class PersonCurrencyDebt extends Equatable {
   final RateObservationView? parallelRate;
 
   const PersonCurrencyDebt({
+    required this.accountId,
     required this.currency,
     required this.nativeMinorAmount,
     required this.realCostUsdCents,
@@ -29,6 +33,7 @@ class PersonCurrencyDebt extends Equatable {
 
   @override
   List<Object?> get props => [
+    accountId,
     currency,
     nativeMinorAmount,
     realCostUsdCents,

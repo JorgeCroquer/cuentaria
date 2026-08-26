@@ -9,6 +9,7 @@ import '../../../accounts/application/account_providers.dart';
 import '../../../accounts/ui/account_form_validators.dart';
 import '../../../capture/ui/screens/quick_add_expense_sheet.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
+import '../../../reconciliation/ui/screens/reconciliation_sheet.dart';
 import '../../application/debts_providers.dart';
 
 const _debtCurrencies = ['USD', 'VES'];
@@ -183,7 +184,8 @@ class _PersonTile extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
+          for (final leg in persona.currencies)
+            _CurrencyLegLine(leg: leg, personName: persona.personName),
         ],
       ),
       trailing:
@@ -216,19 +218,90 @@ class _PersonTile extends StatelessWidget {
   }
 }
 
-class _CurrencyLegLine extends StatelessWidget {
-  const _CurrencyLegLine({required this.leg});
+/// One currency leg's line, with the two actions that close the Debt
+/// Account lifecycle (#209, ADR-0022 §4): **Conciliar** launches the
+/// existing C3 Reconciliation ritual preselecting this Debt Account — the
+/// same ritual a liquid Cuenta uses, since the Splitwise import is that
+/// ritual, not a bespoke flow. **Archivar** only appears once this leg's
+/// native balance is exactly zero, and always asks before archiving.
+class _CurrencyLegLine extends ConsumerWidget {
+  const _CurrencyLegLine({required this.leg, required this.personName});
 
   final PersonCurrencyDebt leg;
+  final String personName;
 
   static final _usd = CurrencyCode('USD');
 
+  Future<void> _reconcile(BuildContext context, WidgetRef ref) async {
+    final catalog = await ref.read(catalogRepositoryProvider.future);
+    final account = catalog.getAccount(leg.accountId);
+    if (account == null || !context.mounted) return;
+    await showReconciliationSheet(context, account);
+    ref.invalidate(debtsSnapshotProvider);
+    ref.invalidate(patrimonioSnapshotProvider);
+  }
+
+  Future<void> _archive(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Archivar deuda'),
+            content: Text(
+              '¿Archivar la cuenta de $personName en '
+              '${leg.currency.value}? Ya está en \$0,00.',
+            ),
+            actions: [
+              TextButton(
+                key: const Key('archiveDebtCancelButton'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                key: const Key('archiveDebtConfirmButton'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Archivar'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true) return;
+
+    final archiveAccount = await ref.read(archiveAccountProvider.future);
+    await archiveAccount(leg.accountId);
+    ref.invalidate(debtsSnapshotProvider);
+    ref.invalidate(patrimonioSnapshotProvider);
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final valueText =
         '${leg.currency.value}: ${_formatUsdCents(leg.todayValueUsdCents)}';
-    if (leg.currency == _usd) return Text(valueText);
-    return Text('$valueText · ${_rateAnnouncement(leg.parallelRate)}');
+    final isZero = leg.nativeMinorAmount == BigInt.zero;
+
+    return Row(
+      children: [
+        Expanded(
+          child:
+              leg.currency == _usd
+                  ? Text(valueText)
+                  : Text('$valueText · ${_rateAnnouncement(leg.parallelRate)}'),
+        ),
+        IconButton(
+          key: Key('reconcileDebtAccount_${leg.accountId.value}'),
+          icon: const Icon(Icons.sync_alt),
+          tooltip: 'Conciliar',
+          onPressed: () => _reconcile(context, ref),
+        ),
+        if (isZero)
+          IconButton(
+            key: Key('archiveDebtAccount_${leg.accountId.value}'),
+            icon: const Icon(Icons.archive_outlined),
+            tooltip: 'Archivar',
+            onPressed: () => _archive(context, ref),
+          ),
+      ],
+    );
   }
 }
 
