@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/debts/application/debts_providers.dart';
 import '../features/patrimonio/application/patrimonio_providers.dart';
 import 'tasas_providers.dart';
 
@@ -16,6 +17,7 @@ final rateSyncTriggerProvider = Provider<AppLifecycleListener>((ref) {
     final useCase = await ref.read(syncRateSeriesUseCaseProvider.future);
     await useCase.sync();
     ref.invalidate(patrimonioSnapshotProvider);
+    ref.invalidate(debtsSnapshotProvider);
     ref.invalidate(latestParaleloRateProvider);
     ref.invalidate(latestOficialRateProvider);
   }
