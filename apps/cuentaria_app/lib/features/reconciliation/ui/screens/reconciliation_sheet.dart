@@ -81,6 +81,12 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   // until Done is pressed again.
   ReconciliationOutcome? _outcome;
 
+  // Debt Account direction (#209, ADR-0022 §4): true = "Me debe" (positive),
+  // false = "Le debo" (negative). Defaulted from the projected balance's
+  // sign the first time _buildBody runs; null and unused for liquid
+  // accounts, which never show the selector.
+  bool? _debtDirection;
+
   // RouteToIncome
   final _incomeSourceController = TextEditingController();
 
@@ -147,12 +153,22 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
     if (picked != null) setState(() => _routedOccurredAt = picked);
   }
 
+  /// Applies the Debt Account direction (#209) to the typed magnitude — the
+  /// single place the sign is decided, so [_confirmAmount] and [_confirm]
+  /// can't disagree on it. Liquid accounts pass the typed amount through
+  /// unsigned, exactly as before.
+  BigInt get _realBalanceWithSign {
+    final magnitude = _realBalance.amountMinorUnits;
+    if (!widget.account.isDebtAccount) return magnitude;
+    return (_debtDirection ?? true) ? magnitude : -magnitude;
+  }
+
   /// Evaluates the typed amount into an outcome (#158): fired from the
   /// keypad's Done key, not from every digit, so partial digits never render
   /// a result the user hasn't finished typing yet.
   void _confirmAmount(Money projectedNative, Decimal rate) {
     if (!_hasTypedDigits) return;
-    final deltaNative = _realBalance.amountMinorUnits - projectedNative.amount;
+    final deltaNative = _realBalanceWithSign - projectedNative.amount;
     setState(() {
       _outcome = planReconciliation(deltaNative: deltaNative, rate: rate);
     });
@@ -173,7 +189,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
         deviceId: deviceId,
         accountId: widget.account.id,
         realNativeBalance: Money(
-          amount: _realBalance.amountMinorUnits,
+          amount: _realBalanceWithSign,
           currency: widget.account.nativeCurrency,
         ),
         forceAbsorb: forceAbsorb,
@@ -323,6 +339,9 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   }
 
   Widget _buildBody(AccountBalance projectedBalance, Decimal rate) {
+    if (widget.account.isDebtAccount) {
+      _debtDirection ??= projectedBalance.native.amount >= BigInt.zero;
+    }
     final outcome = _outcome;
     final isRouted = outcome is RouteToIncome || outcome is RouteToExpense;
 
@@ -347,6 +366,19 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
               key: const Key('projectedBalanceText'),
             ),
             const SizedBox(height: 16),
+            if (widget.account.isDebtAccount) ...[
+              Center(
+                child: _DebtDirectionSelector(
+                  positive: _debtDirection ?? true,
+                  onChanged:
+                      (positive) => setState(() {
+                        _debtDirection = positive;
+                        _outcome = null;
+                      }),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             Center(
               child: AnimatedBuilder(
                 animation: _realBalance,
@@ -464,6 +496,34 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Direction selector for a Debt Account's declared balance (#209,
+/// ADR-0022 §4): the typed amount on the keypad always stays unsigned, so
+/// this is the only place the user reasons about "me debe" vs. "le debo" —
+/// the sign ADR-0022 §2 hides behind "el signo cuenta la historia". Never
+/// shown for liquid accounts.
+class _DebtDirectionSelector extends StatelessWidget {
+  const _DebtDirectionSelector({
+    required this.positive,
+    required this.onChanged,
+  });
+
+  final bool positive;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SegmentedButton<bool>(
+      key: const Key('debtDirection'),
+      segments: const [
+        ButtonSegment(value: true, label: Text('Me debe')),
+        ButtonSegment(value: false, label: Text('Le debo')),
+      ],
+      selected: {positive},
+      onSelectionChanged: (selection) => onChanged(selection.first),
     );
   }
 }

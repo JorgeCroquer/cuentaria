@@ -32,6 +32,17 @@ class Account extends Equatable {
     return raw == null ? null : DateTime.parse(raw);
   }
 
+  /// Counterparty person label tagging this Account as a Debt Account
+  /// (ADR-0022): the person is the counterparty of the debt, stored in
+  /// [meta] under the `"counterpartyName"` key (FundingTarget/color
+  /// pattern). Null means this is a regular, non-debt account.
+  String? get counterpartyName => meta?['counterpartyName'] as String?;
+
+  /// Whether this Account is a Debt Account (ADR-0022) — the Debts screen
+  /// segregates these from liquid accounts, which never carry a
+  /// counterparty label.
+  bool get isDebtAccount => counterpartyName != null;
+
   /// Returns a copy stamped with [timestamp] as [lastReconciledAt],
   /// preserving other [meta] keys and advancing [updatedAt] so the stamp
   /// wins the catalog's Last-Write-Wins merge.

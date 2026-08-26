@@ -26,6 +26,8 @@ dependencies:
     path: ../../packages/tasas
   patrimonio:
     path: ../../packages/patrimonio
+  deudas:
+    path: ../../packages/deudas
   backup:
     path: ../../packages/backup
   decimal: ^3.2.4

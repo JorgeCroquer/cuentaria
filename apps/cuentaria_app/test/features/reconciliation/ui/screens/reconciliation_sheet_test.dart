@@ -720,6 +720,147 @@ void main() {
       );
     });
 
+    testWidgets(
+      'a liquid account never shows the Debt Account direction selector '
+      '(#209)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-usd'),
+          name: 'USD wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+
+        await _openSheet(tester, account, existing: container);
+
+        expect(find.byKey(const Key('debtDirection')), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a Debt Account with a zero projected balance shows the direction '
+      'selector preselected on "Me debe"; choosing "Le debo" applies the '
+      'negative sign on confirm (#209, ADR-0022 §4)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('claudia'),
+          name: 'Claudia',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Claudia'},
+        );
+        await catalog.saveAccount(account);
+
+        await _openSheet(tester, account, existing: container);
+
+        final selector = tester.widget<SegmentedButton<bool>>(
+          find.byKey(const Key('debtDirection')),
+        );
+        expect(selector.selected, {true});
+
+        await tester.tap(find.text('Le debo'));
+        await tester.pump();
+
+        await _typeDigits(tester, '50');
+        await tester.pump();
+
+        expect(
+          find.byKey(const Key('reconciliationAbsorbMessage')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+        await tester.pumpAndSettle();
+
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(
+          projections.accountBalance(account.id).native.amount,
+          BigInt.from(-50),
+        );
+        expect(projections.accountBalance(account.id).usd, -50);
+      },
+    );
+
+    testWidgets(
+      'a Debt Account with a negative projected balance preselects "Le '
+      'debo" (#209, ADR-0022 §4)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('claudia'),
+          name: 'Claudia',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Claudia'},
+        );
+        await catalog.saveAccount(account);
+
+        // Seed a projected balance of -$5.00 via an opening posting.
+        final store = await container.read(eventStoreProvider.future);
+        final projections = container.read(ledgerProjectionsProvider);
+        await store.append(
+          Transaction.create(
+            metadata: TransactionMetadata(
+              eventId: EventId('evt-opening'),
+              type: 'Opening',
+              occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+              recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+              deviceId: 'dev',
+              schemaVersion: 1,
+            ),
+            postings: [
+              Posting(
+                target: AccountTarget(account.id),
+                amountNative: Money(
+                  amount: BigInt.from(-500),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: -500,
+              ),
+              Posting(
+                target: EnvelopeTarget(
+                  catalog.getSystemEnvelope(EnvelopeRole.opening),
+                ),
+                amountNative: Money(
+                  amount: BigInt.from(-500),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: -500,
+              ),
+            ],
+          ),
+        );
+        projections.apply((await store.get(EventId('evt-opening')))!);
+
+        await _openSheet(tester, account, existing: container);
+
+        final selector = tester.widget<SegmentedButton<bool>>(
+          find.byKey(const Key('debtDirection')),
+        );
+        expect(selector.selected, {false});
+      },
+    );
+
     testWidgets('the amount display and keypad keys never move across the '
         'no-result, Absorb, RouteToIncome and RouteToExpense states (#158)', (
       tester,

@@ -5,6 +5,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 import '../features/accounts/ui/screens/accounts_screen.dart';
 import '../features/backup/ui/screens/backup_screen.dart';
+import '../features/debts/ui/screens/debts_screen.dart';
 import '../features/distribution/ui/screens/cascade_editor_screen.dart';
 import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
@@ -56,6 +57,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/backup',
         builder: (context, state) => const BackupScreen(),
       ),
+      GoRoute(path: '/debts', builder: (context, state) => const DebtsScreen()),
       GoRoute(
         path: '/movements/:id',
         builder:

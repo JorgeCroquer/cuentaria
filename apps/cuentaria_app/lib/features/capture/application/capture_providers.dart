@@ -117,9 +117,14 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
 
 /// Everything the quick-add sheet needs to render its chips with smart
 /// defaults, precomputed once so the widget only deals with a single
-/// [AsyncValue].
+/// [AsyncValue]. [accounts] is every non-archived account, used to resolve a
+/// selection by id regardless of mode; [regularAccounts]/[debtAccounts]
+/// split it for the pickers (#208): Gasto/Ingreso only offer
+/// [regularAccounts], Mover offers both.
 class QuickAddCaptureContext {
   final List<Account> accounts;
+  final List<Account> regularAccounts;
+  final List<Account> debtAccounts;
   final List<Envelope> envelopes;
   final AccountId? lastUsedAccountId;
   final List<String> previousIncomeSources;
@@ -127,6 +132,8 @@ class QuickAddCaptureContext {
 
   QuickAddCaptureContext({
     required this.accounts,
+    required this.regularAccounts,
+    required this.debtAccounts,
     required this.envelopes,
     required this.lastUsedAccountId,
     required this.previousIncomeSources,
@@ -144,6 +151,8 @@ final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
   final accounts =
       catalog.accounts.where((a) => !a.isArchived).toList()
         ..sort((a, b) => a.name.compareTo(b.name));
+  final regularAccounts = accounts.where((a) => !a.isDebtAccount).toList();
+  final debtAccounts = accounts.where((a) => a.isDebtAccount).toList();
 
   final frequencyOrder = await defaults.envelopesByFrequency();
   final envelopesById = {for (final e in userEnvelopes) e.id: e};
@@ -156,6 +165,8 @@ final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
 
   return QuickAddCaptureContext(
     accounts: accounts,
+    regularAccounts: regularAccounts,
+    debtAccounts: debtAccounts,
     envelopes: envelopes,
     lastUsedAccountId: await defaults.lastUsedAccount(),
     previousIncomeSources: await defaults.previousIncomeSources(),

@@ -131,9 +131,10 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
       appBar: AppBar(title: const Text('Cuentas')),
       body: catalogAsync.when(
         data: (catalog) {
-          final accounts =
-              catalog.accounts.where((a) => !a.isArchived).toList();
-          if (accounts.isEmpty) {
+          final active = catalog.accounts.where((a) => !a.isArchived);
+          final accounts = active.where((a) => !a.isDebtAccount).toList();
+          final debtAccounts = active.where((a) => a.isDebtAccount).toList();
+          if (accounts.isEmpty && debtAccounts.isEmpty) {
             return const _EmptyState();
           }
           return ListView(
@@ -145,6 +146,18 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                   onReconcile: () => _openReconciliationSheet(account),
                   onEdit: () => _openEditDialog(account),
                   onArchive: () => _archive(account),
+                ),
+              if (debtAccounts.isNotEmpty)
+                ExpansionTile(
+                  key: const Key('debtsSection'),
+                  title: const Text('Deudas'),
+                  children: [
+                    for (final account in debtAccounts)
+                      ListTile(
+                        key: Key('debtAccount_${account.id.value}'),
+                        title: Text(account.counterpartyName!),
+                      ),
+                  ],
                 ),
             ],
           );

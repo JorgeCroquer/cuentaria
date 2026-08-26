@@ -168,5 +168,53 @@ void main() {
 
       expect(older.mergeWith(newer).colorHex, '#NEW');
     });
+
+    test('counterpartyName reads the "counterpartyName" key from meta', () {
+      final debtAccount = Account(
+        id: AccountId('acc-1'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'counterpartyName': 'Pedro'},
+      );
+      expect(debtAccount.counterpartyName, 'Pedro');
+      expect(debtAccount.isDebtAccount, isTrue);
+
+      final regularAccount = Account(
+        id: AccountId('acc-2'),
+        name: 'Binance',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+      );
+      expect(regularAccount.counterpartyName, isNull);
+      expect(regularAccount.isDebtAccount, isFalse);
+    });
+
+    test('mergeWith preserves the counterpartyName tag from the winning '
+        'side', () {
+      final older = Account(
+        id: AccountId('acc-1'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 1),
+        isArchived: false,
+        meta: {'counterpartyName': 'Pedro'},
+      );
+      final newer = Account(
+        id: AccountId('acc-1'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        updatedAt: DateTime(2023, 1, 2),
+        isArchived: false,
+        meta: {'counterpartyName': 'Pedro', 'color': '#FF5500'},
+      );
+
+      final merged = older.mergeWith(newer);
+      expect(merged.counterpartyName, 'Pedro');
+      expect(merged.isDebtAccount, isTrue);
+      expect(merged.colorHex, '#FF5500');
+    });
   });
 }

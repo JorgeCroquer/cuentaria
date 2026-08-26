@@ -11,6 +11,7 @@ import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../backup/ui/widgets/restore_backup_button.dart';
+import '../../../debts/application/debts_providers.dart';
 import '../../application/patrimonio_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -139,6 +140,7 @@ class _PatrimonioBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final snapshotAsync = ref.watch(patrimonioSnapshotProvider);
+    final debtsAsync = ref.watch(debtsSnapshotProvider);
 
     return snapshotAsync.when(
       data:
@@ -156,10 +158,35 @@ class _PatrimonioBody extends ConsumerWidget {
               const SizedBox(height: 24),
               for (final group in snapshot.accountGroups)
                 _AccountGroupTile(group: group),
+              if (debtsAsync.hasValue && debtsAsync.value!.personas.isNotEmpty)
+                _DebtsLineTile(
+                  globalNetoUsdCents: debtsAsync.value!.globalNetoUsdCents,
+                ),
             ],
           ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(child: Text('Error: $error')),
+    );
+  }
+}
+
+/// The Deudas segregation (#207, ADR-0022): Debt Accounts are excluded from
+/// [PatrimonioSnapshot.accountGroups] at the app layer (patrimonio_providers)
+/// so they never surface as their own currency group — this single line
+/// stands in for all of them, linking to the Debts screen for the per-person
+/// breakdown.
+class _DebtsLineTile extends StatelessWidget {
+  const _DebtsLineTile({required this.globalNetoUsdCents});
+
+  final int globalNetoUsdCents;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: const Key('debtsLine'),
+      title: Text('Deudas · ${_formatUsdCents(globalNetoUsdCents)}'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/debts'),
     );
   }
 }
@@ -529,8 +556,8 @@ class _RecordRatesAction extends StatelessWidget {
 }
 
 /// Overflow menu (#192, ADR-0021): a single ⋮ next to the four existing
-/// icons rather than a fifth one, since Respaldo is reached rarely — unlike
-/// the daily-use actions it sits beside.
+/// icons rather than a fifth one, since Respaldo and Deudas (#205) are
+/// reached rarely — unlike the daily-use actions it sits beside.
 class _OverflowMenu extends StatelessWidget {
   const _OverflowMenu();
 
@@ -540,6 +567,7 @@ class _OverflowMenu extends StatelessWidget {
       key: const Key('patrimonioOverflowMenu'),
       onSelected: (value) {
         if (value == 'backup') context.push('/backup');
+        if (value == 'debts') context.push('/debts');
       },
       itemBuilder:
           (context) => const [
@@ -547,6 +575,11 @@ class _OverflowMenu extends StatelessWidget {
               key: Key('backupMenuItem'),
               value: 'backup',
               child: Text('Respaldo'),
+            ),
+            PopupMenuItem(
+              key: Key('debtsMenuItem'),
+              value: 'debts',
+              child: Text('Deudas'),
             ),
           ],
     );
@@ -649,6 +682,9 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
       );
 
       ref.invalidate(patrimonioSnapshotProvider);
+      // Deudas values non-USD legs against the same series (#210) — a
+      // registered rate must reach it too, not just Patrimonio's header.
+      ref.invalidate(debtsSnapshotProvider);
       // Not rateSeriesProvider itself: on web it constructs a fresh, empty
       // InMemoryRateSeries — invalidating it would discard every previously
       // recorded observation. Re-reading the lookup providers is enough,

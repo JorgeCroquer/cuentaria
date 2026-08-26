@@ -18,12 +18,26 @@ import '../amount_input_controller.dart';
 import '../widgets/numeric_keypad.dart';
 
 /// Opens the quick-add capture sheet (U1 slices 4-5, #97/#98) from a FAB
-/// reachable on every tab.
-Future<void> showQuickAddExpenseSheet(BuildContext context) {
+/// reachable on every tab. The Deudas screen's Prestar/Cobrar/Condonar
+/// actions (#208) reuse this same entry point, passing one of the
+/// preselected-account params to land on Mover or Gasto with the Debt
+/// Account already picked.
+Future<void> showQuickAddExpenseSheet(
+  BuildContext context, {
+  AccountId? preselectedGastoAccountId,
+  AccountId? preselectedMoverSourceAccountId,
+  AccountId? preselectedMoverDestinationAccountId,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => const QuickAddExpenseSheet(),
+    builder:
+        (context) => QuickAddExpenseSheet(
+          preselectedGastoAccountId: preselectedGastoAccountId,
+          preselectedMoverSourceAccountId: preselectedMoverSourceAccountId,
+          preselectedMoverDestinationAccountId:
+              preselectedMoverDestinationAccountId,
+        ),
   );
 }
 
@@ -111,7 +125,16 @@ enum _RateInputMode { receivedAmount, rate }
 /// P2P/FX conversion from whether the two Accounts share a currency (#98) —
 /// the user never sees any of this taxonomy.
 class QuickAddExpenseSheet extends ConsumerStatefulWidget {
-  const QuickAddExpenseSheet({super.key});
+  const QuickAddExpenseSheet({
+    super.key,
+    this.preselectedGastoAccountId,
+    this.preselectedMoverSourceAccountId,
+    this.preselectedMoverDestinationAccountId,
+  });
+
+  final AccountId? preselectedGastoAccountId;
+  final AccountId? preselectedMoverSourceAccountId;
+  final AccountId? preselectedMoverDestinationAccountId;
 
   @override
   ConsumerState<QuickAddExpenseSheet> createState() =>
@@ -145,6 +168,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   _RateInputMode _rateInputMode = _RateInputMode.receivedAmount;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.preselectedMoverSourceAccountId != null ||
+        widget.preselectedMoverDestinationAccountId != null) {
+      _mode = _CaptureMode.mover;
+    }
+  }
+
+  @override
   void dispose() {
     _amount.dispose();
     _noteController.dispose();
@@ -158,23 +190,28 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     if (_defaultsApplied) return;
     _defaultsApplied = true;
     _selectedAccountId =
+        widget.preselectedGastoAccountId ??
         captureContext.lastUsedAccountId ??
-        (captureContext.accounts.isEmpty
+        (captureContext.regularAccounts.isEmpty
             ? null
-            : captureContext.accounts.first.id);
+            : captureContext.regularAccounts.first.id);
     _selectedEnvelopeId =
         captureContext.envelopes.isEmpty
             ? null
             : captureContext.envelopes.first.id;
     _selectedIncomeAccountId = _selectedAccountId;
 
-    final moverPair = captureContext.lastUsedMoverPair;
-    final accountIds = captureContext.accounts.map((a) => a.id).toSet();
-    if (moverPair != null &&
-        accountIds.contains(moverPair.sourceAccountId) &&
-        accountIds.contains(moverPair.destinationAccountId)) {
-      _moverSourceAccountId = moverPair.sourceAccountId;
-      _moverDestinationAccountId = moverPair.destinationAccountId;
+    _moverSourceAccountId = widget.preselectedMoverSourceAccountId;
+    _moverDestinationAccountId = widget.preselectedMoverDestinationAccountId;
+    if (_moverSourceAccountId == null && _moverDestinationAccountId == null) {
+      final moverPair = captureContext.lastUsedMoverPair;
+      final accountIds = captureContext.accounts.map((a) => a.id).toSet();
+      if (moverPair != null &&
+          accountIds.contains(moverPair.sourceAccountId) &&
+          accountIds.contains(moverPair.destinationAccountId)) {
+        _moverSourceAccountId = moverPair.sourceAccountId;
+        _moverDestinationAccountId = moverPair.destinationAccountId;
+      }
     }
   }
 
@@ -661,13 +698,13 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             onRegisterRate: _openRecordRatesDialog,
           ),
         const SizedBox(height: 16),
-        if (captureContext.accounts.isEmpty)
+        if (captureContext.regularAccounts.isEmpty)
           const Text('No accounts yet.')
         else
           Wrap(
             spacing: 8,
             children: [
-              for (final account in captureContext.accounts)
+              for (final account in captureContext.regularAccounts)
                 ChoiceChip(
                   key: Key('accountChip_${account.id.value}'),
                   label: Text(_accountChipLabel(account)),
@@ -760,13 +797,13 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           ),
         ],
         const SizedBox(height: 16),
-        if (captureContext.accounts.isEmpty)
+        if (captureContext.regularAccounts.isEmpty)
           const Text('No accounts yet.')
         else
           Wrap(
             spacing: 8,
             children: [
-              for (final account in captureContext.accounts)
+              for (final account in captureContext.regularAccounts)
                 ChoiceChip(
                   key: Key('incomeAccountChip_${account.id.value}'),
                   label: Text(_accountChipLabel(account)),
@@ -798,11 +835,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         const Text('Desde'),
         if (captureContext.accounts.isEmpty)
           const Text('No accounts yet.')
-        else
+        else ...[
           Wrap(
             spacing: 8,
             children: [
-              for (final account in captureContext.accounts)
+              for (final account in captureContext.regularAccounts)
                 ChoiceChip(
                   key: Key('moverSourceChip_${account.id.value}'),
                   label: Text(_accountChipLabel(account)),
@@ -825,15 +862,46 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
             ],
           ),
+          if (captureContext.debtAccounts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('Deudas'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final account in captureContext.debtAccounts)
+                  ChoiceChip(
+                    key: Key('moverSourceChip_${account.id.value}'),
+                    label: Text(_accountChipLabel(account)),
+                    selected: account.id == _moverSourceAccountId,
+                    onSelected:
+                        (_) => setState(() {
+                          _moverSourceAccountId = account.id;
+                          final currentDestination = _accountById(
+                            captureContext,
+                            _moverDestinationAccountId,
+                          );
+                          if (currentDestination != null &&
+                              !_moverDestinationSelectable(
+                                account,
+                                currentDestination,
+                              )) {
+                            _moverDestinationAccountId = null;
+                          }
+                        }),
+                  ),
+              ],
+            ),
+          ],
+        ],
         const SizedBox(height: 16),
         const Text('Hacia'),
         if (captureContext.accounts.isEmpty)
           const Text('No accounts yet.')
-        else
+        else ...[
           Wrap(
             spacing: 8,
             children: [
-              for (final account in captureContext.accounts)
+              for (final account in captureContext.regularAccounts)
                 ChoiceChip(
                   key: Key('moverDestinationChip_${account.id.value}'),
                   label: Text(_accountChipLabel(account)),
@@ -847,6 +915,28 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
             ],
           ),
+          if (captureContext.debtAccounts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            const Text('Deudas'),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final account in captureContext.debtAccounts)
+                  ChoiceChip(
+                    key: Key('moverDestinationChip_${account.id.value}'),
+                    label: Text(_accountChipLabel(account)),
+                    selected: account.id == _moverDestinationAccountId,
+                    onSelected:
+                        !_moverDestinationSelectable(sourceAccount, account)
+                            ? null
+                            : (_) => setState(
+                              () => _moverDestinationAccountId = account.id,
+                            ),
+                  ),
+              ],
+            ),
+          ],
+        ],
         const SizedBox(height: 16),
         Center(
           child: AnimatedBuilder(
