@@ -3,6 +3,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
+import 'package:contabilidad/domain/split_balance.dart';
 import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/domain/ports/ledger_projections.dart';
 import 'package:contabilidad/application/catalog/catalog_repository.dart';
@@ -70,8 +71,23 @@ class RecordAdjustment {
       }
       amountUsd = (Decimal.fromBigInt(deltaNative) / rate).round().toInt();
     } else {
-      final costBasis = projectedBalance.baseCostOf(deltaNative.abs());
-      amountUsd = -costBasis;
+      // Disposal, possibly crossing the known balance into an overdraft
+      // (ADR-0017 "sobregiro registrable" applied to C3, #209 Debt Account
+      // reconciliation): the covered portion keeps its frozen average cost,
+      // the excess above it has no cost basis and is valued at the observed
+      // rate — same split RecordTransfer already uses for its own excess.
+      final split = splitByBalance(projectedBalance, deltaNative.abs());
+      final baseCost = projectedBalance.baseCostOf(split.covered);
+      if (split.excess == BigInt.zero) {
+        amountUsd = -baseCost;
+      } else {
+        if (rate == null) {
+          throw RateRequiredForExcess();
+        }
+        final excessCost =
+            (Decimal.fromBigInt(split.excess) / rate).round().toInt();
+        amountUsd = -(baseCost + excessCost);
+      }
     }
 
     final adjustmentsId = _catalog.getSystemEnvelope(EnvelopeRole.adjustments);

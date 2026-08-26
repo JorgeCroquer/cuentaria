@@ -106,6 +106,26 @@ void main() {
       expect(ana.currencies.single.parallelRate, isNull);
     });
 
+    test('exposes the underlying Account id per currency leg (#209: the UI '
+        'needs it to launch Conciliar/Archivar)', () {
+      final snapshot = engine(
+        [
+          account(
+            id: 'acc-claudia-usd',
+            person: 'Claudia',
+            currency: usd,
+            native: BigInt.from(3700),
+            realCostUsdCents: 3700,
+          ),
+        ],
+        const {},
+        now,
+      );
+
+      final leg = snapshot.personas.single.currencies.single;
+      expect(leg.accountId, AccountId('acc-claudia-usd'));
+    });
+
     test('one person, two currencies: grouped under one name, combined '
         'neto', () {
       final rates = {

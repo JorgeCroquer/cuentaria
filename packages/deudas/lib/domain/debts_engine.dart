@@ -32,7 +32,7 @@ class DebtsEngine {
       );
       final group = currencies.putIfAbsent(
         account.currency,
-        () => _MutableCurrencyGroup(account.currency),
+        () => _MutableCurrencyGroup(account.currency, account.id),
       );
       group.nativeMinorAmount += account.nativeMinorAmount;
       group.realCostUsdCents += account.realCostUsdCents;
@@ -109,15 +109,19 @@ class DebtsEngine {
 
 class _MutableCurrencyGroup {
   final CurrencyCode currency;
+  // The first Debt Account seen for this person+currency (ADR-0022 §3: one
+  // account per person per currency) — the leg the UI acts against.
+  final AccountId accountId;
   BigInt nativeMinorAmount = BigInt.zero;
   int realCostUsdCents = 0;
   int todayValueUsdCents = 0;
   bool hasRate = true;
   RateObservationView? parallelRate;
 
-  _MutableCurrencyGroup(this.currency);
+  _MutableCurrencyGroup(this.currency, this.accountId);
 
   PersonCurrencyDebt toView() => PersonCurrencyDebt(
+    accountId: accountId,
     currency: currency,
     nativeMinorAmount: nativeMinorAmount,
     realCostUsdCents: realCostUsdCents,

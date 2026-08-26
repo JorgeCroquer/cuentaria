@@ -283,4 +283,126 @@ void main() {
       expect(find.textContaining('tasa 50.00, hoy'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Conciliar opens the C3 Reconciliation sheet preselecting the Debt '
+    'Account, and Archivar is hidden while the balance is not zero (#209)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final pedroId = AccountId('pedro');
+      await catalog.saveAccount(
+        Account(
+          id: pedroId,
+          name: 'Pedro',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Pedro'},
+        ),
+      );
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+      projections.apply(
+        Transaction.create(
+          postings: [
+            Posting(
+              target: AccountTarget(pedroId),
+              amountNative: Money(
+                amount: BigInt.from(20000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 20000,
+            ),
+            Posting(
+              target: EnvelopeTarget(stageEnvelope),
+              amountNative: Money(
+                amount: BigInt.from(20000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 20000,
+            ),
+          ],
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-pedro-2'),
+            type: 'Adjustment',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: deviceId,
+            schemaVersion: 1,
+          ),
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      expect(
+        find.byKey(const Key('reconcileDebtAccount_pedro')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('archiveDebtAccount_pedro')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('reconcileDebtAccount_pedro')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('projectedBalanceText')), findsOneWidget);
+      expect(find.text('Proyectado: 200.00 USD'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('reconciliationCancelButton')));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'Archivar appears once the Debt Account is at \$0,00, asks before '
+    'archiving, and removes the person from Deudas on confirm (#209)',
+    (tester) async {
+      final container = await pumpDebtsScreen(tester);
+
+      await tester.tap(find.byKey(const Key('createPersonCta')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('personNameField')),
+        'Claudia',
+      );
+      await tester.tap(find.byKey(const Key('savePersonButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('debtPerson_Claudia')), findsOneWidget);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final claudia = catalog.accounts.singleWhere((a) => a.name == 'Claudia');
+      final archiveKey = Key('archiveDebtAccount_${claudia.id.value}');
+
+      expect(find.byKey(archiveKey), findsOneWidget);
+
+      await tester.tap(find.byKey(archiveKey));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('archiveDebtConfirmButton')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('archiveDebtCancelButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('debtPerson_Claudia')), findsOneWidget);
+
+      await tester.tap(find.byKey(archiveKey));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('archiveDebtConfirmButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('debtPerson_Claudia')), findsNothing);
+      expect(find.byKey(const Key('debtsEmptyState')), findsOneWidget);
+
+      final archived = catalog.accounts.singleWhere((a) => a.name == 'Claudia');
+      expect(archived.isArchived, isTrue);
+    },
+  );
 }
