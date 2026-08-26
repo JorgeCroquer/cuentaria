@@ -682,6 +682,9 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
       );
 
       ref.invalidate(patrimonioSnapshotProvider);
+      // Deudas values non-USD legs against the same series (#210) — a
+      // registered rate must reach it too, not just Patrimonio's header.
+      ref.invalidate(debtsSnapshotProvider);
       // Not rateSeriesProvider itself: on web it constructs a fresh, empty
       // InMemoryRateSeries — invalidating it would discard every previously
       // recorded observation. Re-reading the lookup providers is enough,
