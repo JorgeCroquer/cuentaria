@@ -1,3 +1,4 @@
+import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:deudas/deudas.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../accounts/application/account_providers.dart';
 import '../../../accounts/ui/account_form_validators.dart';
+import '../../../capture/ui/screens/quick_add_expense_sheet.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/debts_providers.dart';
 
@@ -64,6 +66,7 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
   @override
   Widget build(BuildContext context) {
     final snapshotAsync = ref.watch(debtsSnapshotProvider);
+    final catalogAsync = ref.watch(catalogRepositoryProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Deudas')),
@@ -72,6 +75,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           if (snapshot.personas.isEmpty) {
             return _EmptyState(onCreate: _openCreateDialog);
           }
+          final debtAccounts = catalogAsync.maybeWhen(
+            data: (catalog) => catalog.accounts.where((a) => a.isDebtAccount),
+            orElse: () => const <Account>[],
+          );
           return ListView(
             children: [
               Padding(
@@ -83,7 +90,15 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
                 ),
               ),
               for (final persona in snapshot.personas)
-                _PersonTile(persona: persona),
+                _PersonTile(
+                  persona: persona,
+                  accounts:
+                      debtAccounts
+                          .where(
+                            (a) => a.counterpartyName == persona.personName,
+                          )
+                          .toList(),
+                ),
             ],
           );
         },
@@ -104,9 +119,53 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 /// currency leg — always visible so a two-currency person shows both, and a
 /// non-USD leg announces the rate it valued at (or "sin tasa").
 class _PersonTile extends StatelessWidget {
-  const _PersonTile({required this.persona});
+  const _PersonTile({required this.persona, required this.accounts});
 
   final PersonDebts persona;
+
+  /// This person's Debt Accounts (ADR-0022 §3: one per currency), used to
+  /// preselect the right one when an action opens the capture sheet.
+  final List<Account> accounts;
+
+  /// Which Debt Account an action targets when a person holds more than one
+  /// currency (rare): the first currency leg, matching how the headline
+  /// itself only speaks the net across all of them (#208 keeps this
+  /// minimal — a currency-picker for actions is not in scope).
+  Account? get _primaryAccount {
+    if (accounts.isEmpty) return null;
+    final currency = persona.currencies.first.currency;
+    return accounts.firstWhere(
+      (a) => a.nativeCurrency == currency,
+      orElse: () => accounts.first,
+    );
+  }
+
+  Future<void> _prestar(BuildContext context) async {
+    final account = _primaryAccount;
+    if (account == null) return;
+    await showQuickAddExpenseSheet(
+      context,
+      preselectedMoverDestinationAccountId: account.id,
+    );
+  }
+
+  Future<void> _cobrar(BuildContext context) async {
+    final account = _primaryAccount;
+    if (account == null) return;
+    await showQuickAddExpenseSheet(
+      context,
+      preselectedMoverSourceAccountId: account.id,
+    );
+  }
+
+  Future<void> _condonar(BuildContext context) async {
+    final account = _primaryAccount;
+    if (account == null) return;
+    await showQuickAddExpenseSheet(
+      context,
+      preselectedGastoAccountId: account.id,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +186,32 @@ class _PersonTile extends StatelessWidget {
           for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
         ],
       ),
+      trailing:
+          _primaryAccount == null
+              ? null
+              : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    key: Key('debtAction_prestar_${persona.personName}'),
+                    icon: const Icon(Icons.call_made),
+                    tooltip: 'Prestar',
+                    onPressed: () => _prestar(context),
+                  ),
+                  IconButton(
+                    key: Key('debtAction_cobrar_${persona.personName}'),
+                    icon: const Icon(Icons.call_received),
+                    tooltip: 'Cobrar',
+                    onPressed: () => _cobrar(context),
+                  ),
+                  IconButton(
+                    key: Key('debtAction_condonar_${persona.personName}'),
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Condonar',
+                    onPressed: () => _condonar(context),
+                  ),
+                ],
+              ),
     );
   }
 }
