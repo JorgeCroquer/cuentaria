@@ -1,6 +1,6 @@
 # ADR-0009 — Security: Envelope E2EE, Supabase Auth, local encryption and lock-in-free export
 
-**Status:** accepted (2026-06-09)
+**Status:** accepted (2026-06-09) — **partially superseded by [ADR-0023](ADR-0023-copia-en-la-nube-del-usuario.md)** (2026-08-27)
 
 **Sync encryption (Envelope E2EE / envelope encryption):** a random **DEK** per user encrypts event payloads. The DEK is **wrapped** with a KEK derived from the **passphrase** (Argon2id) and the wrapped version is uploaded to Supabase as an opaque blob; additionally, an offline **recovery code** is generated **once** that wraps the DEK a second way. Supabase only stores opaque blobs (no logic → E2EE is almost free here, ADR-0001).
 
