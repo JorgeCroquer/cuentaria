@@ -8,3 +8,4 @@ export 'domain/backup_reader_error.dart';
 export 'domain/backup_writer.dart';
 export 'domain/csv_row.dart';
 export 'domain/csv_writer.dart';
+export 'domain/ports/cloud_folder.dart';
