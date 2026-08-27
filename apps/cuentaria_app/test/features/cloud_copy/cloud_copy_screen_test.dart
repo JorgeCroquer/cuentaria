@@ -78,6 +78,31 @@ void main() {
     expect(find.text('Copia en Drive: hace un momento'), findsOneWidget);
   });
 
+  testWidgets(
+    'tapping Copiar ahora shows Copiando… during sync, then success',
+    (tester) async {
+      final cloudFolder = CompleterCloudFolder();
+      final pausedOverride = cloudCopyUseCaseProvider.overrideWith(
+        (ref) async => buildTestCloudCopyUseCase(cloudFolder: cloudFolder),
+      );
+      await _pumpScreen(tester, override: pausedOverride);
+
+      await tester.tap(find.byKey(const Key('connectGoogleDriveButton')));
+      await tester.pumpAndSettle();
+
+      cloudFolder.pause();
+      await tester.tap(find.byKey(const Key('copyNowButton')));
+      await tester.pump();
+
+      expect(find.text('Copiando…'), findsOneWidget);
+
+      cloudFolder.resume();
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copia en Drive: hace un momento'), findsOneWidget);
+    },
+  );
+
   testWidgets('a failing CloudFolder shows the error label and retry works', (
     tester,
   ) async {

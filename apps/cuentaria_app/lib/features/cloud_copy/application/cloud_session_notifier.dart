@@ -16,6 +16,9 @@ class CloudSessionNotifier extends Notifier<CloudSession> {
   @override
   CloudSession build() => const CloudSession();
 
+  // ponytail: this in-memory connect/disconnect *is* the demo mode for
+  // issue #223 — no separate flag or toggle. #225 swaps it for the real
+  // Google Drive session without touching the screen.
   void connect() {
     state = const CloudSession(
       isConnected: true,

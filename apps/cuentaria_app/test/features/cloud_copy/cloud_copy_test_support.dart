@@ -4,6 +4,7 @@
 /// `cloud_copy_use_case_test.dart` (issue #222).
 library;
 
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:io';
 
@@ -91,4 +92,26 @@ class FailingCloudFolder implements CloudFolder {
   @override
   Future<void> write(String name, String content) async =>
       throw CloudUnavailable(reason);
+}
+
+/// A [CloudFolder] whose [write] waits on a swappable [Completer] — lets a
+/// test observe the "Copiando…" in-progress state before letting a sync
+/// finish (issue #223 AC #3). Starts resolved so a first sync (e.g. the one
+/// `onConnect` triggers) completes normally; call [pause] right before the
+/// sync under test, then [resume] once the in-progress state was observed.
+class CompleterCloudFolder implements CloudFolder {
+  Completer<void> _writeGate = Completer<void>()..complete();
+
+  @override
+  Future<List<String>> list() async => [];
+
+  @override
+  Future<String?> read(String name) async => null;
+
+  @override
+  Future<void> write(String name, String content) => _writeGate.future;
+
+  void pause() => _writeGate = Completer<void>();
+
+  void resume() => _writeGate.complete();
 }
