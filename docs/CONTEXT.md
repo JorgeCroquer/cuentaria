@@ -34,7 +34,7 @@ The user's Accounts and Envelopes as durable configuration — name, native curr
 _Avoid_: calling it a Projection (a Projection is recomputable from the log; the Catalog is not).
 
 **Port / Adapter**
-Hexagonal boundary: the core defines ports (interfaces); adapters (Drift, Supabase, Binance, BCV) implement them. Supabase Postgres is a persistence/sync adapter, never the backend with logic.
+Hexagonal boundary: the core defines ports (interfaces); adapters (Drift, Google Drive, Binance, BCV) implement them. The user's cloud is a storage adapter behind `CloudFolder`, never a backend with logic (ADR-0023).
 
 **Integration Worker**
 Minimal program **in Dart** (AOT) that executes sync with external APIs (Binance, rates, on-chain). It lives outside the client for **scheduling** — it must run on days the phone is off — and, when a source needs one, for secrets. It is **dumb**: fetch → normalize → append observed fact; zero domain logic, and in particular it never picks a winner among sources. Its host is whatever is cheapest per worker: a GitHub Actions cron for the rates worker (no secrets, publishes a static file), a scale-to-zero container when a callback demands one. See [ADR-0003](adr/ADR-0003-dart-en-todo.md) and [ADR-0020](adr/ADR-0020-ingesta-de-tasas-sin-servidor.md).
@@ -149,6 +149,10 @@ _Avoid_: "export" unqualified (it collides with the Spreadsheet Export, which re
 **Restore**
 Reading a Backup File into a device. Idempotent by `EventId` and last-write-wins on config, so restoring onto a device that already holds data adds only what is missing — it never duplicates and never overwrites something newer. All-or-nothing: a file with one unreadable line is rejected whole, naming the line.
 _Avoid_: "sync" (nothing negotiates with a server — a file is read), "merge" (no conflict is resolved by the user).
+
+**Cloud Copy**
+The user's Backup File kept, one per device, in a folder of the user's **own** cloud storage (Google Drive's app-private folder first). Cuentaria runs no server and holds no account: the app writes its device's file there and reads the other devices' files with a Restore. A device that never connects a cloud works exactly as before — the Cloud Copy is optional, and the manual Backup File remains the lock-in-free exit. See [ADR-0023](adr/ADR-0023-copia-en-la-nube-del-usuario.md).
+_Avoid_: "sync engine", "push/pull" (no deltas, no cursors — whole files), "our server", "login" (the user signs in to their cloud, not to us).
 
 **Spreadsheet Export**
 The disposable CSV for humans: one row per **Posting**, never read back by the app. Regenerable from a Backup File at any time. Its unit is the Posting and not the transaction because a single Ledger Transaction can touch one Account and several Envelopes at once.

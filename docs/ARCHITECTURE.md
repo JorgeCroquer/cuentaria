@@ -4,7 +4,7 @@
 
 ## 1. Executive Summary
 
-Cuentaria is a **client-authoritative, offline-first** app built with **Flutter** (Android, Web, Windows/macOS/Linux) and a **pure Dart domain core** (hexagonal · DDD · CQRS · event sourcing). It is a **modular monolith** whose bounded contexts are Dart packages with explicit boundaries, **ready to hoist modules to microservices** without rewriting. Infrastructure aims to be **almost free**: Supabase free for sync/backup, GitHub Actions as workers cron, Cloudflare Pages for web. Data travels **end-to-end encrypted**; the user owns their info and can export it without lock-in.
+Cuentaria is a **client-authoritative, offline-first** app built with **Flutter** (Android, Web, Windows/macOS/Linux) and a **pure Dart domain core** (hexagonal · DDD · CQRS · event sourcing). It is a **modular monolith** whose bounded contexts are Dart packages with explicit boundaries, **ready to hoist modules to microservices** without rewriting. Infrastructure aims to be **free with no server of our own**: the user's own cloud (Google Drive app folder) for the Cloud Copy, GitHub Actions as workers cron, GitHub Pages for web. The user owns their info and can export it without lock-in (ADR-0023).
 
 Root decision: the domain **does not** live on a server or in Supabase-as-backend; it lives on the client. The "backend" is reduced to sync storage (opaque blobs) + scheduled fetchers. This makes offline natural, cost minimal, and E2EE almost free.
 
@@ -27,7 +27,7 @@ flowchart TD
     end
 
     subgraph Cloud["Almost-free Infra (no domain logic)"]
-        SUPA["Supabase free — Postgres: encrypted event log + Auth"]
+        SUPA["User's Google Drive — app-private folder: one Backup File per device"]
         GHA["GitHub Actions (cron) — Dart AOT Workers"]
         CFP["Cloudflare Pages (Static Flutter Web)"]
     end
@@ -69,7 +69,7 @@ Communication between modules: **only** domain events (synchronous in-process Ev
 
 ## 5. Key Flows
 
-**Offline capture → sync.** User records a transaction → aggregate validates invariants (including auto-balanced rule `Σ usd[Account] == Σ usd[Envelope]`) → emits events → persisted in local encrypted SQLite → when network is available, envelope-encrypted and pushed to Supabase. Multi-device: pull + merge by event order (safe because each transaction preserves the invariant).
+**Offline capture → sync.** User records a transaction → aggregate validates invariants (including auto-balanced rule `Σ usd[Account] == Σ usd[Envelope]`) → emits events → persisted in local encrypted SQLite → when network is available, the device's Backup File is written to the user's Drive and the other devices' files are Restored (idempotent by event id, LWW on config — ADR-0021/0023).
 
 **Rates.** Worker on GitHub Actions (2–3×/day) queries aggregator (Binance direct fallback) → appends observations to series in Supabase → client pulls them → feed the **valuation overlay** and differential reports. The ledger remains at **real cost**.
 
@@ -82,7 +82,7 @@ Communication between modules: **only** domain events (synchronous in-process Ev
 | Client / UI | **Flutter** (Android, Web, Windows/macOS/Linux) | iOS later |
 | Language | **Dart** everywhere (core + workers) | Single language |
 | Local store | **SQLite / Drift + SQLCipher** | Source of truth, encrypted |
-| Sync/backup/Auth | **Supabase free** (Postgres + Auth + RLS) | Only stores E2EE blobs; no logic |
+| Cloud Copy | **User's Google Drive** (`appDataFolder`) via `CloudFolder` port | No server, no account of ours; optional (ADR-0023) |
 | Workers | **Dart AOT** on **GitHub Actions** (cron) | Deferred scale-to-zero Cloud Run |
 | Web hosting | **Cloudflare Pages** | Static |
 | Encryption | **Envelope E2EE** (DEK + passphrase + recovery code) | Argon2id; `cryptography`/`sodium` |
@@ -126,7 +126,8 @@ See [`docs/adr/`](adr/README.md). One-line summary for each:
 - **ADR-0006** — Account × Envelope Ledger: independent dimensions, self-balancing transaction, real cost + valuation overlay.
 - **ADR-0007** — Rates Service: canonical Binance P2P, multi-source, aggregator ingestion.
 - **ADR-0008** — Integrations: observed facts propose reconciliation, never write to the ledger.
-- **ADR-0009** — Security: Envelope E2EE, Supabase Auth, local encryption, export without lock-in.
+- **ADR-0009** — Security: Envelope E2EE, Supabase Auth, local encryption, export without lock-in (sync/Auth parts superseded by ADR-0023).
+- **ADR-0023** — Cloud Copy in the user's own cloud: no server, no account, no passphrase.
 - **ADR-0010** — Unified model for Envelope targets/contributions.
 - **ADR-0011** — Operational reconciliation: configurable tolerance governs friction.
 

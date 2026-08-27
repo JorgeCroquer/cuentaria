@@ -2,7 +2,7 @@
 
 (Supabase free + GitHub Actions + Cloudflare Pages)
 
-**Status:** accepted (2026-06-09)
+**Status:** accepted (2026-06-09) — **partially superseded by [ADR-0023](ADR-0023-copia-en-la-nube-del-usuario.md)** (2026-08-27)
 
 The MVP "backend" is:
 
