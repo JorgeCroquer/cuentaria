@@ -216,4 +216,13 @@ void main() {
 
     expect(share.sharedFilename, equals('cuentaria-2026-08-07.ndjson'));
   });
+
+  testWidgets(
+    'shows the compact Cloud Copy status label next to Último respaldo',
+    (tester) async {
+      await _pumpBackupScreen(tester, share: _FakeSystemShare());
+
+      expect(find.text('Copia en Drive: nunca'), findsOneWidget);
+    },
+  );
 }

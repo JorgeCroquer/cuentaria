@@ -568,6 +568,7 @@ class _OverflowMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'backup') context.push('/backup');
         if (value == 'debts') context.push('/debts');
+        if (value == 'cloudCopy') context.push('/cloud-copy');
       },
       itemBuilder:
           (context) => const [
@@ -580,6 +581,11 @@ class _OverflowMenu extends StatelessWidget {
               key: Key('debtsMenuItem'),
               value: 'debts',
               child: Text('Deudas'),
+            ),
+            PopupMenuItem(
+              key: Key('cloudCopyMenuItem'),
+              value: 'cloudCopy',
+              child: Text('Copia en tu nube'),
             ),
           ],
     );
