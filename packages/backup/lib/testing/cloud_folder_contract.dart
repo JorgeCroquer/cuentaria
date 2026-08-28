@@ -8,8 +8,13 @@ import 'package:test/test.dart';
 
 import '../domain/ports/cloud_folder.dart';
 
-/// Runs the full [CloudFolder] contract against [makeFolder].
-void cloudFolderContractTests(CloudFolder Function() makeFolder) {
+/// Runs the full [CloudFolder] contract against [makeFolder]. [tags] is
+/// forwarded to every test — e.g. so a real-provider adapter can tag its
+/// run `google_drive` and stay opted out of default `flutter test` runs.
+void cloudFolderContractTests(
+  CloudFolder Function() makeFolder, {
+  List<String> tags = const [],
+}) {
   late CloudFolder folder;
 
   setUp(() {
@@ -21,7 +26,7 @@ void cloudFolderContractTests(CloudFolder Function() makeFolder) {
 
     expect(await folder.list(), contains('a.ndjson'));
     expect(await folder.read('a.ndjson'), 'hola mundo');
-  });
+  }, tags: tags);
 
   test('writing the same name twice leaves a single file with the last '
       'content', () async {
@@ -30,11 +35,11 @@ void cloudFolderContractTests(CloudFolder Function() makeFolder) {
 
     expect(await folder.list(), ['a.ndjson']);
     expect(await folder.read('a.ndjson'), 'segundo');
-  });
+  }, tags: tags);
 
   test('reading a name that was never written returns null', () async {
     expect(await folder.read('no-existe.ndjson'), isNull);
-  });
+  }, tags: tags);
 
   test('names with dashes, dots and UUIDs survive intact', () async {
     const name = '4f6c9f2e-9c1a-4c9e-8b0a-1e2d3c4b5a6f-device.ndjson';
@@ -42,7 +47,7 @@ void cloudFolderContractTests(CloudFolder Function() makeFolder) {
 
     expect(await folder.list(), contains(name));
     expect(await folder.read(name), 'x');
-  });
+  }, tags: tags);
 
   test(
     'multi-MB content with newlines round-trips character for character',
@@ -54,5 +59,6 @@ void cloudFolderContractTests(CloudFolder Function() makeFolder) {
 
       expect(await folder.read('big.ndjson'), content);
     },
+    tags: tags,
   );
 }

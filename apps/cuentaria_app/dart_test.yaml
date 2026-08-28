@@ -1,0 +1,3 @@
+tags:
+  google_drive:
+    skip: "Necesita una sesión real de Google Drive — ver lib/features/cloud_copy/README.md. Correr con --tags google_drive --run-skipped."
