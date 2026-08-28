@@ -93,6 +93,15 @@ final _variosId = EnvelopeId('env-varios');
 /// status stamps are deterministic.
 DateTime _fakeNow() => DateTime.utc(2026, 1, 20);
 
+/// Lets a `CloudCopyTriggers`-fired sync (debounce is [Duration.zero] in
+/// this test) actually run: the debounce `Timer` and this wait are both
+/// macrotasks, registered in that order, so by the time this one fires the
+/// triggered sync's whole microtask chain (pull, restore, push) has already
+/// completed. Without this, asserting right after a trigger call would pass
+/// even if the trigger never fired anything.
+Future<void> _waitForDebounce() =>
+    Future<void>.delayed(const Duration(milliseconds: 1));
+
 // ---------------------------------------------------------------------------
 // Device — one full app container: its own pair of Drift databases, the
 // ledger/cascade machinery, and a real CloudCopyUseCase + CloudCopyTriggers
@@ -448,15 +457,16 @@ void main() {
       // Disparador (F3.5, #224): la copia sube a la nube compartida.
       // ---------------------------------------------------------------
       a.triggers.start();
-      await a.cloudCopy.sync();
+      await _waitForDebounce();
       expect(await folder.list(), equals(['device-a.ndjson']));
 
       // ---------------------------------------------------------------
-      // B vacío conecta: su primer sync baja el archivo de A.
+      // B vacío conecta: su primer sync (disparado por start()) baja el
+      // archivo de A.
       // ---------------------------------------------------------------
       final b = await _openDevice('device-b', folder);
       b.triggers.start();
-      await b.cloudCopy.sync();
+      await _waitForDebounce();
 
       for (final id in a.catalog.accountIds) {
         expect(
@@ -524,15 +534,16 @@ void main() {
         occurredAt: DomainTimestamp(bExpenseDate),
       );
 
-      // Disparador en B: su sync sube el gasto a la nube.
-      await b.cloudCopy.sync();
+      // Disparador en B (evento Transaction del gasto, debounced): sube el
+      // archivo a la nube.
+      await _waitForDebounce();
 
       // ---------------------------------------------------------------
       // A vuelve a primer plano (ADR-0023 §4, onResume): su sync baja el
       // archivo de B y lo mezcla de forma idempotente.
       // ---------------------------------------------------------------
       a.triggers.onResume();
-      await a.cloudCopy.sync();
+      await _waitForDebounce();
 
       expect(
         a.projections.accountBalance(_usdId).usd,
