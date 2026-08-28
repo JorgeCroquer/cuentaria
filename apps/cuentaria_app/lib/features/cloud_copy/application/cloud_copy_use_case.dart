@@ -96,6 +96,22 @@ class CloudCopyUseCase {
     }
   }
 
+  /// Whether connecting now would join two independent histories (issue
+  /// #226, ADR-0023 §6): this device already has events *and* the cloud
+  /// folder already has another device's file. Read-only — never mutates
+  /// [status] and never throws; a failed check (e.g. offline) reports no
+  /// pending merge, since [sync] will surface the same failure via [status].
+  Future<bool> hasPendingMerge() async {
+    try {
+      final localEvents = (await createBackup.call()).counts.event;
+      if (localEvents == 0) return false;
+      final names = await cloudFolder.list();
+      return names.any((name) => name != _ownFileName);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void>? _activeSync;
   bool _syncQueued = false;
 

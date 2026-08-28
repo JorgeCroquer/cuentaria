@@ -9,6 +9,10 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:backup/backup.dart';
+import 'package:contabilidad/application/catalog/catalog_repository.dart';
+import 'package:contabilidad/application/ledger/factories/record_income.dart';
+import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository.dart';
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/database/cloud_copy_status_store.dart';
@@ -41,6 +45,35 @@ CloudCopyUseCase buildTestCloudCopyUseCase({
   Future<bool> Function()? isConnected,
   DateTime Function()? now,
   String deviceId = 'device-test',
+}) =>
+    buildTestCloudCopyDevice(
+      cloudFolder: cloudFolder,
+      isConnected: isConnected,
+      now: now,
+      deviceId: deviceId,
+    ).useCase;
+
+/// A [CloudCopyUseCase] plus enough of its device stack to seed a local
+/// movement (via [recordIncome]) and inspect the catalog after a pull (via
+/// [catalog]) — needed by the merge-notice tests (issue #226, ADR-0023 §6),
+/// which have to tell "device with data" apart from "device empty".
+class TestCloudCopyDevice {
+  final CloudCopyUseCase useCase;
+  final CatalogRepository catalog;
+  final RecordIncome recordIncome;
+
+  const TestCloudCopyDevice({
+    required this.useCase,
+    required this.catalog,
+    required this.recordIncome,
+  });
+}
+
+TestCloudCopyDevice buildTestCloudCopyDevice({
+  required CloudFolder cloudFolder,
+  Future<bool> Function()? isConnected,
+  DateTime Function()? now,
+  String deviceId = 'device-test',
 }) {
   final eventStore = InMemoryEventStore();
   final catalog = InMemoryCatalogRepository();
@@ -65,14 +98,24 @@ CloudCopyUseCase buildTestCloudCopyUseCase({
   final statusStore = CloudCopyStatusStore(
     CuentariaDatabase(NativeDatabase.memory()),
   );
-  return CloudCopyUseCase(
-    createBackup: createBackup,
-    restoreBackup: restoreBackup,
-    cloudFolder: cloudFolder,
-    statusStore: statusStore,
-    deviceId: deviceId,
-    isConnected: isConnected ?? (() async => true),
-    now: now,
+  final recordTransaction = RecordTransaction(
+    store: eventStore,
+    projections: InMemoryLedgerProjections(),
+    eventBus: SyncEventBus(),
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  return TestCloudCopyDevice(
+    useCase: CloudCopyUseCase(
+      createBackup: createBackup,
+      restoreBackup: restoreBackup,
+      cloudFolder: cloudFolder,
+      statusStore: statusStore,
+      deviceId: deviceId,
+      isConnected: isConnected ?? (() async => true),
+      now: now,
+    ),
+    catalog: catalog,
+    recordIncome: RecordIncome(record: recordTransaction, catalog: catalog),
   );
 }
 

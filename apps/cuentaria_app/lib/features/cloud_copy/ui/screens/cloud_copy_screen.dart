@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../application/cloud_copy_providers.dart';
 import '../../application/cloud_session_notifier.dart';
 import '../../application/cloud_sync_status_notifier.dart';
 import '../widgets/account_button.dart';
 import '../widgets/cloud_status_label.dart';
+import '../widgets/merge_dialog.dart';
 import '../widgets/transparency_section.dart';
 
 /// Copia en tu nube (issue #223, ADR-0023): UI-first Cloud Copy screen,
@@ -20,14 +22,29 @@ class CloudCopyScreen extends ConsumerWidget {
     final session = ref.watch(cloudSessionProvider);
     final status = ref.watch(cloudSyncStatusProvider);
 
-    Future<void> onConnect() async {
-      ref.read(cloudSessionProvider.notifier).connect();
-      await ref.read(cloudSyncStatusProvider.notifier).sync();
-    }
-
     void onDisconnect() {
       ref.read(cloudSessionProvider.notifier).disconnect();
       ref.read(cloudSyncStatusProvider.notifier).reset();
+    }
+
+    Future<void> onConnect() async {
+      ref.read(cloudSessionProvider.notifier).connect();
+
+      final useCase = await ref.read(cloudCopyUseCaseProvider.future);
+      if (await useCase.hasPendingMerge()) {
+        if (!context.mounted) return;
+        final proceed = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const MergeDialog(),
+        );
+        if (proceed != true) {
+          onDisconnect();
+          return;
+        }
+      }
+
+      await ref.read(cloudSyncStatusProvider.notifier).sync();
     }
 
     return Scaffold(
