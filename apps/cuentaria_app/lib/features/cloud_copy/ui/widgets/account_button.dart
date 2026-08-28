@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Connects/disconnects the simulated Google Drive session (issue #223,
+/// Connects/disconnects the Google Drive session (issue #223, #225,
 /// ADR-0023 §5): disconnecting only closes the local session — it never
 /// touches local or remote data.
 class AccountButton extends StatelessWidget {

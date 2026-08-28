@@ -23,6 +23,7 @@ import 'package:contabilidad/infrastructure/in_memory_unit_of_work.dart';
 import 'package:cuentaria_app/features/backup/application/create_backup.dart';
 import 'package:cuentaria_app/features/backup/application/restore_backup.dart';
 import 'package:cuentaria_app/features/cloud_copy/application/cloud_copy_use_case.dart';
+import 'package:cuentaria_app/features/cloud_copy/application/google_drive_session.dart';
 import 'package:drift/native.dart';
 import 'package:event_bus/event_bus.dart';
 import 'package:sqlite3/open.dart';
@@ -157,4 +158,39 @@ class CompleterCloudFolder implements CloudFolder {
   void pause() => _writeGate = Completer<void>();
 
   void resume() => _writeGate.complete();
+}
+
+/// Test double for [GoogleDriveSession] (issue #225): [connect]/[disconnect]
+/// just flip local state, no real Google Sign-In round trip. [accountEmail]
+/// is fixed to `'cuenta de prueba'`, matching the simulated session it
+/// replaces so existing screen assertions keep reading the same text.
+class FakeGoogleDriveSession implements GoogleDriveSession {
+  FakeGoogleDriveSession([this._token]);
+
+  String? _token;
+  bool disconnectCalled = false;
+
+  @override
+  bool get isConnected => _token != null;
+
+  @override
+  String? get accountEmail => isConnected ? 'cuenta de prueba' : null;
+
+  @override
+  Future<void> connect() async {
+    _token = 'fake-token';
+  }
+
+  @override
+  Future<void> disconnect() async {
+    disconnectCalled = true;
+    _token = null;
+  }
+
+  @override
+  Future<String> accessToken() async {
+    final token = _token;
+    if (token == null) throw const CloudUnavailable('sin sesión de Google');
+    return token;
+  }
 }

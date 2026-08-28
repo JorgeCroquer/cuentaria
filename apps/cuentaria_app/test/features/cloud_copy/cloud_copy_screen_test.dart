@@ -1,3 +1,4 @@
+import 'package:backup/domain/ports/cloud_folder.dart';
 import 'package:backup/infrastructure/in_memory_cloud_folder.dart';
 import 'package:cuentaria_app/features/cloud_copy/application/cloud_copy_providers.dart';
 import 'package:cuentaria_app/features/cloud_copy/ui/screens/cloud_copy_screen.dart';
@@ -10,14 +11,62 @@ import 'cloud_copy_test_support.dart';
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required dynamic override,
+  FakeGoogleDriveSession? session,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [override],
+      overrides: [
+        override,
+        googleDriveSessionProvider.overrideWithValue(
+          session ?? FakeGoogleDriveSession(),
+        ),
+      ],
       child: const MaterialApp(home: CloudCopyScreen()),
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// A [CloudFolder] that revokes [session] and reports it on its first call
+/// only, then works normally — the shape of a Google Drive session an
+/// account owner revoked from Google's side and then reconnected (issue
+/// #225 AC "revocar el acceso ... aparece Volver a entrar ... entrar →
+/// vuelve a copiar").
+class _SessionRevokedOnceCloudFolder implements CloudFolder {
+  _SessionRevokedOnceCloudFolder(this.session);
+
+  final FakeGoogleDriveSession session;
+  final CloudFolder _inner = InMemoryCloudFolder();
+  bool _revokedOnce = false;
+
+  Future<void> _maybeRevoke() async {
+    if (!_revokedOnce) {
+      _revokedOnce = true;
+      await session.disconnect();
+      throw const CloudUnavailable('sin sesión de Google');
+    }
+    if (!session.isConnected) {
+      throw const CloudUnavailable('sin sesión de Google');
+    }
+  }
+
+  @override
+  Future<List<String>> list() async {
+    await _maybeRevoke();
+    return _inner.list();
+  }
+
+  @override
+  Future<String?> read(String name) async {
+    await _maybeRevoke();
+    return _inner.read(name);
+  }
+
+  @override
+  Future<void> write(String name, String content) async {
+    await _maybeRevoke();
+    await _inner.write(name, content);
+  }
 }
 
 void main() {
@@ -138,6 +187,38 @@ void main() {
       expect(find.text('Conectar mi Google Drive'), findsOneWidget);
       expect(find.text('cuenta de prueba'), findsNothing);
       expect(find.text('Copia en Drive: nunca'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'a revoked Google session shows "sin sesión de Google" and offers to '
+    'reconnect',
+    (tester) async {
+      final session = FakeGoogleDriveSession();
+      final revokedOverride = cloudCopyUseCaseProvider.overrideWith(
+        (ref) async => buildTestCloudCopyUseCase(
+          cloudFolder: _SessionRevokedOnceCloudFolder(session),
+        ),
+      );
+      await _pumpScreen(tester, override: revokedOverride, session: session);
+
+      await tester.tap(find.byKey(const Key('connectGoogleDriveButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Falló hace un momento: sin sesión de Google — tocá para reintentar',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Conectar mi Google Drive'), findsOneWidget);
+      expect(find.text('Desconectar'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('connectGoogleDriveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Copia en Drive: hace un momento'), findsOneWidget);
+      expect(find.text('Desconectar'), findsOneWidget);
     },
   );
 }

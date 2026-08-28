@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Google Drive OAuth client for Cloud Copy (issue #225, ADR-0023 §8),
+         public by design — never a secret. On Android, google_sign_in
+         resolves the client from the app's package name and signing
+         SHA-1 (registered in the Google Cloud project "cuentaria"), so
+         this string isn't read by the plugin; it's kept here as the
+         canonical record of which OAuth client this app is registered as.
+         See lib/features/cloud_copy/README.md for the HITL setup. -->
+    <string name="google_drive_oauth_client_id" translatable="false">717754217213-48bt8ffelrm1gqhoi0iu92a2fbmdtfip.apps.googleusercontent.com</string>
+</resources>

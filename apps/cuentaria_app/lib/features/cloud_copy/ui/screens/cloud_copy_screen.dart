@@ -10,10 +10,9 @@ import '../widgets/merge_dialog.dart';
 import '../widgets/transparency_section.dart';
 
 /// Copia en tu nube (issue #223, ADR-0023): UI-first Cloud Copy screen,
-/// wired to a simulated session ([CloudSessionNotifier]) and the real
-/// Cloud Copy use case behind [CloudSyncStatusNotifier] — the Google Drive
-/// adapter (F3.4) replaces the `CloudFolder` provider without touching this
-/// screen.
+/// wired to the real Google Drive session ([CloudSessionNotifier], issue
+/// #225) and the real Cloud Copy use case behind [CloudSyncStatusNotifier]
+/// — untouched since #223, only the providers behind it changed.
 class CloudCopyScreen extends ConsumerWidget {
   const CloudCopyScreen({super.key});
 
