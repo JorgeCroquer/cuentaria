@@ -545,7 +545,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           error:
               (error, stackTrace) => Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Error: $error'),
+                child: Text('No se pudo cargar: $error'),
               ),
         ),
       ),

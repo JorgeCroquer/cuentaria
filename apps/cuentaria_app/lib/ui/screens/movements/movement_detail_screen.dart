@@ -103,14 +103,18 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
                       () => const Center(child: CircularProgressIndicator()),
                   error:
                       (error, stackTrace) =>
-                          Center(child: Text('Error: $error')),
+                          Center(child: Text('No se pudo cargar: $error')),
                 ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            error:
+                (error, stackTrace) =>
+                    Center(child: Text('No se pudo cargar: $error')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
     );
   }

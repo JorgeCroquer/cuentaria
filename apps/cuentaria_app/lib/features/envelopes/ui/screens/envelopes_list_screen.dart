@@ -57,7 +57,9 @@ class EnvelopesListScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('createEnvelopeButton'),

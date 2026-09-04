@@ -157,7 +157,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                           key: const Key('lastBackupLabel'),
                         ),
                     loading: () => const CircularProgressIndicator(),
-                    error: (error, stackTrace) => Text('Error: $error'),
+                    error:
+                        (error, stackTrace) =>
+                            Text('No se pudo cargar: $error'),
                   ),
                   CloudStatusLabel(status: ref.watch(cloudSyncStatusProvider)),
                 ],
