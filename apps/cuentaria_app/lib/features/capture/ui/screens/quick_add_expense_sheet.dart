@@ -674,8 +674,26 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     );
   }
 
+  /// Gasto offers [QuickAddCaptureContext.regularAccounts] (#208), plus the
+  /// preselected account when it's a Debt Account: the Condonar flow opens
+  /// this sheet preselecting the person's account, and without its chip the
+  /// selection was invisible — the first tap on any visible chip silently
+  /// turned the condonación into a plain expense.
+  List<Account> _gastoAccounts(QuickAddCaptureContext captureContext) {
+    final accounts = captureContext.regularAccounts;
+    final preselected = _accountById(
+      captureContext,
+      widget.preselectedGastoAccountId,
+    );
+    if (preselected == null || accounts.any((a) => a.id == preselected.id)) {
+      return accounts;
+    }
+    return [preselected, ...accounts];
+  }
+
   Widget _buildGastoBody(QuickAddCaptureContext captureContext) {
     final selectedAccount = _accountById(captureContext, _selectedAccountId);
+    final gastoAccounts = _gastoAccounts(captureContext);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -698,13 +716,13 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             onRegisterRate: _openRecordRatesDialog,
           ),
         const SizedBox(height: 16),
-        if (captureContext.regularAccounts.isEmpty)
+        if (gastoAccounts.isEmpty)
           const Text('No accounts yet.')
         else
           Wrap(
             spacing: 8,
             children: [
-              for (final account in captureContext.regularAccounts)
+              for (final account in gastoAccounts)
                 ChoiceChip(
                   key: Key('accountChip_${account.id.value}'),
                   label: Text(_accountChipLabel(account)),
