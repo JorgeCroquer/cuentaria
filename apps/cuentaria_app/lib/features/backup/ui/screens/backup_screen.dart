@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../cloud_copy/application/cloud_sync_status_notifier.dart';
+import '../../../cloud_copy/ui/widgets/cloud_status_label.dart';
 import '../../application/backup_providers.dart';
 import '../../application/system_share.dart';
 import '../widgets/restore_backup_button.dart';
@@ -143,14 +145,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              lastBackupAsync.when(
-                data:
-                    (lastBackup) => Text(
-                      _lastBackupLabel(lastBackup),
-                      key: const Key('lastBackupLabel'),
-                    ),
-                loading: () => const CircularProgressIndicator(),
-                error: (error, stackTrace) => Text('Error: $error'),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 16,
+                children: [
+                  lastBackupAsync.when(
+                    data:
+                        (lastBackup) => Text(
+                          _lastBackupLabel(lastBackup),
+                          key: const Key('lastBackupLabel'),
+                        ),
+                    loading: () => const CircularProgressIndicator(),
+                    error: (error, stackTrace) => Text('Error: $error'),
+                  ),
+                  CloudStatusLabel(status: ref.watch(cloudSyncStatusProvider)),
+                ],
               ),
               const SizedBox(height: 24),
               if (_backupError != null)

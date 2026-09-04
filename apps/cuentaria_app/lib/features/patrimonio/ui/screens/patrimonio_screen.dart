@@ -476,9 +476,30 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             SizedBox(height: 16),
+            _CloudCopyEmptyStateLink(),
+            SizedBox(height: 16),
             RestoreBackupButton(),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Offers the connect-first path (#226, ADR-0023 §6) right where a
+/// just-installed user lands: before creating a single Account, they can
+/// connect the Google Drive that already has their other phone's data.
+class _CloudCopyEmptyStateLink extends StatelessWidget {
+  const _CloudCopyEmptyStateLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton(
+      key: const Key('cloudCopyEmptyStateLink'),
+      onPressed: () => context.push('/cloud-copy'),
+      child: const Text(
+        '¿Ya usás Cuentaria en otro teléfono? Conectá tu Google Drive',
+        textAlign: TextAlign.center,
       ),
     );
   }
@@ -568,6 +589,7 @@ class _OverflowMenu extends StatelessWidget {
       onSelected: (value) {
         if (value == 'backup') context.push('/backup');
         if (value == 'debts') context.push('/debts');
+        if (value == 'cloudCopy') context.push('/cloud-copy');
       },
       itemBuilder:
           (context) => const [
@@ -580,6 +602,11 @@ class _OverflowMenu extends StatelessWidget {
               key: Key('debtsMenuItem'),
               value: 'debts',
               child: Text('Deudas'),
+            ),
+            PopupMenuItem(
+              key: Key('cloudCopyMenuItem'),
+              value: 'cloudCopy',
+              child: Text('Copia en tu nube'),
             ),
           ],
     );
