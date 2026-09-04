@@ -116,6 +116,15 @@ void main() {
       );
       expect(gastoChip.selected, isTrue);
 
+      // The preselection must be VISIBLE: Debt Accounts are excluded from
+      // the Gasto picker (#208), so without its own chip Pedro was selected
+      // invisibly and any tap on a visible chip silently dropped the
+      // condonación (device finding, 2026-09-04).
+      final pedroChip = tester.widget<ChoiceChip>(
+        find.byKey(const Key('accountChip_pedro')),
+      );
+      expect(pedroChip.selected, isTrue);
+
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.tap(find.byKey(const Key('envelopeChip_comida')));
       await tester.pump();
