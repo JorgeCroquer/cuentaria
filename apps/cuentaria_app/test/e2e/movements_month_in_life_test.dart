@@ -1,4 +1,5 @@
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:cuentaria_app/features/cloud_copy/application/cloud_copy_providers.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/screens/movements/movement_detail_screen.dart';
@@ -104,7 +105,13 @@ void main() {
     'income, mover, a foreign-currency expense and its reversal (#99)',
     (tester) async {
       final container = ProviderContainer(
-        overrides: [isWebProvider.overrideWithValue(true)],
+        overrides: [
+          isWebProvider.overrideWithValue(true),
+          // Without this, CloudCopyTriggers' real 30s debounce Timer
+          // (issue #239) outlives the test and trips flutter_test's
+          // "Timer is still pending" teardown assertion.
+          cloudCopyDebounceProvider.overrideWithValue(Duration.zero),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -431,7 +438,13 @@ void main() {
     'worth in balance (#119)',
     (tester) async {
       final container = ProviderContainer(
-        overrides: [isWebProvider.overrideWithValue(true)],
+        overrides: [
+          isWebProvider.overrideWithValue(true),
+          // Without this, CloudCopyTriggers' real 30s debounce Timer
+          // (issue #239) outlives the test and trips flutter_test's
+          // "Timer is still pending" teardown assertion.
+          cloudCopyDebounceProvider.overrideWithValue(Duration.zero),
+        ],
       );
       addTearDown(container.dispose);
 
