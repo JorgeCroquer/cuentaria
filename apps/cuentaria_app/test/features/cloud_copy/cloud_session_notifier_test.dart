@@ -1,6 +1,7 @@
 import 'package:backup/infrastructure/in_memory_cloud_folder.dart';
 import 'package:cuentaria_app/features/cloud_copy/application/cloud_copy_providers.dart';
 import 'package:cuentaria_app/features/cloud_copy/application/cloud_session_notifier.dart';
+import 'package:cuentaria_app/features/cloud_copy/application/cloud_sync_status_notifier.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +45,17 @@ void main() {
       expect(session.accountName, equals('cuenta de prueba'));
     },
   );
+
+  test('connect() does not sync itself — syncing is the screen\'s call, so it '
+      'can check for a pending merge first (issue #241)', () async {
+    final container = buildContainer(FakeGoogleDriveSession());
+
+    await container.read(cloudSessionProvider.notifier).connect();
+
+    final status = container.read(cloudSyncStatusProvider);
+    expect(status.lastSuccessAt, isNull);
+    expect(status.inProgress, isFalse);
+  });
 
   test('disconnect() clears the session', () async {
     final container = buildContainer(FakeGoogleDriveSession());

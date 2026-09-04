@@ -27,7 +27,8 @@ class CloudCopyScreen extends ConsumerWidget {
     }
 
     Future<void> onConnect() async {
-      ref.read(cloudSessionProvider.notifier).connect();
+      await ref.read(cloudSessionProvider.notifier).connect();
+      if (!ref.read(cloudSessionProvider).isConnected) return;
 
       final useCase = await ref.read(cloudCopyUseCaseProvider.future);
       if (await useCase.hasPendingMerge()) {

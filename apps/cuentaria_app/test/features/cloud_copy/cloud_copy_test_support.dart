@@ -170,6 +170,8 @@ class FakeGoogleDriveSession implements GoogleDriveSession {
   String? _token;
   bool disconnectCalled = false;
   int clearAuthCacheCalls = 0;
+  Completer<void>? _connectGate;
+  bool _cancelNextConnect = false;
 
   @override
   bool get isConnected => _token != null;
@@ -179,8 +181,30 @@ class FakeGoogleDriveSession implements GoogleDriveSession {
 
   @override
   Future<void> connect() async {
+    final gate = _connectGate;
+    if (gate != null) await gate.future;
+    if (_cancelNextConnect) {
+      _cancelNextConnect = false;
+      return;
+    }
     _token = 'fake-token';
   }
+
+  /// Makes the next [connect] wait until [resolveConnect] is called — lets a
+  /// test observe UI state between the connect tap and the account picker
+  /// actually resolving (issue #241: `connect()` is interactive and
+  /// user-timed, callers must not race ahead of it).
+  void pauseConnect() => _connectGate = Completer<void>();
+
+  void resolveConnect() {
+    final gate = _connectGate;
+    _connectGate = null;
+    gate?.complete();
+  }
+
+  /// Makes the next [connect] resolve without signing in — the user closed
+  /// the account picker without choosing an account.
+  void cancelNextConnect() => _cancelNextConnect = true;
 
   @override
   Future<void> disconnect() async {

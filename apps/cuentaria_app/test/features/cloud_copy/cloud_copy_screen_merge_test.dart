@@ -19,10 +19,16 @@ import 'cloud_copy_test_support.dart';
 Future<void> _pumpScreen(
   WidgetTester tester, {
   required dynamic override,
+  FakeGoogleDriveSession? session,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [override],
+      overrides: [
+        override,
+        googleDriveSessionProvider.overrideWithValue(
+          session ?? FakeGoogleDriveSession(),
+        ),
+      ],
       child: const MaterialApp(home: CloudCopyScreen()),
     ),
   );
@@ -158,6 +164,105 @@ void main() {
         local.catalog.accounts.where((a) => a.name == 'Efectivo'),
         hasLength(2),
       );
+    },
+  );
+
+  testWidgets(
+    'the merge warning only appears after connect() actually resolves, not '
+    'before (issue #241: connect() is a real, user-timed round trip and '
+    'onConnect must not race ahead of it)',
+    (tester) async {
+      final folder = InMemoryCloudFolder();
+      final foreign = buildTestCloudCopyDevice(
+        cloudFolder: folder,
+        deviceId: 'device-foreign',
+      );
+      await _seedAccountAndIncome(
+        foreign,
+        id: AccountId('acc-foreign'),
+        name: 'Efectivo',
+      );
+      await foreign.useCase.push();
+
+      final local = buildTestCloudCopyDevice(
+        cloudFolder: folder,
+        deviceId: 'device-local',
+      );
+      await _seedAccountAndIncome(
+        local,
+        id: AccountId('acc-local'),
+        name: 'Efectivo',
+      );
+
+      final session = FakeGoogleDriveSession();
+      session.pauseConnect();
+
+      await _pumpScreen(
+        tester,
+        override: cloudCopyUseCaseProvider.overrideWith(
+          (ref) async => local.useCase,
+        ),
+        session: session,
+      );
+
+      await tester.tap(find.byKey(const Key('connectGoogleDriveButton')));
+      await tester.pump();
+
+      expect(find.byKey(const Key('mergeDialog')), findsNothing);
+      expect(local.catalog.accounts, hasLength(1));
+
+      session.resolveConnect();
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mergeDialog')), findsOneWidget);
+      expect(local.catalog.accounts, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'closing the Google account picker without choosing an account leaves '
+    'the button on Conectar, with no merge dialog and no sync',
+    (tester) async {
+      final folder = InMemoryCloudFolder();
+      final foreign = buildTestCloudCopyDevice(
+        cloudFolder: folder,
+        deviceId: 'device-foreign',
+      );
+      await _seedAccountAndIncome(
+        foreign,
+        id: AccountId('acc-foreign'),
+        name: 'Efectivo',
+      );
+      await foreign.useCase.push();
+
+      final local = buildTestCloudCopyDevice(
+        cloudFolder: folder,
+        deviceId: 'device-local',
+      );
+      await _seedAccountAndIncome(
+        local,
+        id: AccountId('acc-local'),
+        name: 'Efectivo',
+      );
+
+      final session = FakeGoogleDriveSession();
+      session.cancelNextConnect();
+
+      await _pumpScreen(
+        tester,
+        override: cloudCopyUseCaseProvider.overrideWith(
+          (ref) async => local.useCase,
+        ),
+        session: session,
+      );
+
+      await tester.tap(find.byKey(const Key('connectGoogleDriveButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('mergeDialog')), findsNothing);
+      expect(find.text('Conectar mi Google Drive'), findsOneWidget);
+      expect(local.catalog.accounts, hasLength(1));
+      expect(await folder.list(), equals(['device-foreign.ndjson']));
     },
   );
 
