@@ -104,6 +104,35 @@ void main() {
       expect(updated.realCostUsdCents, 1500);
     });
 
+    test('refreshes once catalogRevisionProvider is bumped, without a manual '
+        'invalidate() at the mutation site (#243)', () async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final initial = await container.read(patrimonioSnapshotProvider.future);
+      expect(initial.accountGroups, isEmpty);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-revision'),
+          name: 'New account',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      container.read(catalogRevisionProvider.notifier).bump();
+
+      final updated = await container.read(patrimonioSnapshotProvider.future);
+      expect(
+        updated.accountGroups.where((g) => g.currency == CurrencyCode('USD')),
+        isNotEmpty,
+      );
+    });
+
     test(
       'values a foreign-currency account at the parallel rate, keeps BCV '
       'as a separate reference, and flags currencies without a rate',

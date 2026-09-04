@@ -29,6 +29,24 @@ final eventBusProvider = Provider<EventBus>((ref) {
   return eventBus;
 });
 
+/// Bumped by every catalog mutation (create/edit/archive an Account or
+/// Envelope, create/archive a debt person, restore a backup). The catalog
+/// is LWW config with no domain events (ADR-0002 only covers the ledger),
+/// so nothing else tells dependents it changed; watching this is the one
+/// thing a new catalog-derived provider needs instead of each mutation site
+/// invalidating it by hand — the third time that hand-rolled dance showed
+/// up (#94, #210, #243).
+class CatalogRevisionNotifier extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  void bump() => state++;
+}
+
+final catalogRevisionProvider = NotifierProvider<CatalogRevisionNotifier, int>(
+  CatalogRevisionNotifier.new,
+);
+
 /// True on web, which has no durable, plaintext-free local storage: selects
 /// the in-memory (ephemeral) adapters below instead of Drift+SQLCipher.
 final isWebProvider = Provider<bool>((ref) => kIsWeb);

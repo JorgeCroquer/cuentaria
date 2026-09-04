@@ -228,7 +228,7 @@ class _PersonTile extends ConsumerWidget {
     final archiveAccount = await ref.read(archiveAccountProvider.future);
     await archiveAccount(account.id);
     ref.invalidate(debtsSnapshotProvider);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
   }
 
   @override
@@ -405,7 +405,7 @@ class _PersonFormDialogState extends ConsumerState<_PersonFormDialog> {
         deviceId: deviceId,
       );
 
-      ref.invalidate(patrimonioSnapshotProvider);
+      ref.read(catalogRevisionProvider.notifier).bump();
       ref.invalidate(debtsSnapshotProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

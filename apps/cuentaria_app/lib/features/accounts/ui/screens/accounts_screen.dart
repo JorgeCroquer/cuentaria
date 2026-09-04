@@ -108,7 +108,7 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
   Future<void> _archive(Account account) async {
     final archiveAccount = await ref.read(archiveAccountProvider.future);
     await archiveAccount(account.id);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
     if (mounted) setState(() {});
   }
 
@@ -413,7 +413,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
         );
       }
 
-      ref.invalidate(patrimonioSnapshotProvider);
+      ref.read(catalogRevisionProvider.notifier).bump();
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {
       setState(() => _error = e.toString());
