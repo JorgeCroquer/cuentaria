@@ -10,7 +10,6 @@ import 'package:shared_kernel/shared_kernel.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
-import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/envelopes_providers.dart';
 
 enum _TargetKind { none, cap, goalLine }
@@ -122,7 +121,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
 
     await catalog.saveEnvelope(envelope);
     ref.invalidate(userEnvelopesProvider);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
 
     if (mounted) context.pop();
   }

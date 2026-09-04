@@ -144,6 +144,7 @@ class QuickAddCaptureContext {
 final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
   ref,
 ) async {
+  ref.watch(catalogRevisionProvider);
   final catalog = await ref.watch(catalogRepositoryProvider.future);
   final defaults = await ref.watch(quickAddDefaultsProvider.future);
   final userEnvelopes = await ref.watch(userEnvelopesProvider.future);

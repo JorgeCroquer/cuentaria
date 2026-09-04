@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
-import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/envelopes_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -86,7 +85,7 @@ class _EnvelopeListTile extends ConsumerWidget {
       ),
     );
     ref.invalidate(userEnvelopesProvider);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
   }
 
   @override
