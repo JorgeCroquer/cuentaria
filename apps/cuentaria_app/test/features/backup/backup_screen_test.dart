@@ -88,7 +88,7 @@ void main() {
     expect(
       find.text(
         'Este archivo lleva tus finanzas en texto legible. '
-        'Mandalo solo a donde vos controles.',
+        'Mándalo solo a donde tú lo controles.',
       ),
       findsOneWidget,
     );
@@ -182,7 +182,7 @@ void main() {
     expect(
       find.text(
         'Este archivo lleva tus finanzas en texto legible. '
-        'Mandalo solo a donde vos controles.',
+        'Mándalo solo a donde tú lo controles.',
       ),
       findsOneWidget,
     );

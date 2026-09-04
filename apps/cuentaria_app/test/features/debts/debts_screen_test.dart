@@ -156,7 +156,7 @@ void main() {
     await tester.tap(find.byKey(const Key('savePersonButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Name is required'), findsOneWidget);
+    expect(find.textContaining('El nombre es obligatorio'), findsOneWidget);
     expect(find.byKey(const Key('debtsEmptyState')), findsOneWidget);
   });
 

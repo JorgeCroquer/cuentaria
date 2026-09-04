@@ -261,7 +261,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('stepFundingTypeDropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Catch-all').last);
+    await tester.tap(find.text('Resto').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('saveStepButton')));
     await tester.pumpAndSettle();

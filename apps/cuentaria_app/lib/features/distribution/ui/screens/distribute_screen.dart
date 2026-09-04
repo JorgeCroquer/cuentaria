@@ -36,7 +36,7 @@ class DistributeScreen extends ConsumerWidget {
           IconButton(
             key: const Key('editCascadeAction'),
             icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit cascade',
+            tooltip: 'Editar cascada',
             onPressed: () => context.push('/distribute/edit'),
           ),
         ],
@@ -46,7 +46,7 @@ class DistributeScreen extends ConsumerWidget {
           if (proposal == null) {
             return const Center(
               child: Text(
-                'No cascade configured yet.',
+                'Aún no hay cascada configurada.',
                 key: Key('noCascadeMessage'),
               ),
             );
@@ -56,7 +56,7 @@ class DistributeScreen extends ConsumerWidget {
           if (allocations.isEmpty) {
             return const Center(
               child: Text(
-                'Nothing to distribute.',
+                'No hay nada que distribuir.',
                 key: Key('nothingToDistributeMessage'),
               ),
             );
@@ -78,16 +78,20 @@ class DistributeScreen extends ConsumerWidget {
                     ElevatedButton(
                       key: const Key('applyDistributionButton'),
                       onPressed: () => _apply(context, ref),
-                      child: const Text('Apply'),
+                      child: const Text('Aplicar'),
                     ),
                   ],
                 ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            error:
+                (error, stackTrace) =>
+                    Center(child: Text('No se pudo cargar: $error')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
     );
   }

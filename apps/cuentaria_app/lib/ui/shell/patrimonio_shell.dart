@@ -41,7 +41,7 @@ class PatrimonioShell extends StatelessWidget {
           ),
           NavigationDestination(
             icon: Icon(Icons.list_alt_outlined),
-            label: 'Movements',
+            label: 'Movimientos',
           ),
         ],
       ),

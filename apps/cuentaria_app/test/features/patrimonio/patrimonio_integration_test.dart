@@ -64,7 +64,7 @@ void main() {
       expect(find.byType(PatrimonioScreen), findsOneWidget);
       expect(find.byType(MovementsScreen), findsNothing);
 
-      await tester.tap(find.text('Movements'));
+      await tester.tap(find.text('Movimientos'));
       await tester.pumpAndSettle();
 
       expect(find.byType(MovementsScreen), findsOneWidget);
@@ -257,18 +257,18 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Unrealized P&L: \$0.00',
+        'Ganancia/pérdida no realizada: \$0.00',
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'BCV reference: \$100.00',
+        'Referencia BCV: \$100.00',
       );
       expect(find.byKey(const Key('missingRateFlag')), findsNothing);
       expect(find.textContaining('Sin asignar: \$100.00'), findsOneWidget);
       expect(
         find.descendant(
           of: find.byKey(const Key('accountGroup_USD')),
-          matching: find.text('Real cost: \$100.00 · Today: \$100.00'),
+          matching: find.text('Costo real: \$100.00 · Hoy: \$100.00'),
         ),
         findsOneWidget,
       );

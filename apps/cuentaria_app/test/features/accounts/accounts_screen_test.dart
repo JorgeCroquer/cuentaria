@@ -227,7 +227,7 @@ void main() {
     await tester.tap(find.byKey(const Key('saveAccountButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Name is required'), findsOneWidget);
+    expect(find.textContaining('El nombre es obligatorio'), findsOneWidget);
     expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
   });
 
@@ -249,7 +249,10 @@ void main() {
     await tester.tap(find.byKey(const Key('saveAccountButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Exchange rate is required'), findsOneWidget);
+    expect(
+      find.textContaining('La tasa de cambio es obligatoria'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
   });
 
@@ -296,7 +299,10 @@ void main() {
     await tester.tap(find.byKey(const Key('saveAccountButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Exchange rate is required'), findsOneWidget);
+    expect(
+      find.textContaining('La tasa de cambio es obligatoria'),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('accountsEmptyState')), findsOneWidget);
   });
 
@@ -549,7 +555,7 @@ void main() {
     await tester.tap(find.byKey(const Key('saveAccountButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('whole number'), findsOneWidget);
+    expect(find.textContaining('número entero'), findsOneWidget);
   });
 
   testWidgets('editing an account updates its name reactively', (tester) async {

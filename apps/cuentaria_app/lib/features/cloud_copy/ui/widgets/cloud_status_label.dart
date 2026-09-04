@@ -31,7 +31,7 @@ class CloudStatusLabel extends StatelessWidget {
         onTap: onRetry,
         child: Text(
           'Falló hace ${_relativeTime(status.lastAttemptAt!)}: '
-          '${status.lastError} — tocá para reintentar',
+          '${status.lastError} — toca para reintentar',
         ),
       );
     }

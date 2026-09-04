@@ -161,7 +161,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Falló hace un momento: sin internet — tocá para reintentar'),
+      find.text('Falló hace un momento: sin internet — toca para reintentar'),
       findsOneWidget,
     );
 
@@ -169,7 +169,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('Falló hace un momento: sin internet — tocá para reintentar'),
+      find.text('Falló hace un momento: sin internet — toca para reintentar'),
       findsOneWidget,
     );
   });
@@ -207,7 +207,7 @@ void main() {
 
       expect(
         find.text(
-          'Falló hace un momento: sin sesión de Google — tocá para reintentar',
+          'Falló hace un momento: sin sesión de Google — toca para reintentar',
         ),
         findsOneWidget,
       );

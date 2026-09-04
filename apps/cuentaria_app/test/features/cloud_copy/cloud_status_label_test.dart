@@ -33,7 +33,7 @@ void main() {
   });
 
   testWidgets(
-    'error shows "Falló hace un momento: <causa> — tocá para reintentar"',
+    'error shows "Falló hace un momento: <causa> — toca para reintentar"',
     (tester) async {
       final status = CloudCopyStatus(
         lastAttemptAt: DateTime.now().toUtc(),
@@ -44,7 +44,7 @@ void main() {
       );
 
       expect(
-        find.text('Falló hace un momento: sin internet — tocá para reintentar'),
+        find.text('Falló hace un momento: sin internet — toca para reintentar'),
         findsOneWidget,
       );
     },

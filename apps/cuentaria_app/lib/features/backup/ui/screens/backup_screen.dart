@@ -9,7 +9,7 @@ import '../widgets/restore_backup_button.dart';
 
 const _shareWarning =
     'Este archivo lleva tus finanzas en texto legible. '
-    'Mandalo solo a donde vos controles.';
+    'Mándalo solo a donde tú lo controles.';
 
 String _lastBackupLabel(DateTime? lastBackup) {
   if (lastBackup == null) return 'Último respaldo: nunca';
@@ -157,7 +157,9 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                           key: const Key('lastBackupLabel'),
                         ),
                     loading: () => const CircularProgressIndicator(),
-                    error: (error, stackTrace) => Text('Error: $error'),
+                    error:
+                        (error, stackTrace) =>
+                            Text('No se pudo cargar: $error'),
                   ),
                   CloudStatusLabel(status: ref.watch(cloudSyncStatusProvider)),
                 ],

@@ -60,7 +60,8 @@ class QuickAddIncomeUseCase {
     );
     if (resolution == null) {
       throw RateNotAvailable(
-        'No parallel rate observed for ${account.nativeCurrency.value}',
+        'No hay tasa paralela registrada para '
+        '${account.nativeCurrency.value}',
       );
     }
 
