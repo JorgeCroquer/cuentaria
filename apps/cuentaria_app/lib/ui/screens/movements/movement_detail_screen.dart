@@ -82,12 +82,15 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Movement')),
+      appBar: AppBar(title: const Text('Movimiento')),
       body: transactionAsync.when(
         data: (transaction) {
           if (transaction == null) {
             return const Center(
-              child: Text('Movement not found.', key: Key('movementNotFound')),
+              child: Text(
+                'Movimiento no encontrado.',
+                key: Key('movementNotFound'),
+              ),
             );
           }
           return catalogAsync.when(
@@ -143,7 +146,7 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
         const SizedBox(height: 24),
         if (isReversal)
           const Text(
-            'This movement is a reversal.',
+            'Este movimiento es un reverso.',
             key: Key('isReversalNotice'),
           )
         else if (hasReversal)

@@ -65,7 +65,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('targetKindDropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cap').last);
+    await tester.tap(find.text('Tope').last);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('targetAmountField')), '300');
@@ -98,7 +98,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('targetKindDropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Goal line').last);
+    await tester.tap(find.text('Meta con fecha').last);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('targetAmountField')), '1000');
@@ -244,7 +244,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('targetKindDropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Goal line').last);
+    await tester.tap(find.text('Meta con fecha').last);
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const Key('targetAmountField')), '1000');

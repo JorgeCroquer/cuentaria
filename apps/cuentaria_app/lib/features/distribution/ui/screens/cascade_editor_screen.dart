@@ -18,12 +18,12 @@ String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 String _stepLabel(CascadeStep step, String envelopeName) => switch (step) {
   FixedStep(:final amountUsd) =>
-    'Fixed ${_formatUsdCents(amountUsd)} → $envelopeName',
-  FillToCapStep() => 'Fill to cap → $envelopeName',
+    'Monto fijo ${_formatUsdCents(amountUsd)} → $envelopeName',
+  FillToCapStep() => 'Llenar hasta el tope → $envelopeName',
   PercentOfRemainderStep(:final percent) =>
-    '${(percent * Decimal.fromInt(100)).toStringAsFixed(0)}% of remainder → '
+    '${(percent * Decimal.fromInt(100)).toStringAsFixed(0)}% del restante → '
         '$envelopeName',
-  CatchAllStep() => 'Catch-all → $envelopeName',
+  CatchAllStep() => 'Resto → $envelopeName',
 };
 
 /// [ReorderableListView.onReorder] semantics: when moving an item down,
@@ -58,9 +58,9 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
 
   Future<void> _addStep(List<Envelope> envelopes) async {
     if (envelopes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create an envelope first.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Crea un sobre primero.')));
       return;
     }
     final step = await showDialog<CascadeStep>(
@@ -117,7 +117,7 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
     final envelopesAsync = ref.watch(userEnvelopesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Edit cascade')),
+      appBar: AppBar(title: const Text('Editar cascada')),
       body: cascadeAsync.when(
         data: (cascade) {
           _steps ??= cascade?.steps ?? [];
@@ -163,7 +163,8 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
               steps.isEmpty
                   ? const Center(
                     child: Text(
-                      'No steps yet. Add one to start building the cascade.',
+                      'Sin pasos aún. Agrega uno para empezar a armar la '
+                      'cascada.',
                       key: Key('cascadeEmptyState'),
                     ),
                   )
@@ -190,7 +191,7 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
                           trailing: IconButton(
                             key: Key('deleteCascadeStep_$i'),
                             icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Remove',
+                            tooltip: 'Eliminar',
                             onPressed: () => _removeStep(i),
                           ),
                         ),
@@ -227,7 +228,7 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
                     (!validation.isValid || _isSaving)
                         ? null
                         : () => _save(validation),
-                child: const Text('Save'),
+                child: const Text('Guardar'),
               ),
             ],
           ),

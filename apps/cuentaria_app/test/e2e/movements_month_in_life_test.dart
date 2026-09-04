@@ -164,13 +164,13 @@ void main() {
       await _createEnvelope(
         tester,
         name: 'Mercado',
-        fundingType: 'Cap',
+        fundingType: 'Tope',
         amount: '120',
       );
       await _createEnvelope(
         tester,
         name: 'Mudanza',
-        fundingType: 'Goal line',
+        fundingType: 'Meta con fecha',
         amount: '1000',
       );
 
@@ -197,12 +197,12 @@ void main() {
       await _addCascadeStep(
         tester,
         envelopeName: 'Mercado',
-        fundingType: 'Fill to cap',
+        fundingType: 'Llenar hasta el tope',
       );
       await _addCascadeStep(
         tester,
         envelopeName: 'Mudanza',
-        fundingType: 'Catch-all',
+        fundingType: 'Resto',
       );
 
       await tester.tap(find.byKey(const Key('saveCascadeButton')));
@@ -396,18 +396,18 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Unrealized P&L: \$0.00',
+        'Ganancia/pérdida no realizada: \$0.00',
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'BCV reference: \$830.00',
+        'Referencia BCV: \$830.00',
       );
       expect(find.byKey(const Key('missingRateFlag')), findsNothing);
 
       expect(
         find.descendant(
           of: find.byKey(const Key('accountGroup_USD')),
-          matching: find.text('Real cost: \$750.00 · Today: \$750.00'),
+          matching: find.text('Costo real: \$750.00 · Hoy: \$750.00'),
         ),
         findsOneWidget,
       );
@@ -424,7 +424,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byKey(const Key('accountGroup_VES')),
-          matching: find.text('Real cost: \$100.00 · Today: \$100.00'),
+          matching: find.text('Costo real: \$100.00 · Hoy: \$100.00'),
         ),
         findsOneWidget,
       );
@@ -527,7 +527,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Unrealized P&L: \$0.00',
+        'Ganancia/pérdida no realizada: \$0.00',
       );
     },
   );

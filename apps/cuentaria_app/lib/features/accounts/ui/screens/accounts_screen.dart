@@ -241,13 +241,13 @@ class _AccountTile extends StatelessWidget {
           IconButton(
             key: Key('editAccount_${account.id.value}'),
             icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit',
+            tooltip: 'Editar',
             onPressed: onEdit,
           ),
           IconButton(
             key: Key('archiveAccount_${account.id.value}'),
             icon: const Icon(Icons.archive_outlined),
-            tooltip: 'Archive',
+            tooltip: 'Archivar',
             onPressed: onArchive,
           ),
         ],
@@ -265,7 +265,7 @@ class _EmptyState extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.all(24),
         child: Text(
-          'No accounts yet. Tap + to create one.',
+          'Sin cuentas aún. Toca + para crear una.',
           key: Key('accountsEmptyState'),
           textAlign: TextAlign.center,
         ),
@@ -425,7 +425,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.isEdit ? 'Edit account' : 'New account'),
+      title: Text(widget.isEdit ? 'Editar cuenta' : 'Nueva cuenta'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -434,11 +434,11 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
             TextField(
               key: const Key('accountNameField'),
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Name'),
+              decoration: const InputDecoration(labelText: 'Nombre'),
             ),
             const SizedBox(height: 8),
             if (widget.isEdit)
-              Text('Currency: ${widget.existing!.nativeCurrency.value}')
+              Text('Moneda: ${widget.existing!.nativeCurrency.value}')
             else
               DropdownButton<String>(
                 key: const Key('accountCurrencyDropdown'),
@@ -489,7 +489,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                 controller: _openingBalanceController,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                  labelText: 'Opening balance (optional, whole units)',
+                  labelText: 'Saldo inicial (opcional, unidades enteras)',
                 ),
                 onChanged: (_) => setState(() {}),
               ),
@@ -502,7 +502,7 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
                     decimal: true,
                   ),
                   decoration: InputDecoration(
-                    labelText: 'Exchange rate ($_currency per USD)',
+                    labelText: 'Tasa de cambio ($_currency por USD)',
                   ),
                   onChanged: (_) => setState(() => _rateOverridden = true),
                 ),
@@ -532,12 +532,12 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
-          child: const Text('Cancel'),
+          child: const Text('Cancelar'),
         ),
         ElevatedButton(
           key: const Key('saveAccountButton'),
           onPressed: _isSaving ? null : _save,
-          child: const Text('Save'),
+          child: const Text('Guardar'),
         ),
       ],
     );

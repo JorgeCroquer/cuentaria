@@ -7,10 +7,10 @@ import 'package:shared_kernel/shared_kernel.dart';
 enum _StepKind { fixed, fillToCap, percentOfRemainder, catchAll }
 
 String _stepKindLabel(_StepKind kind) => switch (kind) {
-  _StepKind.fixed => 'Fixed amount',
-  _StepKind.fillToCap => 'Fill to cap',
-  _StepKind.percentOfRemainder => '% of remainder',
-  _StepKind.catchAll => 'Catch-all',
+  _StepKind.fixed => 'Monto fijo',
+  _StepKind.fillToCap => 'Llenar hasta el tope',
+  _StepKind.percentOfRemainder => '% del restante',
+  _StepKind.catchAll => 'Resto',
 };
 
 _StepKind _kindOf(CascadeStep step) => switch (step) {
@@ -106,7 +106,7 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.existing == null ? 'Add step' : 'Edit step'),
+      title: Text(widget.existing == null ? 'Agregar paso' : 'Editar paso'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -145,7 +145,7 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Amount (USD)'),
+              decoration: const InputDecoration(labelText: 'Monto (USD)'),
             ),
           ],
           if (_kind == _StepKind.percentOfRemainder) ...[
@@ -156,7 +156,9 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
-              decoration: const InputDecoration(labelText: 'Percent (0-100)'),
+              decoration: const InputDecoration(
+                labelText: 'Porcentaje (0-100)',
+              ),
             ),
           ],
         ],
@@ -165,12 +167,12 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
         TextButton(
           key: const Key('cancelStepButton'),
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Cancelar'),
         ),
         ElevatedButton(
           key: const Key('saveStepButton'),
           onPressed: _envelopeId == null ? null : _save,
-          child: const Text('Save'),
+          child: const Text('Guardar'),
         ),
       ],
     );

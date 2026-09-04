@@ -115,26 +115,26 @@ void main() {
     await _addStep(
       tester,
       envelopeName: 'Mercado',
-      fundingType: 'Fixed amount',
+      fundingType: 'Monto fijo',
       amount: '100',
     );
     await _addStep(
       tester,
       envelopeName: 'Suscripciones',
-      fundingType: 'Fill to cap',
+      fundingType: 'Llenar hasta el tope',
     );
     await _addStep(
       tester,
       envelopeName: 'Mudanza',
-      fundingType: '% of remainder',
+      fundingType: '% del restante',
       percent: '50',
     );
-    await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Catch-all');
+    await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Resto');
 
-    expect(find.text('Fixed \$100.00 → Mercado'), findsOneWidget);
-    expect(find.text('Fill to cap → Suscripciones'), findsOneWidget);
-    expect(find.text('50% of remainder → Mudanza'), findsOneWidget);
-    expect(find.text('Catch-all → Ocio'), findsOneWidget);
+    expect(find.text('Monto fijo \$100.00 → Mercado'), findsOneWidget);
+    expect(find.text('Llenar hasta el tope → Suscripciones'), findsOneWidget);
+    expect(find.text('50% del restante → Mudanza'), findsOneWidget);
+    expect(find.text('Resto → Ocio'), findsOneWidget);
     expect(find.byKey(const Key('cascadeValidationErrors')), findsNothing);
 
     // Reorder by drag: swap the first two steps (Mercado, Suscripciones),
@@ -154,7 +154,11 @@ void main() {
 
     expect(
       tester.widgetList<ListTile>(find.byType(ListTile)).first.title,
-      isA<Text>().having((t) => t.data, 'data', 'Fill to cap → Suscripciones'),
+      isA<Text>().having(
+        (t) => t.data,
+        'data',
+        'Llenar hasta el tope → Suscripciones',
+      ),
     );
     expect(find.byKey(const Key('cascadeValidationErrors')), findsNothing);
 
@@ -183,13 +187,17 @@ void main() {
     router.push('/distribute/edit');
     await tester.pumpAndSettle();
 
-    expect(find.text('Fixed \$100.00 → Mercado'), findsOneWidget);
-    expect(find.text('Fill to cap → Suscripciones'), findsOneWidget);
-    expect(find.text('50% of remainder → Mudanza'), findsOneWidget);
-    expect(find.text('Catch-all → Ocio'), findsOneWidget);
+    expect(find.text('Monto fijo \$100.00 → Mercado'), findsOneWidget);
+    expect(find.text('Llenar hasta el tope → Suscripciones'), findsOneWidget);
+    expect(find.text('50% del restante → Mudanza'), findsOneWidget);
+    expect(find.text('Resto → Ocio'), findsOneWidget);
     expect(
       tester.widgetList<ListTile>(find.byType(ListTile)).first.title,
-      isA<Text>().having((t) => t.data, 'data', 'Fill to cap → Suscripciones'),
+      isA<Text>().having(
+        (t) => t.data,
+        'data',
+        'Llenar hasta el tope → Suscripciones',
+      ),
     );
   });
 
@@ -202,11 +210,11 @@ void main() {
 
       await _pumpEditor(tester, container);
 
-      await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Catch-all');
+      await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Resto');
       await _addStep(
         tester,
         envelopeName: 'Ahorros',
-        fundingType: 'Fixed amount',
+        fundingType: 'Monto fijo',
         amount: '50',
       );
 
@@ -229,8 +237,8 @@ void main() {
 
       await _pumpEditor(tester, container);
 
-      await _addStep(tester, envelopeName: 'A', fundingType: 'Catch-all');
-      await _addStep(tester, envelopeName: 'B', fundingType: 'Catch-all');
+      await _addStep(tester, envelopeName: 'A', fundingType: 'Resto');
+      await _addStep(tester, envelopeName: 'B', fundingType: 'Resto');
 
       expect(find.byKey(const Key('cascadeValidationErrors')), findsOneWidget);
       expect(find.textContaining('Only one catch-all'), findsOneWidget);
@@ -248,13 +256,13 @@ void main() {
 
     await _pumpEditor(tester, container);
 
-    await _addStep(tester, envelopeName: 'Mercado', fundingType: 'Catch-all');
-    expect(find.text('Catch-all → Mercado'), findsOneWidget);
+    await _addStep(tester, envelopeName: 'Mercado', fundingType: 'Resto');
+    expect(find.text('Resto → Mercado'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('deleteCascadeStep_0')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Catch-all → Mercado'), findsNothing);
+    expect(find.text('Resto → Mercado'), findsNothing);
     expect(find.byKey(const Key('cascadeEmptyState')), findsOneWidget);
   });
 }

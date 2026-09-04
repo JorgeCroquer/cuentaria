@@ -9,7 +9,7 @@ import '../widgets/restore_backup_button.dart';
 
 const _shareWarning =
     'Este archivo lleva tus finanzas en texto legible. '
-    'Mandalo solo a donde vos controles.';
+    'Mándalo solo a donde tú lo controles.';
 
 String _lastBackupLabel(DateTime? lastBackup) {
   if (lastBackup == null) return 'Último respaldo: nunca';

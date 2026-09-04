@@ -15,9 +15,9 @@ import '../../application/envelopes_providers.dart';
 enum _TargetKind { none, cap, goalLine }
 
 String _targetKindLabel(_TargetKind kind) => switch (kind) {
-  _TargetKind.none => 'None',
-  _TargetKind.cap => 'Cap',
-  _TargetKind.goalLine => 'Goal line',
+  _TargetKind.none => 'Ninguno',
+  _TargetKind.cap => 'Tope',
+  _TargetKind.goalLine => 'Meta con fecha',
 };
 
 /// Create/edit form for one user Envelope (U1 slice 2, #95): name, icon
@@ -78,7 +78,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
   Future<void> _save(CatalogRepository catalog) async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      setState(() => _error = 'Enter a name.');
+      setState(() => _error = 'Ingresa un nombre.');
       return;
     }
 
@@ -88,7 +88,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
     } else {
       final dollars = double.tryParse(_amountController.text);
       if (dollars == null || dollars <= 0) {
-        setState(() => _error = 'Enter an amount greater than zero.');
+        setState(() => _error = 'Ingresa un monto mayor a cero.');
         return;
       }
       final amountUsd = (dollars * 100).round();
@@ -143,9 +143,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.envelopeId == null ? 'New envelope' : 'Edit envelope',
-        ),
+        title: Text(widget.envelopeId == null ? 'Nuevo sobre' : 'Editar sobre'),
       ),
       body: catalogAsync.when(
         data: (catalog) {
@@ -171,7 +169,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
       child: Padding(
         padding: EdgeInsets.all(AppSpacing.lg),
         child: Text(
-          'System envelopes cannot be edited.',
+          'Los sobres del sistema no se pueden editar.',
           textAlign: TextAlign.center,
         ),
       ),
@@ -185,10 +183,10 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
         TextFormField(
           key: const Key('nameField'),
           controller: _nameController,
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: const InputDecoration(labelText: 'Nombre'),
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Text('Icon'),
+        const Text('Icono'),
         const SizedBox(height: AppSpacing.sm),
         Wrap(
           spacing: AppSpacing.sm,
@@ -235,7 +233,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
           ],
         ),
         const SizedBox(height: AppSpacing.lg),
-        const Text('Funding target'),
+        const Text('Meta de fondeo'),
         DropdownButton<_TargetKind>(
           key: const Key('targetKindDropdown'),
           value: _targetKind,
@@ -256,7 +254,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
             key: const Key('targetAmountField'),
             controller: _amountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Amount (USD)'),
+            decoration: const InputDecoration(labelText: 'Monto (USD)'),
           ),
         ],
         if (_targetKind == _TargetKind.goalLine) ...[
@@ -266,8 +264,8 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
             onPressed: _pickDueDate,
             child: Text(
               _dueDate == null
-                  ? 'No due date'
-                  : 'Due ${_dueDate!.toLocal().toString().split(' ').first}',
+                  ? 'Sin fecha límite'
+                  : 'Vence ${_dueDate!.toLocal().toString().split(' ').first}',
             ),
           ),
         ],
@@ -282,7 +280,7 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
         ElevatedButton(
           key: const Key('saveEnvelopeButton'),
           onPressed: _isSaving ? null : () => _save(catalog),
-          child: const Text('Save'),
+          child: const Text('Guardar'),
         ),
       ],
     );
