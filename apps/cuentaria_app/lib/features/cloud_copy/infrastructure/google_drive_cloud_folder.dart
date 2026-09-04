@@ -88,6 +88,7 @@ class GoogleDriveCloudFolder implements CloudFolder {
     Uri uri, {
     Object? body,
     String? contentType,
+    bool retryOn401 = true,
   }) async {
     final token = await _session.accessToken();
     final headers = {
@@ -108,6 +109,16 @@ class GoogleDriveCloudFolder implements CloudFolder {
       throw const CloudUnavailable('sin internet');
     }
     if (response.statusCode == 401) {
+      if (retryOn401) {
+        await _session.clearAuthCache();
+        return _send(
+          method,
+          uri,
+          body: body,
+          contentType: contentType,
+          retryOn401: false,
+        );
+      }
       await _session.disconnect();
       throw const CloudUnavailable('sin sesión de Google');
     }

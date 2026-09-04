@@ -30,7 +30,16 @@ class GoogleSignInDriveSession implements GoogleDriveSession {
 
   @override
   Future<void> disconnect() async {
-    await _googleSignIn.signOut();
+    try {
+      await _googleSignIn.disconnect();
+    } catch (_) {
+      await _googleSignIn.signOut();
+    }
+  }
+
+  @override
+  Future<void> clearAuthCache() async {
+    await _googleSignIn.currentUser?.clearAuthCache();
   }
 
   @override

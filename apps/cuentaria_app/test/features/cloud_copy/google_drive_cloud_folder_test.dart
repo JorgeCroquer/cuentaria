@@ -114,26 +114,53 @@ void main() {
     },
   );
 
+  test('a 401 twice retries once via clearAuthCache, then disconnects and '
+      'reports "sin sesión de Google"', () async {
+    final session = FakeGoogleDriveSession('token-1');
+    var requestCount = 0;
+    final folder = GoogleDriveCloudFolder(
+      session,
+      client: MockClient((request) async {
+        requestCount++;
+        return http.Response('', 401);
+      }),
+    );
+
+    await expectLater(
+      folder.list(),
+      throwsA(
+        isA<CloudUnavailable>().having(
+          (e) => e.reason,
+          'reason',
+          'sin sesión de Google',
+        ),
+      ),
+    );
+    expect(requestCount, 2);
+    expect(session.clearAuthCacheCalls, 1);
+    expect(session.disconnectCalled, isTrue);
+  });
+
   test(
-    'a 401 disconnects the session and reports "sin sesión de Google"',
+    'a single 401 clears the auth cache and retries once, succeeding',
     () async {
       final session = FakeGoogleDriveSession('token-1');
+      var requestCount = 0;
       final folder = GoogleDriveCloudFolder(
         session,
-        client: MockClient((request) async => http.Response('', 401)),
+        client: MockClient((request) async {
+          requestCount++;
+          if (requestCount == 1) return http.Response('', 401);
+          return http.Response('{"files":[{"name":"a.ndjson"}]}', 200);
+        }),
       );
 
-      await expectLater(
-        folder.list(),
-        throwsA(
-          isA<CloudUnavailable>().having(
-            (e) => e.reason,
-            'reason',
-            'sin sesión de Google',
-          ),
-        ),
-      );
-      expect(session.disconnectCalled, isTrue);
+      final names = await folder.list();
+
+      expect(names, ['a.ndjson']);
+      expect(requestCount, 2);
+      expect(session.clearAuthCacheCalls, 1);
+      expect(session.disconnectCalled, isFalse);
     },
   );
 

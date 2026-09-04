@@ -169,6 +169,7 @@ class FakeGoogleDriveSession implements GoogleDriveSession {
 
   String? _token;
   bool disconnectCalled = false;
+  int clearAuthCacheCalls = 0;
 
   @override
   bool get isConnected => _token != null;
@@ -185,6 +186,11 @@ class FakeGoogleDriveSession implements GoogleDriveSession {
   Future<void> disconnect() async {
     disconnectCalled = true;
     _token = null;
+  }
+
+  @override
+  Future<void> clearAuthCache() async {
+    clearAuthCacheCalls++;
   }
 
   @override
