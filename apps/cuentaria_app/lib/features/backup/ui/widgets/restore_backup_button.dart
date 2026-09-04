@@ -68,10 +68,16 @@ class _RestoreBackupButtonState extends ConsumerState<RestoreBackupButton> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        ElevatedButton(
+        OutlinedButton(
           key: const Key('restoreBackupButton'),
           onPressed: _isRestoring ? null : _onRestore,
-          child: const Text('Restaurar respaldo'),
+          child: const Text('Restaurar desde un archivo'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Elige un Archivo de Respaldo (.ndjson) guardado por ti',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );

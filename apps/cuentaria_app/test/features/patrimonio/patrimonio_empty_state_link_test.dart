@@ -19,9 +19,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('patrimonioEmptyState')), findsOneWidget);
+      expect(find.text('Conectar tu Google Drive'), findsOneWidget);
       expect(
         find.text(
-          '¿Ya usás Cuentaria en otro teléfono? Conectá tu Google Drive',
+          'Si ya usas Cuentaria en otro teléfono, tus datos bajan solos',
         ),
         findsOneWidget,
       );
