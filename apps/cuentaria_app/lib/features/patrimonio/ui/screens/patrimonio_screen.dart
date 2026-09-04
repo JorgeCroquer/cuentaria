@@ -486,20 +486,31 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Offers the connect-first path (#226, ADR-0023 §6) right where a
+/// Offers the connect-first path (#226, ADR-0023 §6, #245) right where a
 /// just-installed user lands: before creating a single Account, they can
-/// connect the Google Drive that already has their other phone's data.
+/// connect the Google Drive that already has their other phone's data. The
+/// prominent path in the empty state — the restore-from-file path
+/// ([RestoreBackupButton]) is secondary, since Drive is what most users
+/// coming from another phone actually want.
 class _CloudCopyEmptyStateLink extends StatelessWidget {
   const _CloudCopyEmptyStateLink();
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return ElevatedButton(
       key: const Key('cloudCopyEmptyStateLink'),
       onPressed: () => context.push('/cloud-copy'),
-      child: const Text(
-        '¿Ya usás Cuentaria en otro teléfono? Conectá tu Google Drive',
-        textAlign: TextAlign.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Conectar tu Google Drive', textAlign: TextAlign.center),
+          const SizedBox(height: 4),
+          Text(
+            'Si ya usas Cuentaria en otro teléfono, tus datos bajan solos',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
