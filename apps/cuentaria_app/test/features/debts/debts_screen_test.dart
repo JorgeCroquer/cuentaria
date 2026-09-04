@@ -504,4 +504,41 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('debtsLine')), findsNothing);
   });
+
+  testWidgets('Pedro (USD, \$50, "me debe"): leaving the real balance field '
+      'empty declares \$0,00 same as typing it, crossing zero and offering '
+      'to archive (fix directive gap 1b)', (tester) async {
+    final container = await pumpDebtsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('createPersonCta')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('personNameField')), 'Pedro');
+    await tester.tap(find.byKey(const Key('savePersonButton')));
+    await tester.pumpAndSettle();
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final pedro = catalog.accounts.singleWhere((a) => a.name == 'Pedro');
+    final reconcileKey = Key('reconcileDebtAccount_${pedro.id.value}');
+
+    // "Me debe $50,00" — the direction selector already defaults there
+    // since the balance starts at $0.
+    await tester.tap(find.byKey(reconcileKey));
+    await tester.pumpAndSettle();
+    await _typeDigits(tester, '5000');
+    await tester.pump();
+    await _confirmReconciliation(tester);
+
+    expect(find.text('Pedro te debe \$50.00'), findsOneWidget);
+
+    // Back to $0,00 by leaving the field untouched and pressing Listo —
+    // an untyped field must declare 0, same as typing "0" (gap 1b).
+    await tester.tap(find.byKey(reconcileKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('keypadDone')));
+    await tester.pump();
+    await _confirmReconciliation(tester);
+
+    final archiveKey = Key('archiveDebtAccount_${pedro.id.value}');
+    expect(find.byKey(archiveKey), findsOneWidget);
+  });
 }

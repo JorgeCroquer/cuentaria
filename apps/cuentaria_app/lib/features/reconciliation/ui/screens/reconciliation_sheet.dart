@@ -66,12 +66,6 @@ class ReconciliationSheet extends ConsumerStatefulWidget {
 class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
   final _realBalance = AmountInputController();
 
-  // AmountInputController.isValid requires a strictly positive amount — the
-  // right rule for capture, where $0 means nothing was typed. In
-  // Reconciliation a declared real balance of exactly zero is legitimate
-  // (an emptied wallet), so the sheet tracks "have any digits been typed at
-  // all" itself instead of reusing that getter.
-  bool _hasTypedDigits = false;
   bool _isSaving = false;
   String? _error;
 
@@ -107,10 +101,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
 
   void _onRealBalanceChanged() {
     if (!mounted) return;
-    setState(() {
-      _hasTypedDigits = true;
-      _outcome = null;
-    });
+    setState(() => _outcome = null);
   }
 
   void _onIncomeSourceChanged() {
@@ -165,9 +156,9 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
 
   /// Evaluates the typed amount into an outcome (#158): fired from the
   /// keypad's Done key, not from every digit, so partial digits never render
-  /// a result the user hasn't finished typing yet.
+  /// a result the user hasn't finished typing yet. An untouched field
+  /// declares 0, matching the field's "0" hint (fix directive gap 1).
   void _confirmAmount(Money projectedNative, Decimal rate) {
-    if (!_hasTypedDigits) return;
     final deltaNative = _realBalanceWithSign - projectedNative.amount;
     setState(() {
       _outcome = planReconciliation(deltaNative: deltaNative, rate: rate);
@@ -421,6 +412,8 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                       _OutcomeMessage(
                         outcome: outcome,
                         currency: widget.account.nativeCurrency,
+                        projectedNative: projectedBalance.native,
+                        declaredNative: _realBalanceWithSign,
                       ),
                     if (isRouted)
                       _RoutedOccurredAtSection(
@@ -532,10 +525,32 @@ class _DebtDirectionSelector extends StatelessWidget {
 /// the "absorbed against what" and "this is large" copy the acceptance
 /// criteria require.
 class _OutcomeMessage extends StatelessWidget {
-  const _OutcomeMessage({required this.outcome, required this.currency});
+  const _OutcomeMessage({
+    required this.outcome,
+    required this.currency,
+    required this.projectedNative,
+    required this.declaredNative,
+  });
 
   final ReconciliationOutcome outcome;
   final CurrencyCode currency;
+  final Money projectedNative;
+  final BigInt declaredNative;
+
+  /// Explains a routed delta in plain numbers (fix directive gap 2): the
+  /// owner previously saw the Income/Expense flow open with no idea why.
+  Widget _contextLine(BigInt deltaNative, String verb) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Text(
+        'El libro decía ${_formatMoney(projectedNative)} y declaraste '
+        '${_formatNative(declaredNative, currency)}: la diferencia de '
+        '${_formatNative(deltaNative.abs(), currency)} tiene que $verb un '
+        'sobre.',
+        key: const Key('reconciliationContextLine'),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -555,25 +570,38 @@ class _OutcomeMessage extends StatelessWidget {
           key: const Key('reconciliationAbsorbMessage'),
         ),
       ),
-      RouteToIncome(:final deltaNative, :final suggestedUsd) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-          '(${_formatUsdCents(suggestedUsd)}). Parece un cobro sin '
-          'registrar — regístralo como Ingreso, o absorbe de todos modos.',
-          key: const Key('reconciliationRouteWarning'),
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
+      RouteToIncome(:final deltaNative, :final suggestedUsd) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _contextLine(deltaNative, 'entrar a'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Diferencia grande: ${_formatNative(deltaNative, currency)} '
+              '(${_formatUsdCents(suggestedUsd)}). Parece un cobro sin '
+              'registrar — regístralo como Ingreso, o absorbe de todos '
+              'modos.',
+              key: const Key('reconciliationRouteWarning'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
       ),
-      RouteToExpense(:final deltaNative, :final suggestedUsd) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(
-          'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-          '(${_formatUsdCents(suggestedUsd)}). Parece un gasto sin '
-          'registrar — regístralo como Gasto, o absorbe de todos modos.',
-          key: const Key('reconciliationRouteWarning'),
-          style: TextStyle(color: Theme.of(context).colorScheme.error),
-        ),
+      RouteToExpense(:final deltaNative, :final suggestedUsd) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _contextLine(deltaNative, 'salir de'),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Diferencia grande: ${_formatNative(deltaNative, currency)} '
+              '(${_formatUsdCents(suggestedUsd)}). Parece un gasto sin '
+              'registrar — regístralo como Gasto, o absorbe de todos modos.',
+              key: const Key('reconciliationRouteWarning'),
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
       ),
     };
   }
