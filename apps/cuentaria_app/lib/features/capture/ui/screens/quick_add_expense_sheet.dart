@@ -27,6 +27,7 @@ Future<void> showQuickAddExpenseSheet(
   AccountId? preselectedGastoAccountId,
   AccountId? preselectedMoverSourceAccountId,
   AccountId? preselectedMoverDestinationAccountId,
+  String? contextTitle,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -37,6 +38,7 @@ Future<void> showQuickAddExpenseSheet(
           preselectedMoverSourceAccountId: preselectedMoverSourceAccountId,
           preselectedMoverDestinationAccountId:
               preselectedMoverDestinationAccountId,
+          contextTitle: contextTitle,
         ),
   );
 }
@@ -130,11 +132,17 @@ class QuickAddExpenseSheet extends ConsumerStatefulWidget {
     this.preselectedGastoAccountId,
     this.preselectedMoverSourceAccountId,
     this.preselectedMoverDestinationAccountId,
+    this.contextTitle,
   });
 
   final AccountId? preselectedGastoAccountId;
   final AccountId? preselectedMoverSourceAccountId;
   final AccountId? preselectedMoverDestinationAccountId;
+
+  /// Set by the Deudas screen's Prestar/Cobrar/Condonar actions (#244) so
+  /// the sheet says what's happening instead of opening as a generic
+  /// capture form. `null` renders the sheet exactly as it does today.
+  final String? contextTitle;
 
   @override
   ConsumerState<QuickAddExpenseSheet> createState() =>
@@ -587,6 +595,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.contextTitle != null) ...[
+            Text(
+              widget.contextTitle!,
+              key: const Key('quickAddContextTitle'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [

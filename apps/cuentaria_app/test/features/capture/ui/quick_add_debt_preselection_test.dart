@@ -100,6 +100,40 @@ void main() {
   });
 
   testWidgets(
+    'contextTitle renders as a header above the mode chips when provided',
+    (tester) async {
+      final container = await _seededContainer();
+      await _pump(
+        tester,
+        container,
+        const QuickAddExpenseSheet(
+          preselectedMoverDestinationAccountId: null,
+          contextTitle: 'Préstamo a Pedro',
+        ),
+      );
+
+      expect(find.text('Préstamo a Pedro'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'without a contextTitle the sheet renders identically to today (no '
+    'header)',
+    (tester) async {
+      final container = await _seededContainer();
+      await _pump(
+        tester,
+        container,
+        QuickAddExpenseSheet(
+          preselectedMoverDestinationAccountId: AccountId('pedro'),
+        ),
+      );
+
+      expect(find.byKey(const Key('quickAddContextTitle')), findsNothing);
+    },
+  );
+
+  testWidgets(
     'Condonar preselects Gasto with Pedro as the paying account, letting '
     'the user pick the envelope',
     (tester) async {

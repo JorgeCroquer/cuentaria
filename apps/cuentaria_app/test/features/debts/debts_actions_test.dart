@@ -210,6 +210,8 @@ void main() {
 
       expect(find.text('Pedro te debe \$150.00'), findsOneWidget);
 
+      await tester.tap(find.byKey(const Key('debtActionsMenu_Pedro')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('debtAction_condonar_Pedro')));
       await tester.pumpAndSettle();
 
