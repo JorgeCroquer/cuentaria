@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API 31+ counterpart to android:allowBackup="false" (ADR-0021 errata):
+     excludes everything from cloud backup and device-to-device transfer, so
+     no half-decryptable copy of the Keystore-encrypted store escapes the
+     device outside of F3/F4. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+    </device-transfer>
+</data-extraction-rules>
