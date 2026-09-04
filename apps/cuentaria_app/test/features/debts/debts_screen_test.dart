@@ -676,4 +676,37 @@ void main() {
     await _openDebtActionsMenu(tester, 'Pedro');
     expect(find.byKey(archiveKey), findsOneWidget);
   });
+
+  testWidgets('Condonar from the real DebtsScreen opens the capture sheet with '
+      'the "Condonar deuda de Pedro" contextTitle and Pedro\'s account chip '
+      'visible and selected (regression of PR #247)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    await catalog.saveAccount(
+      Account(
+        id: AccountId('pedro'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+        meta: {'counterpartyName': 'Pedro'},
+      ),
+    );
+
+    await pumpWithContainer(tester, container);
+
+    await _openDebtActionsMenu(tester, 'Pedro');
+    await tester.tap(find.byKey(const Key('debtAction_condonar_Pedro')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Condonar deuda de Pedro'), findsOneWidget);
+    final pedroChip = tester.widget<ChoiceChip>(
+      find.byKey(const Key('accountChip_pedro')),
+    );
+    expect(pedroChip.selected, isTrue);
+  });
 }
