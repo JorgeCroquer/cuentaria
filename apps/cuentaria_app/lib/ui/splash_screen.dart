@@ -21,7 +21,7 @@ class SplashScreen extends ConsumerWidget {
               const Scaffold(body: Center(child: CircularProgressIndicator())),
       error:
           (error, stackTrace) =>
-              Scaffold(body: Center(child: Text('Error: $error'))),
+              Scaffold(body: Center(child: Text('No se pudo cargar: $error'))),
     );
   }
 }

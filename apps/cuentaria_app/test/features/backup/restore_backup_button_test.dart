@@ -57,6 +57,11 @@ void main() {
     await _pumpButton(tester, picker: _FakeSystemFilePicker());
 
     expect(find.byKey(const Key('restoreBackupButton')), findsOneWidget);
+    expect(find.text('Restaurar desde un archivo'), findsOneWidget);
+    expect(
+      find.text('Elige un Archivo de Respaldo (.ndjson) guardado por ti'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('cancelling the file picker restores nothing', (tester) async {

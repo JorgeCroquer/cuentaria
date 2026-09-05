@@ -149,7 +149,7 @@ void main() {
 
       expect(find.byKey(const Key('parallelStaleWarning_VES')), findsOneWidget);
       // Non-blocking: the figures the group carries still render normally.
-      expect(find.text('Real cost: \$10.00 · Today: \$10.00'), findsOneWidget);
+      expect(find.text('Costo real: \$10.00 · Hoy: \$10.00'), findsOneWidget);
     },
   );
 

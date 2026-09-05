@@ -103,12 +103,15 @@ class MovementsScreen extends ConsumerWidget {
     final catalogAsync = ref.watch(catalogRepositoryProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Movements')),
+      appBar: AppBar(title: const Text('Movimientos')),
       body: movementsAsync.when(
         data: (transactions) {
           if (transactions.isEmpty) {
             return const Center(
-              child: Text('No movements yet.', key: Key('movementsEmptyState')),
+              child: Text(
+                'Sin movimientos aún.',
+                key: Key('movementsEmptyState'),
+              ),
             );
           }
           return catalogAsync.when(
@@ -120,11 +123,15 @@ class MovementsScreen extends ConsumerWidget {
                   ],
                 ),
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, stackTrace) => Center(child: Text('Error: $error')),
+            error:
+                (error, stackTrace) =>
+                    Center(child: Text('No se pudo cargar: $error')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
     );
   }

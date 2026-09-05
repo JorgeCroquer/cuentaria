@@ -104,7 +104,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('addPersonFab'),
@@ -118,8 +120,10 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 /// One counterparty's row: sign spoken in the user's language ("Pedro te
 /// debe $200.00" / "le debés $12.00 a Ana") plus one detail line per
 /// currency leg — always visible so a two-currency person shows both, and a
-/// non-USD leg announces the rate it valued at (or "sin tasa").
-class _PersonTile extends StatelessWidget {
+/// non-USD leg announces the rate it valued at (or "sin tasa"). Actions
+/// (#244) sit on their own row below the text so 1- and 2-line balances
+/// never shift them.
+class _PersonTile extends ConsumerWidget {
   const _PersonTile({required this.persona, required this.accounts});
 
   final PersonDebts persona;
@@ -131,7 +135,8 @@ class _PersonTile extends StatelessWidget {
   /// Which Debt Account an action targets when a person holds more than one
   /// currency (rare): the first currency leg, matching how the headline
   /// itself only speaks the net across all of them (#208 keeps this
-  /// minimal — a currency-picker for actions is not in scope).
+  /// minimal — a currency-picker for actions is not in scope; #244 extends
+  /// the same simplification to Conciliar/Archivar).
   Account? get _primaryAccount {
     if (accounts.isEmpty) return null;
     final currency = persona.currencies.first.currency;
@@ -141,12 +146,22 @@ class _PersonTile extends StatelessWidget {
     );
   }
 
+  PersonCurrencyDebt? get _primaryLeg {
+    final account = _primaryAccount;
+    if (account == null) return null;
+    return persona.currencies.firstWhere(
+      (leg) => leg.currency == account.nativeCurrency,
+      orElse: () => persona.currencies.first,
+    );
+  }
+
   Future<void> _prestar(BuildContext context) async {
     final account = _primaryAccount;
     if (account == null) return;
     await showQuickAddExpenseSheet(
       context,
       preselectedMoverDestinationAccountId: account.id,
+      contextTitle: 'Préstamo a ${persona.personName}',
     );
   }
 
@@ -156,6 +171,7 @@ class _PersonTile extends StatelessWidget {
     await showQuickAddExpenseSheet(
       context,
       preselectedMoverSourceAccountId: account.id,
+      contextTitle: 'Cobro a ${persona.personName}',
     );
   }
 
@@ -165,90 +181,34 @@ class _PersonTile extends StatelessWidget {
     await showQuickAddExpenseSheet(
       context,
       preselectedGastoAccountId: account.id,
+      contextTitle: 'Condonar deuda de ${persona.personName}',
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final headline =
-        persona.netoUsdCents >= 0
-            ? '${persona.personName} te debe '
-                '${_formatUsdCents(persona.netoUsdCents)}'
-            : 'le debés ${_formatUsdCents(-persona.netoUsdCents)} a '
-                '${persona.personName}';
-
-    return ListTile(
-      key: Key('debtPerson_${persona.personName}'),
-      title: Text(headline),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final leg in persona.currencies)
-            _CurrencyLegLine(leg: leg, personName: persona.personName),
-        ],
-      ),
-      trailing:
-          _primaryAccount == null
-              ? null
-              : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    key: Key('debtAction_prestar_${persona.personName}'),
-                    icon: const Icon(Icons.call_made),
-                    tooltip: 'Prestar',
-                    onPressed: () => _prestar(context),
-                  ),
-                  IconButton(
-                    key: Key('debtAction_cobrar_${persona.personName}'),
-                    icon: const Icon(Icons.call_received),
-                    tooltip: 'Cobrar',
-                    onPressed: () => _cobrar(context),
-                  ),
-                  IconButton(
-                    key: Key('debtAction_condonar_${persona.personName}'),
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Condonar',
-                    onPressed: () => _condonar(context),
-                  ),
-                ],
-              ),
-    );
-  }
-}
-
-/// One currency leg's line, with the two actions that close the Debt
-/// Account lifecycle (#209, ADR-0022 §4): **Conciliar** launches the
-/// existing C3 Reconciliation ritual preselecting this Debt Account — the
-/// same ritual a liquid Cuenta uses, since the Splitwise import is that
-/// ritual, not a bespoke flow. **Archivar** only appears once this leg's
-/// native balance is exactly zero, and always asks before archiving.
-class _CurrencyLegLine extends ConsumerWidget {
-  const _CurrencyLegLine({required this.leg, required this.personName});
-
-  final PersonCurrencyDebt leg;
-  final String personName;
-
-  static final _usd = CurrencyCode('USD');
-
+  /// Launches the existing C3 Reconciliation ritual preselecting this Debt
+  /// Account (#209, ADR-0022 §4) — the same ritual a liquid Cuenta uses,
+  /// since the Splitwise import is that ritual, not a bespoke flow.
   Future<void> _reconcile(BuildContext context, WidgetRef ref) async {
-    final catalog = await ref.read(catalogRepositoryProvider.future);
-    final account = catalog.getAccount(leg.accountId);
-    if (account == null || !context.mounted) return;
+    final account = _primaryAccount;
+    if (account == null) return;
     await showReconciliationSheet(context, account);
     ref.invalidate(debtsSnapshotProvider);
     ref.invalidate(patrimonioSnapshotProvider);
   }
 
+  /// Only reachable once this leg's native balance is exactly zero, and
+  /// always asks before archiving (#209).
   Future<void> _archive(BuildContext context, WidgetRef ref) async {
+    final account = _primaryAccount;
+    final leg = _primaryLeg;
+    if (account == null || leg == null) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder:
           (context) => AlertDialog(
             title: const Text('Archivar deuda'),
             content: Text(
-              '¿Archivar la cuenta de $personName en '
+              '¿Archivar la cuenta de ${persona.personName} en '
               '${leg.currency.value}? Ya está en \$0,00.',
             ),
             actions: [
@@ -268,39 +228,100 @@ class _CurrencyLegLine extends ConsumerWidget {
     if (confirmed != true) return;
 
     final archiveAccount = await ref.read(archiveAccountProvider.future);
-    await archiveAccount(leg.accountId);
+    await archiveAccount(account.id);
     ref.invalidate(debtsSnapshotProvider);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final headline =
+        persona.netoUsdCents >= 0
+            ? '${persona.personName} te debe '
+                '${_formatUsdCents(persona.netoUsdCents)}'
+            : 'le debés ${_formatUsdCents(-persona.netoUsdCents)} a '
+                '${persona.personName}';
+    final primaryLeg = _primaryLeg;
+    final isZero =
+        primaryLeg != null && primaryLeg.nativeMinorAmount == BigInt.zero;
+
+    return ListTile(
+      key: Key('debtPerson_${persona.personName}'),
+      title: Text(headline),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
+          if (_primaryAccount != null) ...[
+            const SizedBox(height: 4),
+            Wrap(
+              spacing: 4,
+              children: [
+                TextButton(
+                  key: Key('debtAction_prestar_${persona.personName}'),
+                  onPressed: () => _prestar(context),
+                  child: const Text('Prestar'),
+                ),
+                TextButton(
+                  key: Key('debtAction_cobrar_${persona.personName}'),
+                  onPressed: () => _cobrar(context),
+                  child: const Text('Cobrar'),
+                ),
+                PopupMenuButton<VoidCallback>(
+                  key: Key('debtActionsMenu_${persona.personName}'),
+                  tooltip: 'Más acciones',
+                  onSelected: (action) => action(),
+                  itemBuilder:
+                      (_) => [
+                        PopupMenuItem<VoidCallback>(
+                          key: Key(
+                            'reconcileDebtAccount_${_primaryAccount!.id.value}',
+                          ),
+                          value: () => _reconcile(context, ref),
+                          child: const Text('Conciliar'),
+                        ),
+                        PopupMenuItem<VoidCallback>(
+                          key: Key('debtAction_condonar_${persona.personName}'),
+                          value: () => _condonar(context),
+                          child: const Text('Condonar'),
+                        ),
+                        if (isZero)
+                          PopupMenuItem<VoidCallback>(
+                            key: Key(
+                              'archiveDebtAccount_${_primaryAccount!.id.value}',
+                            ),
+                            value: () => _archive(context, ref),
+                            child: const Text('Archivar'),
+                          ),
+                      ],
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One currency leg's display line — the rate it valued at is announced
+/// inline for non-USD legs (or "sin tasa" when no observation exists).
+class _CurrencyLegLine extends StatelessWidget {
+  const _CurrencyLegLine({required this.leg});
+
+  final PersonCurrencyDebt leg;
+
+  static final _usd = CurrencyCode('USD');
+
+  @override
+  Widget build(BuildContext context) {
     final valueText =
         '${leg.currency.value}: ${_formatUsdCents(leg.todayValueUsdCents)}';
-    final isZero = leg.nativeMinorAmount == BigInt.zero;
-
-    return Row(
-      children: [
-        Expanded(
-          child:
-              leg.currency == _usd
-                  ? Text(valueText)
-                  : Text('$valueText · ${_rateAnnouncement(leg.parallelRate)}'),
-        ),
-        IconButton(
-          key: Key('reconcileDebtAccount_${leg.accountId.value}'),
-          icon: const Icon(Icons.sync_alt),
-          tooltip: 'Conciliar',
-          onPressed: () => _reconcile(context, ref),
-        ),
-        if (isZero)
-          IconButton(
-            key: Key('archiveDebtAccount_${leg.accountId.value}'),
-            icon: const Icon(Icons.archive_outlined),
-            tooltip: 'Archivar',
-            onPressed: () => _archive(context, ref),
-          ),
-      ],
+    return Text(
+      leg.currency == _usd
+          ? valueText
+          : '$valueText · ${_rateAnnouncement(leg.parallelRate)}',
     );
   }
 }
@@ -386,7 +407,7 @@ class _PersonFormDialogState extends ConsumerState<_PersonFormDialog> {
         deviceId: deviceId,
       );
 
-      ref.invalidate(patrimonioSnapshotProvider);
+      ref.read(catalogRevisionProvider.notifier).bump();
       ref.invalidate(debtsSnapshotProvider);
       if (mounted) Navigator.of(context).pop(true);
     } catch (e) {

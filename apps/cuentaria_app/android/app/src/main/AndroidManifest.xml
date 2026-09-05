@@ -6,7 +6,15 @@
     <application
         android:label="cuentaria_app"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
+        <!-- Android's auto-backup would copy the Keystore-encrypted store
+             without the key that decrypts it (ADR-0014), leaving a
+             half-restored, non-deterministic app after reinstall — the
+             opposite of ADR-0021's uninstall-resets premise. F3/F4 are the
+             intended restoration paths. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

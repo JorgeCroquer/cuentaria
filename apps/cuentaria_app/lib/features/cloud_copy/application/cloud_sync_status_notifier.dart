@@ -23,7 +23,7 @@ class CloudSyncStatusNotifier extends Notifier<CloudCopyStatus> {
     ref.read(cloudSessionProvider.notifier).refresh();
   }
 
-  /// Retries after a failure — same as [sync], named for the "tocá para
+  /// Retries after a failure — same as [sync], named for the "toca para
   /// reintentar" affordance.
   Future<void> retry() => sync();
 

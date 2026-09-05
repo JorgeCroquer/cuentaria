@@ -32,6 +32,7 @@ final patrimonioSnapshotProvider = FutureProvider<PatrimonioSnapshot>((
     if (event is Transaction) ref.invalidateSelf();
   });
   ref.onDispose(subscription.cancel);
+  ref.watch(catalogRevisionProvider);
 
   final catalog = await ref.watch(catalogRepositoryProvider.future);
   final projections = ref.watch(ledgerProjectionsProvider);

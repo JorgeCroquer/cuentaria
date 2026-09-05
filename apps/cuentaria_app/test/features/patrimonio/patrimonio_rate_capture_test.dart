@@ -139,7 +139,7 @@ void main() {
     );
     expect(
       tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-      'BCV reference: \$150.00',
+      'Referencia BCV: \$150.00',
     );
   });
 
@@ -264,7 +264,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'BCV reference: \$10.58',
+        'Referencia BCV: \$10.58',
       );
     },
   );

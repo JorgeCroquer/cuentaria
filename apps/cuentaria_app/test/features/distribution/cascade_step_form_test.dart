@@ -76,7 +76,7 @@ void main() {
         final step = await _buildStep(
           tester,
           envelope: envelope,
-          fundingType: '% of remainder',
+          fundingType: '% del restante',
           percent: input,
         );
 
@@ -105,7 +105,7 @@ void main() {
       final step = await _buildStep(
         tester,
         envelope: envelope,
-        fundingType: 'Fixed amount',
+        fundingType: 'Monto fijo',
         amount: '99.99',
       );
 

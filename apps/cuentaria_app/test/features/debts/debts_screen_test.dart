@@ -38,6 +38,17 @@ Future<void> _typeDigits(WidgetTester tester, String digits) async {
   await tester.pump();
 }
 
+/// Conciliar/Condonar/Archivar (#244) now live behind the person's ⋮ menu
+/// rather than as standalone icons — open it before tapping one of its
+/// items.
+Future<void> _openDebtActionsMenu(
+  WidgetTester tester,
+  String personName,
+) async {
+  await tester.tap(find.byKey(Key('debtActionsMenu_$personName')));
+  await tester.pumpAndSettle();
+}
+
 /// Confirms whatever outcome the typed amount produced: "Confirmar" when
 /// it's Absorb/NothingToReconcile, or the "Absorber de todos modos" escape
 /// hatch when it's routed — a Debt Account's swings routinely clear the
@@ -145,7 +156,7 @@ void main() {
     await tester.tap(find.byKey(const Key('savePersonButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('Name is required'), findsOneWidget);
+    expect(find.textContaining('El nombre es obligatorio'), findsOneWidget);
     expect(find.byKey(const Key('debtsEmptyState')), findsOneWidget);
   });
 
@@ -313,6 +324,118 @@ void main() {
   );
 
   testWidgets(
+    'Prestar sits at the same horizontal offset for a one-line balance '
+    '(Pedro, USD) and a longer rate-announcing one (Ana, VES) — actions '
+    'live below the text instead of a vertically-centered trailing column '
+    'that danced with content height (#244)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+
+      Future<void> seed(
+        AccountId id,
+        String name,
+        CurrencyCode currency,
+        BigInt nativeAmount,
+        int usdCents,
+      ) async {
+        await catalog.saveAccount(
+          Account(
+            id: id,
+            name: name,
+            nativeCurrency: currency,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+            meta: {'counterpartyName': name},
+          ),
+        );
+        projections.apply(
+          Transaction.create(
+            postings: [
+              Posting(
+                target: AccountTarget(id),
+                amountNative: Money(amount: nativeAmount, currency: currency),
+                currency: currency,
+                amountUsd: usdCents,
+              ),
+              Posting(
+                target: EnvelopeTarget(stageEnvelope),
+                amountNative: Money(amount: nativeAmount, currency: currency),
+                currency: currency,
+                amountUsd: usdCents,
+              ),
+            ],
+            metadata: TransactionMetadata(
+              eventId: EventId('evt-${id.value}'),
+              type: 'Adjustment',
+              occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+              recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+              deviceId: deviceId,
+              schemaVersion: 1,
+            ),
+          ),
+        );
+      }
+
+      await seed(
+        AccountId('pedro'),
+        'Pedro',
+        CurrencyCode('USD'),
+        BigInt.from(20000),
+        20000,
+      );
+      await seed(
+        AccountId('ana'),
+        'Ana',
+        CurrencyCode('VES'),
+        BigInt.from(400000),
+        10000,
+      );
+
+      final rateSeries = await container.read(rateSeriesProvider.future);
+      await rateSeries.append(
+        RateObservation(
+          currency: CurrencyCode('VES'),
+          nativePerUsd: Decimal.parse('50'),
+          observedAt: DateTime.now().toUtc(),
+          source: 'manual:paralelo',
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      final pedroLegBottom =
+          tester.getBottomLeft(find.text('USD: \$200.00')).dy;
+      final pedroPrestarTop =
+          tester
+              .getTopLeft(find.byKey(const Key('debtAction_prestar_Pedro')))
+              .dy;
+      expect(pedroPrestarTop, greaterThanOrEqualTo(pedroLegBottom));
+
+      final anaLegBottom =
+          tester.getBottomLeft(find.textContaining('VES: \$80.00')).dy;
+      final anaPrestarTop =
+          tester.getTopLeft(find.byKey(const Key('debtAction_prestar_Ana'))).dy;
+      expect(anaPrestarTop, greaterThanOrEqualTo(anaLegBottom));
+
+      final pedroPrestarLeft =
+          tester
+              .getTopLeft(find.byKey(const Key('debtAction_prestar_Pedro')))
+              .dx;
+      final anaPrestarLeft =
+          tester.getTopLeft(find.byKey(const Key('debtAction_prestar_Ana'))).dx;
+      expect(pedroPrestarLeft, anaPrestarLeft);
+    },
+  );
+
+  testWidgets(
     'Conciliar opens the C3 Reconciliation sheet preselecting the Debt '
     'Account, and Archivar is hidden while the balance is not zero (#209)',
     (tester) async {
@@ -371,6 +494,9 @@ void main() {
 
       await pumpWithContainer(tester, container);
 
+      await tester.tap(find.byKey(const Key('debtActionsMenu_Pedro')));
+      await tester.pumpAndSettle();
+
       expect(
         find.byKey(const Key('reconcileDebtAccount_pedro')),
         findsOneWidget,
@@ -409,6 +535,7 @@ void main() {
       final claudia = catalog.accounts.singleWhere((a) => a.name == 'Claudia');
       final archiveKey = Key('archiveDebtAccount_${claudia.id.value}');
 
+      await _openDebtActionsMenu(tester, 'Claudia');
       expect(find.byKey(archiveKey), findsOneWidget);
 
       await tester.tap(find.byKey(archiveKey));
@@ -421,6 +548,7 @@ void main() {
 
       expect(find.byKey(const Key('debtPerson_Claudia')), findsOneWidget);
 
+      await _openDebtActionsMenu(tester, 'Claudia');
       await tester.tap(find.byKey(archiveKey));
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('archiveDebtConfirmButton')));
@@ -452,6 +580,7 @@ void main() {
 
     // "Me debe $37,00" — the direction selector already defaults there
     // since the balance starts at $0.
+    await _openDebtActionsMenu(tester, 'Claudia');
     await tester.tap(find.byKey(reconcileKey));
     await tester.pumpAndSettle();
     await _typeDigits(tester, '3700');
@@ -462,6 +591,7 @@ void main() {
     expect(catalog.accounts.where((a) => a.name == 'Claudia').length, 1);
 
     // "Le debo $12,00" — crosses zero on the very same account.
+    await _openDebtActionsMenu(tester, 'Claudia');
     await tester.tap(find.byKey(reconcileKey));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Le debo'));
@@ -474,6 +604,7 @@ void main() {
     expect(catalog.accounts.where((a) => a.name == 'Claudia').length, 1);
 
     // $0,00 — saldo cero is declarable and the app offers to archive.
+    await _openDebtActionsMenu(tester, 'Claudia');
     await tester.tap(find.byKey(reconcileKey));
     await tester.pumpAndSettle();
     await _typeDigits(tester, '0');
@@ -481,6 +612,7 @@ void main() {
     await _confirmReconciliation(tester);
 
     final archiveKey = Key('archiveDebtAccount_${claudia.id.value}');
+    await _openDebtActionsMenu(tester, 'Claudia');
     expect(find.byKey(archiveKey), findsOneWidget);
 
     await tester.tap(find.byKey(archiveKey));
@@ -503,5 +635,78 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('debtsLine')), findsNothing);
+  });
+
+  testWidgets('Pedro (USD, \$50, "me debe"): leaving the real balance field '
+      'empty declares \$0,00 same as typing it, crossing zero and offering '
+      'to archive (fix directive gap 1b)', (tester) async {
+    final container = await pumpDebtsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('createPersonCta')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('personNameField')), 'Pedro');
+    await tester.tap(find.byKey(const Key('savePersonButton')));
+    await tester.pumpAndSettle();
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final pedro = catalog.accounts.singleWhere((a) => a.name == 'Pedro');
+    final reconcileKey = Key('reconcileDebtAccount_${pedro.id.value}');
+
+    // "Me debe $50,00" — the direction selector already defaults there
+    // since the balance starts at $0.
+    await _openDebtActionsMenu(tester, 'Pedro');
+    await tester.tap(find.byKey(reconcileKey));
+    await tester.pumpAndSettle();
+    await _typeDigits(tester, '5000');
+    await tester.pump();
+    await _confirmReconciliation(tester);
+
+    expect(find.text('Pedro te debe \$50.00'), findsOneWidget);
+
+    // Back to $0,00 by leaving the field untouched and pressing Listo —
+    // an untyped field must declare 0, same as typing "0" (gap 1b).
+    await _openDebtActionsMenu(tester, 'Pedro');
+    await tester.tap(find.byKey(reconcileKey));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('keypadDone')));
+    await tester.pump();
+    await _confirmReconciliation(tester);
+
+    final archiveKey = Key('archiveDebtAccount_${pedro.id.value}');
+    await _openDebtActionsMenu(tester, 'Pedro');
+    expect(find.byKey(archiveKey), findsOneWidget);
+  });
+
+  testWidgets('Condonar from the real DebtsScreen opens the capture sheet with '
+      'the "Condonar deuda de Pedro" contextTitle and Pedro\'s account chip '
+      'visible and selected (regression of PR #247)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    await catalog.saveAccount(
+      Account(
+        id: AccountId('pedro'),
+        name: 'Pedro',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+        meta: {'counterpartyName': 'Pedro'},
+      ),
+    );
+
+    await pumpWithContainer(tester, container);
+
+    await _openDebtActionsMenu(tester, 'Pedro');
+    await tester.tap(find.byKey(const Key('debtAction_condonar_Pedro')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Condonar deuda de Pedro'), findsOneWidget);
+    final pedroChip = tester.widget<ChoiceChip>(
+      find.byKey(const Key('accountChip_pedro')),
+    );
+    expect(pedroChip.selected, isTrue);
   });
 }

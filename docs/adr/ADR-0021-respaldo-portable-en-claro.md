@@ -50,3 +50,14 @@ El otro supuesto de ADR-0009 —*"Supabase ya es el respaldo en la nube del log"
 - `app_meta` —hasta hoy solo `device_id`— estrena su segunda clave: el sello del último respaldo. Sigue siendo local-only y fuera del respaldo: identifica *este install*, no un hecho del usuario.
 - **Nada de esto es iOS verificado.** Los plugins se eligieron para no cerrarle la puerta, pero no hay CI de iOS ni forma de compilar desde WSL; el criterio de dispositivo sigue siendo Android.
 - Cuando llegue **F3**, el respaldo manual no se tira: sigue siendo la salida sin lock-in del principio 9. Lo que F3 le saca de encima es ser el *único* respaldo.
+
+## Errata (2026-09-04)
+
+El manifest de la app nunca declaró `android:allowBackup`, y el default de
+Android es `true`: el auto-backup del sistema estaba copiando el store
+cifrado sin la llave del Keystore (ADR-0014, que no sale del aparato por
+diseño), así que desinstalar + reinstalar no borraba los datos como este
+ADR asume — una restauración a medias en vez de un reset determinista. Se
+apagó (`allowBackup="false"` + `dataExtractionRules` excluyendo todo para
+API 31+) en `android/app/src/main/AndroidManifest.xml`. F3 (Cloud Copy) y
+F4 (Backup File, este ADR) siguen siendo las únicas rutas de restauración.

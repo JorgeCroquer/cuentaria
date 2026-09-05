@@ -128,7 +128,9 @@ class PatrimonioScreen extends ConsumerWidget {
           return const _PatrimonioBody();
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
     );
   }
@@ -165,7 +167,9 @@ class _PatrimonioBody extends ConsumerWidget {
             ],
           ),
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stackTrace) => Center(child: Text('Error: $error')),
+      error:
+          (error, stackTrace) =>
+              Center(child: Text('No se pudo cargar: $error')),
     );
   }
 }
@@ -201,14 +205,14 @@ class _Header extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Real cost'),
+        const Text('Costo real'),
         Text(
           _formatUsdCents(snapshot.realCostUsdCents),
           key: const Key('realCostAmount'),
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 16),
-        const Text("Today's value (parallel)"),
+        const Text('Valor hoy (paralelo)'),
         Text(
           _formatUsdCents(snapshot.todayValueUsdCents),
           key: const Key('todayValueAmount'),
@@ -216,17 +220,18 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Text(
-          'Unrealized P&L: ${_formatUsdCents(snapshot.unrealizedPnlUsdCents)}',
+          'Ganancia/pérdida no realizada: '
+          '${_formatUsdCents(snapshot.unrealizedPnlUsdCents)}',
           key: const Key('unrealizedPnlAmount'),
         ),
         const SizedBox(height: 8),
         Text(
-          'BCV reference: ${_formatUsdCents(snapshot.bcvReferenceUsdCents)}',
+          'Referencia BCV: ${_formatUsdCents(snapshot.bcvReferenceUsdCents)}',
           key: const Key('bcvReferenceAmount'),
         ),
         if (snapshot.hasMissingRate)
           const Text(
-            'sin tasa — some currencies have no rate yet',
+            'sin tasa — algunas monedas aún no tienen tasa',
             key: Key('missingRateFlag'),
           ),
       ],
@@ -262,7 +267,7 @@ class _EnvelopeTile extends StatelessWidget {
         key: key,
         title: Text(envelope.name),
         subtitle: const Text(
-          'opening balances pending distribution',
+          'saldos de apertura pendientes de distribuir',
           key: Key('openingBalanceNotice'),
         ),
         trailing: Text(_formatUsdCents(envelope.balanceUsd)),
@@ -346,7 +351,7 @@ class _CapEnvelopeTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           LinearProgressIndicator(value: metadata.fillPercent / 100),
-          if (metadata.isOverfilled) const Text('Overfill'),
+          if (metadata.isOverfilled) const Text('Sobrellenado'),
         ],
       ),
       trailing: Text(_formatUsdCents(envelope.balanceUsd)),
@@ -378,8 +383,8 @@ class _AccountGroupTile extends StatelessWidget {
                     : null,
           ),
           Text(
-            'Real cost: ${_formatUsdCents(group.realCostUsdCents)} · '
-            "Today: ${_formatUsdCents(group.todayValueUsdCents)}"
+            'Costo real: ${_formatUsdCents(group.realCostUsdCents)} · '
+            'Hoy: ${_formatUsdCents(group.todayValueUsdCents)}'
             '${group.hasRate ? '' : ' (sin tasa)'}',
           ),
           if (group.currency != CurrencyCode('USD')) ...[
@@ -486,20 +491,31 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Offers the connect-first path (#226, ADR-0023 §6) right where a
+/// Offers the connect-first path (#226, ADR-0023 §6, #245) right where a
 /// just-installed user lands: before creating a single Account, they can
-/// connect the Google Drive that already has their other phone's data.
+/// connect the Google Drive that already has their other phone's data. The
+/// prominent path in the empty state — the restore-from-file path
+/// ([RestoreBackupButton]) is secondary, since Drive is what most users
+/// coming from another phone actually want.
 class _CloudCopyEmptyStateLink extends StatelessWidget {
   const _CloudCopyEmptyStateLink();
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return ElevatedButton(
       key: const Key('cloudCopyEmptyStateLink'),
       onPressed: () => context.push('/cloud-copy'),
-      child: const Text(
-        '¿Ya usás Cuentaria en otro teléfono? Conectá tu Google Drive',
-        textAlign: TextAlign.center,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('Conectar tu Google Drive', textAlign: TextAlign.center),
+          const SizedBox(height: 4),
+          Text(
+            'Si ya usas Cuentaria en otro teléfono, tus datos bajan solos',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
@@ -515,7 +531,7 @@ class _ManageAccountsAction extends StatelessWidget {
     return IconButton(
       key: const Key('manageAccountsAction'),
       icon: const Icon(Icons.account_balance_wallet_outlined),
-      tooltip: 'Manage accounts',
+      tooltip: 'Gestionar cuentas',
       onPressed: () => context.push('/accounts'),
     );
   }
@@ -531,7 +547,7 @@ class _ManageEnvelopesAction extends StatelessWidget {
     return IconButton(
       key: const Key('manageEnvelopesAction'),
       icon: const Icon(Icons.category_outlined),
-      tooltip: 'Manage envelopes',
+      tooltip: 'Gestionar sobres',
       onPressed: () => context.push('/envelopes'),
     );
   }
@@ -549,7 +565,7 @@ class _EditCascadeAction extends StatelessWidget {
     return IconButton(
       key: const Key('editCascadeAction'),
       icon: const Icon(Icons.waterfall_chart_outlined),
-      tooltip: 'Edit cascade',
+      tooltip: 'Editar cascada',
       onPressed: () => context.push('/distribute/edit'),
     );
   }
@@ -566,7 +582,7 @@ class _RecordRatesAction extends StatelessWidget {
     return IconButton(
       key: const Key('recordRatesAction'),
       icon: const Icon(Icons.currency_exchange),
-      tooltip: 'Record rates',
+      tooltip: 'Registrar tasas',
       onPressed:
           () => showDialog<void>(
             context: context,
@@ -663,7 +679,7 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
     final bcvRate = Decimal.tryParse(_bcvController.text);
     final paraleloRate = Decimal.tryParse(_paraleloController.text);
     if (bcvRate == null || paraleloRate == null) {
-      setState(() => _error = 'Enter both rates as a number.');
+      setState(() => _error = 'Ingresa ambas tasas como número.');
       return;
     }
 
@@ -735,7 +751,7 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
     }
 
     return AlertDialog(
-      title: const Text('Record today\'s rates'),
+      title: const Text('Registrar tasas de hoy'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -744,7 +760,7 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
             key: const Key('bcvRateField'),
             controller: _bcvController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'BCV (VES per USD)'),
+            decoration: const InputDecoration(labelText: 'BCV (VES por USD)'),
           ),
           if (_suggestedBcv != null)
             Padding(
@@ -762,7 +778,7 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
             controller: _paraleloController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: const InputDecoration(
-              labelText: 'Paralelo (VES per USD)',
+              labelText: 'Paralelo (VES por USD)',
             ),
           ),
           if (_suggestedParalelo != null)
@@ -787,12 +803,12 @@ class RecordRatesDialogState extends ConsumerState<RecordRatesDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: const Text('Cancelar'),
         ),
         ElevatedButton(
           key: const Key('saveRatesButton'),
           onPressed: _isSaving ? null : _save,
-          child: const Text('Save'),
+          child: const Text('Guardar'),
         ),
       ],
     );

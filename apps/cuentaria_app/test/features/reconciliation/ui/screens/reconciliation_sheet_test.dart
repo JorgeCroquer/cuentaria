@@ -957,5 +957,225 @@ void main() {
       expect(displayPosition(), expectedDisplayPosition);
       expect(keyPosition(), expectedKeyPosition);
     });
+
+    testWidgets('an untouched real balance field declares 0 on Done, '
+        'matching the field\'s "0" hint (fix directive gap 1b)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      // Seed a projected balance of $0.50 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(50),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 50,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(50),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 50,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Press Done without typing a single digit.
+      await tester.tap(find.byKey(const Key('keypadDone')));
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('reconciliationAbsorbMessage')),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.pumpAndSettle();
+
+      expect(projections.accountBalance(account.id).usd, 0);
+      final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
+      expect(projections.envelopeUsdBalance(adjustmentsId), -50);
+    });
+
+    testWidgets('the routed-surplus context line spells out the book, '
+        'declared and difference numbers (fix directive gap 2)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      // Seed a projected balance of $10.00 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Real 18.00 vs projected 10.00 => surplus of 8.00.
+      await _typeDigits(tester, '1800');
+      await tester.pump();
+
+      expect(
+        find.text(
+          'El libro decía 10.00 USD y declaraste 18.00 USD: la diferencia '
+          'de 8.00 USD tiene que entrar a un sobre.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the routed-shortage context line spells out the book, '
+        'declared and difference numbers (fix directive gap 2)', (
+      tester,
+    ) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final account = Account(
+        id: AccountId('acc-usd'),
+        name: 'USD wallet',
+        nativeCurrency: CurrencyCode('USD'),
+        isArchived: false,
+        updatedAt: DateTime.now(),
+      );
+      await catalog.saveAccount(account);
+
+      // Seed a projected balance of $10.00 via an opening posting.
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      await store.append(
+        Transaction.create(
+          metadata: TransactionMetadata(
+            eventId: EventId('evt-opening'),
+            type: 'Opening',
+            occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+            recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+            deviceId: 'dev',
+            schemaVersion: 1,
+          ),
+          postings: [
+            Posting(
+              target: AccountTarget(account.id),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+            Posting(
+              target: EnvelopeTarget(
+                catalog.getSystemEnvelope(EnvelopeRole.opening),
+              ),
+              amountNative: Money(
+                amount: BigInt.from(1000),
+                currency: CurrencyCode('USD'),
+              ),
+              currency: CurrencyCode('USD'),
+              amountUsd: 1000,
+            ),
+          ],
+        ),
+      );
+      projections.apply((await store.get(EventId('evt-opening')))!);
+
+      await _openSheet(tester, account, existing: container);
+
+      // Real 2.00 vs projected 10.00 => shortage of 8.00.
+      await _typeDigits(tester, '200');
+      await tester.pump();
+
+      expect(
+        find.text(
+          'El libro decía 10.00 USD y declaraste 2.00 USD: la diferencia '
+          'de 8.00 USD tiene que salir de un sobre.',
+        ),
+        findsOneWidget,
+      );
+    });
   });
 }

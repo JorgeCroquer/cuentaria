@@ -7,18 +7,17 @@ import 'package:go_router/go_router.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
-import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/envelopes_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 String? _targetSummary(FundingTarget target) => switch (target) {
   NoTarget() => null,
-  Cap(:final amountUsd) => 'Cap: ${_formatUsdCents(amountUsd)}',
+  Cap(:final amountUsd) => 'Tope: ${_formatUsdCents(amountUsd)}',
   GoalLine(:final amountUsd, :final dueDate) =>
     dueDate == null
-        ? 'Goal: ${_formatUsdCents(amountUsd)}'
-        : 'Goal: ${_formatUsdCents(amountUsd)} by '
+        ? 'Meta: ${_formatUsdCents(amountUsd)}'
+        : 'Meta: ${_formatUsdCents(amountUsd)} para '
             '${dueDate.toLocal().toString().split(' ').first}',
 };
 
@@ -34,7 +33,7 @@ class EnvelopesListScreen extends ConsumerWidget {
     final envelopesAsync = ref.watch(userEnvelopesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Envelopes')),
+      appBar: AppBar(title: const Text('Sobres')),
       body: envelopesAsync.when(
         data: (envelopes) {
           if (envelopes.isEmpty) {
@@ -42,7 +41,8 @@ class EnvelopesListScreen extends ConsumerWidget {
               child: Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
-                  'No envelopes yet. Create one to start funding a goal.',
+                  'Sin sobres aún. Crea uno para empezar a financiar una '
+                  'meta.',
                   key: Key('envelopesEmptyState'),
                   textAlign: TextAlign.center,
                 ),
@@ -57,7 +57,9 @@ class EnvelopesListScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(child: Text('Error: $error')),
+        error:
+            (error, stackTrace) =>
+                Center(child: Text('No se pudo cargar: $error')),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('createEnvelopeButton'),
@@ -86,7 +88,7 @@ class _EnvelopeListTile extends ConsumerWidget {
       ),
     );
     ref.invalidate(userEnvelopesProvider);
-    ref.invalidate(patrimonioSnapshotProvider);
+    ref.read(catalogRevisionProvider.notifier).bump();
   }
 
   @override
@@ -108,7 +110,7 @@ class _EnvelopeListTile extends ConsumerWidget {
       trailing: IconButton(
         key: Key('archiveEnvelope_${envelope.id.value}'),
         icon: const Icon(Icons.archive_outlined),
-        tooltip: 'Archive',
+        tooltip: 'Archivar',
         onPressed: () => _archive(ref),
       ),
     );

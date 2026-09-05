@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../patrimonio/application/patrimonio_providers.dart';
+import '../../../../providers/composition_root.dart';
 import '../../application/backup_providers.dart';
 import '../../application/restore_backup.dart';
 
@@ -36,7 +36,7 @@ class _RestoreBackupButtonState extends ConsumerState<RestoreBackupButton> {
       final restoreBackup = await ref.read(restoreBackupProvider.future);
       final result = await restoreBackup(content);
 
-      ref.invalidate(patrimonioSnapshotProvider);
+      ref.read(catalogRevisionProvider.notifier).bump();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,10 +68,16 @@ class _RestoreBackupButtonState extends ConsumerState<RestoreBackupButton> {
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
           ),
-        ElevatedButton(
+        OutlinedButton(
           key: const Key('restoreBackupButton'),
           onPressed: _isRestoring ? null : _onRestore,
-          child: const Text('Restaurar respaldo'),
+          child: const Text('Restaurar desde un archivo'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Elige un Archivo de Respaldo (.ndjson) guardado por ti',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );

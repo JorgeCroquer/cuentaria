@@ -27,6 +27,7 @@ Future<void> showQuickAddExpenseSheet(
   AccountId? preselectedGastoAccountId,
   AccountId? preselectedMoverSourceAccountId,
   AccountId? preselectedMoverDestinationAccountId,
+  String? contextTitle,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -37,6 +38,7 @@ Future<void> showQuickAddExpenseSheet(
           preselectedMoverSourceAccountId: preselectedMoverSourceAccountId,
           preselectedMoverDestinationAccountId:
               preselectedMoverDestinationAccountId,
+          contextTitle: contextTitle,
         ),
   );
 }
@@ -130,11 +132,17 @@ class QuickAddExpenseSheet extends ConsumerStatefulWidget {
     this.preselectedGastoAccountId,
     this.preselectedMoverSourceAccountId,
     this.preselectedMoverDestinationAccountId,
+    this.contextTitle,
   });
 
   final AccountId? preselectedGastoAccountId;
   final AccountId? preselectedMoverSourceAccountId;
   final AccountId? preselectedMoverDestinationAccountId;
+
+  /// Set by the Deudas screen's Prestar/Cobrar/Condonar actions (#244) so
+  /// the sheet says what's happening instead of opening as a generic
+  /// capture form. `null` renders the sheet exactly as it does today.
+  final String? contextTitle;
 
   @override
   ConsumerState<QuickAddExpenseSheet> createState() =>
@@ -537,7 +545,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           error:
               (error, stackTrace) => Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text('Error: $error'),
+                child: Text('No se pudo cargar: $error'),
               ),
         ),
       ),
@@ -587,6 +595,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.contextTitle != null) ...[
+            Text(
+              widget.contextTitle!,
+              key: const Key('quickAddContextTitle'),
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 16),
+          ],
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -633,13 +650,13 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               TextButton(
                 key: const Key('quickAddNoteToggle'),
                 onPressed: () => setState(() => _noteExpanded = true),
-                child: const Text('Add note'),
+                child: const Text('Agregar nota'),
               )
             else
               TextField(
                 key: const Key('quickAddNoteField'),
                 controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Note (optional)'),
+                decoration: const InputDecoration(labelText: 'Nota (opcional)'),
               ),
           if (_error != null) ...[
             const SizedBox(height: 8),
@@ -667,7 +684,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                           );
                       }
                     },
-            child: const Text('Save'),
+            child: const Text('Guardar'),
           ),
         ],
       ),
@@ -717,7 +734,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           ),
         const SizedBox(height: 16),
         if (gastoAccounts.isEmpty)
-          const Text('No accounts yet.')
+          const Text('Sin cuentas aún.')
         else
           Wrap(
             spacing: 8,
@@ -734,7 +751,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
           ),
         const SizedBox(height: 16),
         if (captureContext.envelopes.isEmpty)
-          const Text('No envelopes yet.')
+          const Text('Sin sobres aún.')
         else
           Wrap(
             spacing: 8,
@@ -816,7 +833,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         ],
         const SizedBox(height: 16),
         if (captureContext.regularAccounts.isEmpty)
-          const Text('No accounts yet.')
+          const Text('Sin cuentas aún.')
         else
           Wrap(
             spacing: 8,
@@ -852,7 +869,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       children: [
         const Text('Desde'),
         if (captureContext.accounts.isEmpty)
-          const Text('No accounts yet.')
+          const Text('Sin cuentas aún.')
         else ...[
           Wrap(
             spacing: 8,
@@ -914,7 +931,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         const SizedBox(height: 16),
         const Text('Hacia'),
         if (captureContext.accounts.isEmpty)
-          const Text('No accounts yet.')
+          const Text('Sin cuentas aún.')
         else ...[
           Wrap(
             spacing: 8,
