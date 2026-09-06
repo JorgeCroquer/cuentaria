@@ -12,6 +12,7 @@ import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
 import '../features/envelopes/ui/screens/envelopes_list_screen.dart';
 import '../features/patrimonio/ui/screens/patrimonio_screen.dart';
+import '../features/reportes/ui/screens/deuda_por_persona_screen.dart';
 import '../features/reportes/ui/screens/patrimonio_en_tiempo_screen.dart';
 import '../features/reportes/ui/screens/rate_series_screen.dart';
 import '../features/reportes/ui/screens/reportes_screen.dart';
@@ -77,6 +78,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/reports/patrimonio-en-el-tiempo',
         builder: (context, state) => const PatrimonioEnTiempoScreen(),
+      ),
+      GoRoute(
+        path: '/reports/deuda-por-persona',
+        builder: (context, state) => const DeudaPorPersonaScreen(),
       ),
       GoRoute(
         path: '/movements/:id',
