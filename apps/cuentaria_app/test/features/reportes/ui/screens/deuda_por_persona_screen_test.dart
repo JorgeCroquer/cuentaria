@@ -17,7 +17,7 @@ final _points = [
       PersonDebtPoint(personName: 'Ana', netoUsdCents: -4000),
     ],
     rateSource: 'dolarapi:paralelo',
-    rateObservedAt: DateTime.utc(2026, 8, 31),
+    rateObservedAt: DateTime(2026, 8, 31),
   ),
   DebtPoint(
     month: ReportMonth(2026, 9),
