@@ -1,5 +1,7 @@
 export 'domain/debt_point.dart';
 export 'domain/envelope_view.dart';
+export 'domain/exchange_differential_engine.dart';
+export 'domain/exchange_differential_point.dart';
 export 'domain/income_by_source_engine.dart';
 export 'domain/month_calendar.dart';
 export 'domain/patrimonio_point.dart';

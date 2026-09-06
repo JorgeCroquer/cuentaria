@@ -86,7 +86,7 @@ void main() {
           currency: _usd,
           nativeDelta: BigInt.from(20000),
           usdCentsDelta: 20000,
-          occurredAt: DateTime.utc(2026, 7, 10),
+          occurredAt: DateTime(2026, 7, 10),
         ),
       );
       await eventStore.append(
@@ -96,7 +96,7 @@ void main() {
           currency: _usd,
           nativeDelta: BigInt.from(-5000),
           usdCentsDelta: -5000,
-          occurredAt: DateTime.utc(2026, 8, 5),
+          occurredAt: DateTime(2026, 8, 5),
         ),
       );
 
@@ -135,7 +135,7 @@ void main() {
           currency: _usd,
           nativeDelta: BigInt.from(10000),
           usdCentsDelta: 10000,
-          occurredAt: DateTime.utc(2026, 4, 1),
+          occurredAt: DateTime(2026, 4, 1),
         ),
       );
       await eventStore.append(
@@ -145,7 +145,7 @@ void main() {
           currency: _usd,
           nativeDelta: BigInt.from(-10000),
           usdCentsDelta: -10000,
-          occurredAt: DateTime.utc(2026, 5, 20),
+          occurredAt: DateTime(2026, 5, 20),
         ),
       );
 
@@ -182,11 +182,11 @@ void main() {
           currency: _ves,
           nativeDelta: BigInt.from(400000),
           usdCentsDelta: 10000,
-          occurredAt: DateTime.utc(2026, 3, 1),
+          occurredAt: DateTime(2026, 3, 1),
         ),
       );
 
-      final marchRate = DateTime.utc(2026, 3, 31);
+      final marchRate = DateTime(2026, 3, 31);
       await rateSeries.append(
         RateObservation(
           currency: CurrencyCode(_ves),
@@ -195,7 +195,7 @@ void main() {
           source: 'manual:paralelo',
         ),
       );
-      final aprilRate = DateTime.utc(2026, 4, 30);
+      final aprilRate = DateTime(2026, 4, 30);
       await rateSeries.append(
         RateObservation(
           currency: CurrencyCode(_ves),

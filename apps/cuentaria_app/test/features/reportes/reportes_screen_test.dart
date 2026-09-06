@@ -53,8 +53,8 @@ void main() {
   }
 
   testWidgets('opens on the current month with three empty sections, the '
-      'live Patrimonio en el tiempo and Deuda por persona entries, and the '
-      'Serie de tasas entry', (tester) async {
+      'live Diferencial cambiario, Patrimonio en el tiempo and Deuda por '
+      'persona entries, and the Serie de tasas entry', (tester) async {
     await pumpScreen(tester);
 
     expect(find.text('Septiembre 2026'), findsOneWidget);
@@ -62,7 +62,6 @@ void main() {
     const emptySections = [
       'Gasto por sobre',
       'Ingreso por fuente',
-      'Diferencial cambiario',
       'Aportes a metas',
     ];
     for (final title in emptySections) {
@@ -74,6 +73,15 @@ void main() {
     );
     expect(find.text('Patrimonio en el tiempo'), findsOneWidget);
     expect(find.byKey(const Key('patrimonioEnTiempoEntry')), findsOneWidget);
+    expect(
+      find.byKey(const Key('reportSection_diferencialCambiario')),
+      findsOneWidget,
+    );
+    expect(find.text('Diferencial cambiario'), findsOneWidget);
+    expect(
+      find.byKey(const Key('exchangeDifferentialRealizado')),
+      findsOneWidget,
+    );
     expect(find.text('Deuda por persona'), findsOneWidget);
     expect(find.byKey(const Key('deudaPorPersonaEntry')), findsOneWidget);
     expect(find.text('Serie de tasas'), findsOneWidget);

@@ -11,7 +11,7 @@ final _points = [
     realCostUsdCents: 10000,
     marketValueUsdCents: 9500,
     rateSource: 'manual:paralelo',
-    rateObservedAt: DateTime.utc(2026, 4, 15),
+    rateObservedAt: DateTime(2026, 4, 15),
   ),
   PatrimonioPoint(
     month: ReportMonth(2026, 8),
@@ -23,7 +23,7 @@ final _points = [
     realCostUsdCents: 12000,
     marketValueUsdCents: 11500,
     rateSource: 'dolarapi:paralelo',
-    rateObservedAt: DateTime.utc(2026, 9, 6),
+    rateObservedAt: DateTime(2026, 9, 6),
   ),
 ];
 

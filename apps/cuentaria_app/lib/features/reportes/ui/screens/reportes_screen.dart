@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
+import '../widgets/exchange_differential_section.dart';
 import '../widgets/income_by_source_section.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
@@ -15,9 +16,9 @@ class _SectionSpec {
 }
 
 /// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
-/// Aportes · Deuda. Gasto por sobre (#259) and Ingreso por fuente (#262) are
-/// now live; the rest stay placeholders until the slices that follow this
-/// skeleton fill them in.
+/// Aportes · Deuda. Gasto por sobre (#259), Ingreso por fuente (#262) and
+/// Diferencial cambiario (#264) are now live; the rest stay placeholders
+/// until the slices that follow this skeleton fill them in.
 const _placeholderSections = [
   _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
   _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
@@ -95,6 +96,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
               child: switch (section.slug) {
                 'patrimonioEnElTiempo' => _PatrimonioEnTiempoEntry(
                   title: section.title,
+                ),
+                'diferencialCambiario' => ExchangeDifferentialSection(
+                  month: _selectedMonth,
                 ),
                 'deudaPorPersona' => _DeudaPorPersonaEntry(
                   title: section.title,
