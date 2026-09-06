@@ -1,0 +1,97 @@
+import 'package:flutter/material.dart';
+import 'package:reportes/reportes.dart';
+
+import '../widgets/month_selector.dart';
+import '../widgets/report_section.dart';
+
+class _SectionSpec {
+  const _SectionSpec(this.slug, this.title);
+
+  final String slug;
+  final String title;
+}
+
+/// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
+/// Aportes · Deuda, filled in the slices that follow this skeleton.
+const _sections = [
+  _SectionSpec('gastoPorSobre', 'Gasto por sobre'),
+  _SectionSpec('ingresoPorFuente', 'Ingreso por fuente'),
+  _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
+  _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
+  _SectionSpec('aportesAMetas', 'Aportes a metas'),
+  _SectionSpec('deudaPorPersona', 'Deuda por persona'),
+];
+
+/// Reportes screen (S3/S5, #258, ADR-0024): nace with its full navigation
+/// and skeleton — month selector plus the six report sections, each an
+/// empty state until the slices that follow fill them in. The month is the
+/// screen's only shared state; [MonthCalendar] (the `reportes` engine) is
+/// the single place that cuts a UTC instant into a [ReportMonth], so a
+/// late-night expense never lands in the wrong month just because it's
+/// stored in UTC.
+class ReportesScreen extends StatefulWidget {
+  const ReportesScreen({super.key, this.now});
+
+  /// Overridable for tests; defaults to [DateTime.now()] in production.
+  final DateTime? now;
+
+  @override
+  State<ReportesScreen> createState() => _ReportesScreenState();
+}
+
+class _ReportesScreenState extends State<ReportesScreen> {
+  late final ReportMonth _currentMonth;
+  late ReportMonth _selectedMonth;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = widget.now ?? DateTime.now();
+    _currentMonth = MonthCalendar.getReportMonth(
+      now.toUtc(),
+      now.timeZoneOffset,
+    );
+    _selectedMonth = _currentMonth;
+  }
+
+  bool get _canGoForward => _selectedMonth != _currentMonth;
+
+  void _goToPreviousMonth() {
+    setState(() => _selectedMonth = _selectedMonth.previousMonth);
+  }
+
+  void _goToNextMonth() {
+    setState(() => _selectedMonth = _selectedMonth.nextMonth);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Reportes')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          MonthSelector(
+            month: _selectedMonth,
+            canGoForward: _canGoForward,
+            onPrevious: _goToPreviousMonth,
+            onNext: _goToNextMonth,
+          ),
+          const SizedBox(height: 16),
+          for (final section in _sections)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ReportSection(slug: section.slug, title: section.title),
+            ),
+          const Card(
+            key: Key('rateSeriesEntry'),
+            child: ListTile(
+              title: Text('Serie de tasas'),
+              trailing: Icon(Icons.chevron_right),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
