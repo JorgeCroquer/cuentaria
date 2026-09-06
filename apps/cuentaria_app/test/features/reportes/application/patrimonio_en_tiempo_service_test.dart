@@ -64,6 +64,16 @@ Account _account(String id, String currency, {bool isArchived = false}) =>
       updatedAt: DateTime.now(),
     );
 
+Account _debtAccount(String id, String currency, String counterpartyName) =>
+    Account(
+      id: AccountId(id),
+      name: id,
+      nativeCurrency: CurrencyCode(currency),
+      isArchived: false,
+      updatedAt: DateTime.now(),
+      meta: {'counterpartyName': counterpartyName},
+    );
+
 void main() {
   group('PatrimonioEnTiempoService.calculatePoints', () {
     test('each point\'s real cost matches the sum of amount_usd balances '
@@ -273,6 +283,55 @@ void main() {
         expect(points.single.realCostUsdCents, 2000);
       },
     );
+
+    test('a Debt Account with a balance is folded back into real cost and '
+        'market value, at parity with "Patrimonio hoy" (#260 fix)', () async {
+      final eventStore = InMemoryEventStore();
+      final catalog = InMemoryCatalogRepository();
+      final rateSeries = InMemoryRateSeries();
+      final accountId = AccountId('acc-1');
+      final debtAccountId = AccountId('debt-1');
+      await catalog.saveAccount(_account('acc-1', _usd));
+      await catalog.saveAccount(_debtAccount('debt-1', _usd, 'Pedro'));
+
+      await eventStore.append(
+        _movement(
+          eventId: 'fund-acc',
+          accountId: accountId,
+          currency: _usd,
+          nativeDelta: BigInt.from(100000),
+          usdCentsDelta: 100000,
+          occurredAt: DateTime.utc(2026, 9, 1),
+        ),
+      );
+      await eventStore.append(
+        _movement(
+          eventId: 'fund-debt',
+          accountId: debtAccountId,
+          currency: _usd,
+          nativeDelta: BigInt.from(50000),
+          usdCentsDelta: 50000,
+          occurredAt: DateTime.utc(2026, 9, 5),
+        ),
+      );
+
+      final service = PatrimonioEnTiempoService(
+        eventStore: eventStore,
+        catalog: catalog,
+        rateSeries: rateSeries,
+      );
+
+      final points = await service.calculatePoints(
+        latestMonth: ReportMonth(2026, 9),
+        monthsCount: 1,
+      );
+
+      // Parity with patrimonioSnapshotProvider (#207): the account's
+      // balance plus the Debt Account's, both real cost and market value
+      // (USD has no rate to miss).
+      expect(points.single.realCostUsdCents, 150000);
+      expect(points.single.marketValueUsdCents, 150000);
+    });
 
     test(
       'twelve replays over 2,000 events complete in under a second',
