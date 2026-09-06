@@ -51,6 +51,12 @@ class FundingPaceRow extends Equatable {
 /// is meaningful — required/status stay null. A balance that already meets
 /// the goal is always `goalReached`, regardless of this month's aporte.
 ///
+/// No [TransactionView] with [TransactionView.reverses] set is ever counted
+/// directly out of [transactions] — its effect travels exclusively through
+/// the [reversals] mechanism below, against the *original*'s month (ADR-0024
+/// §3). Counting it directly too would double it for a same-month reversal:
+/// once raw, once again as the negation of the original.
+///
 /// [reversals] follow the same rule as `SpendingByEnvelopeEngine`: a
 /// Reversal subtracts its original's contribution from this month's total
 /// (ADR-0024 §3) — app-layer wiring passes only Reversals of *later* months
@@ -80,6 +86,7 @@ class FundingPaceEngine {
     }
 
     for (final tx in transactions) {
+      if (tx.reverses != null) continue;
       apply(tx, 1);
     }
 

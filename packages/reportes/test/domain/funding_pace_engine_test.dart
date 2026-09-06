@@ -153,6 +153,30 @@ void main() {
     expect(result.single.contributedThisMonthUsdCents, 0);
   });
 
+  test('a same-month reversal of a pure Envelope-to-Envelope outflow does not '
+      'count as an aporte', () {
+    final transferOut = TransactionView(
+      id: EventId('evt-transfer-out'),
+      hasAccountPosting: false,
+      envelopePostings: [PostingView(envelopeId: viaje, amountUsdCents: -5000)],
+    );
+    final reversal = TransactionView(
+      id: EventId('evt-reversal'),
+      reverses: EventId('evt-transfer-out'),
+      hasAccountPosting: false,
+      envelopePostings: [PostingView(envelopeId: viaje, amountUsdCents: 5000)],
+    );
+
+    final result = engine(
+      [transferOut, reversal],
+      const [],
+      [goalEnvelope(dueDate: dueDateInSixMonths)],
+      reportMonth,
+    );
+
+    expect(result.single.contributedThisMonthUsdCents, 0);
+  });
+
   test('an envelope with no funding target never appears', () {
     final envelope = FundingEnvelopeView(
       id: viaje,
