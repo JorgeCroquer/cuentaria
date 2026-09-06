@@ -41,4 +41,45 @@ void main() {
       },
     );
   });
+
+  group('rate series query providers (#261)', () {
+    test(
+      'currenciesWithObservationsProvider and rateSeriesObservationsProvider '
+      'reflect what was appended to rateSeriesProvider',
+      () async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final ves = CurrencyCode('VES');
+
+        final series = await container.read(rateSeriesProvider.future);
+        await series.append(
+          RateObservation(
+            currency: ves,
+            nativePerUsd: Decimal.parse('900'),
+            observedAt: DateTime.utc(2026, 8, 5),
+            source: 'manual:paralelo',
+          ),
+        );
+
+        final currencies = await container.read(
+          currenciesWithObservationsProvider.future,
+        );
+        expect(currencies, [ves]);
+
+        final observations = await container.read(
+          rateSeriesObservationsProvider(ves).future,
+        );
+        expect(observations, hasLength(1));
+        expect(observations.single.source, 'manual:paralelo');
+
+        final candidates = await container.read(
+          latestPerSourceProvider(ves).future,
+        );
+        expect(candidates, hasLength(1));
+        expect(candidates.single.source, 'manual:paralelo');
+      },
+    );
+  });
 }

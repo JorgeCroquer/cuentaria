@@ -1,6 +1,9 @@
 import 'package:cuentaria_app/features/reportes/ui/screens/reportes_screen.dart';
+import 'package:cuentaria_app/features/reportes/ui/screens/rate_series_screen.dart';
+import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -10,9 +13,13 @@ void main() {
     await tester.binding.setSurfaceSize(const Size(600, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
     await tester.pumpWidget(
-      MaterialApp(
-        theme: brightness == Brightness.dark ? appDarkTheme() : appLightTheme(),
-        home: ReportesScreen(now: september6th2026),
+      ProviderScope(
+        overrides: [isWebProvider.overrideWithValue(true)],
+        child: MaterialApp(
+          theme:
+              brightness == Brightness.dark ? appDarkTheme() : appLightTheme(),
+          home: ReportesScreen(now: september6th2026),
+        ),
       ),
     );
   }
@@ -84,5 +91,16 @@ void main() {
 
     expect(color, isNotNull);
     expect(color, isNot(Colors.black));
+  });
+
+  testWidgets('tapping Serie de tasas navigates to RateSeriesScreen', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.byKey(const Key('rateSeriesEntry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RateSeriesScreen), findsOneWidget);
   });
 }
