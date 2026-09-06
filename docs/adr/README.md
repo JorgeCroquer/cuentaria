@@ -27,6 +27,7 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 | [0021](ADR-0021-respaldo-portable-en-claro.md) | Respaldo portable en claro: el log solo no restaura, y el archivo sale sin cifrar (refina 0009) | Aceptada |
 | [0022](ADR-0022-deudas-cuenta-por-persona.md) | Deudas sin Persona: una Cuenta por persona, el signo cuenta la historia (ratifica 0005) | Aceptada |
 | [0023](ADR-0023-copia-en-la-nube-del-usuario.md) | Copia en la nube del usuario: sin servidor, sin cuenta, sin frase secreta (supersede 0004/0009 en sync) | Aceptada |
+| [0024](ADR-0024-reportes-en-costo-real.md) | Reportes en costo real: mes calendario, flujo por rol de sobre, sin snapshots | Aceptada |
 
 > 0001–0011 aceptadas el 2026-06-09 en la sesión de diseño `grill-with-docs`.
 > ADR-0014 (2026-06-15) refina el 0009 para F2. ADR-0015 (2026-06-23) refina el 0010 para C2.
@@ -37,6 +38,7 @@ si una decisión cambia, se añade un ADR nuevo que la supersede (no se reescrib
 > ADR-0020 (2026-08-05) supersede el 0007: su agregador pasó a ser de pago y su premisa de frecuencia ("la serie tolera lag") la invalidó el 0018.
 > ADR-0021 (2026-08-07) refina el 0009 para F4: corrige su frase "exportar el log = exportar todo" (el Catálogo y la Cascada son config LWW, no eventos) y acepta que el respaldo salga del aparato sin cifrar.
 > ADR-0022 (2026-08-24) detalla S3: ratifica la fila "Debts" del 0005 (proyección de solo lectura), fija persona-como-etiqueta y signo único, y anota como errata la mención de Deudas como event-sourced en el 0002.
+> ADR-0024 (2026-09-05) detalla S5: una sola moneda de reporte (costo real congelado), flujo definido por rol de sobre, mes calendario en hora local, series recomputadas sin snapshots y hueco honesto sin tasa.
 > ADR-0023 (2026-08-27) redefine F3: la copia vive en el Drive del usuario como Archivo de Respaldo por aparato; cae Supabase, Auth propio, DEK/KEK y código de recuperación. Premisa nueva: app pública y gratuita sin custodiar datos ajenos.
 > Los números 0012/0013 quedaron reservados sin redactar (Riverpod+go_router · Doctrina B).
 

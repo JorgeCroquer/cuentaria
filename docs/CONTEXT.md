@@ -154,6 +154,18 @@ _Avoid_: "sync" (nothing negotiates with a server — a file is read), "merge" (
 The user's Backup File kept, one per device, in a folder of the user's **own** cloud storage (Google Drive's app-private folder first). Cuentaria runs no server and holds no account: the app writes its device's file there and reads the other devices' files with a Restore. A device that never connects a cloud works exactly as before — the Cloud Copy is optional, and the manual Backup File remains the lock-in-free exit. See [ADR-0023](adr/ADR-0023-copia-en-la-nube-del-usuario.md).
 _Avoid_: "sync engine", "push/pull" (no deltas, no cursors — whole files), "our server", "login" (the user signs in to their cloud, not to us).
 
+**User Flow**
+A movement that changes what the user owns or owes against the outside world: an Expense, an Income, or their Reversal. A movement whose every leg touches only the user's own pockets (Transfer, Distribution, Conversion, Opening) or a System Envelope (Adjustment, Exchange Differential) is **not** flow. The rule reads the **role of the envelope touched**, never the event type, so future event types inherit it. Reports of flow are always stated in frozen Real Cost (USD), never in native currency and never revalued. See [ADR-0024](adr/ADR-0024-reportes-en-costo-real.md).
+_Avoid_: "expense" for a reconciliation Adjustment (an absorbed delta is not something the user bought); "income" for a realized Exchange Differential.
+
+**Report Month**
+The single time unit of every report: one calendar month, cut at the device's local midnight, compared against the previous whole month. Monthly series (Net Worth, Exchange Differential, Funding Target contributions, Debt balances) carry one point per month, the last twelve. A Reversal counts in the month of the movement it reverses, so history does not move when a mistake is fixed later.
+_Avoid_: "last 30 days", "custom range" (rejected — see ADR-0024).
+
+**Net Worth Point**
+The value of a Report Month's end in a monthly series: the ledger replayed up to that instant (a Projection, never a stored snapshot) valued by the Rate Resolution Chain **as of** that date. Real Cost always exists; the Overlay is blank for a currency with no Rate Observation at or before that date — the gap is shown, never interpolated. A stale rate is used and announced, as in Valuation from the Series.
+_Avoid_: "snapshot" (nothing is persisted), "backfill".
+
 **Spreadsheet Export**
 The disposable CSV for humans: one row per **Posting**, never read back by the app. Regenerable from a Backup File at any time. Its unit is the Posting and not the transaction because a single Ledger Transaction can touch one Account and several Envelopes at once.
 _Avoid_: treating it as a backup — it cannot restore.
