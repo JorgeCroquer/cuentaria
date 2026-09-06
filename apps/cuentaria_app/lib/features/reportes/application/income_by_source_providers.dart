@@ -1,34 +1,28 @@
-import 'package:contabilidad/application/catalog/models/envelope.dart'
-    as contabilidad;
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
-import 'package:shared_kernel/shared_kernel.dart';
 
 import '../../../providers/composition_root.dart';
 import 'envelope_role_mapper.dart';
 
-const _engine = SpendingByEnvelopeEngine();
+const _engine = IncomeBySourceEngine();
 
-/// One row of the Gasto por sobre section: an envelope's (or system row's)
-/// spend this month against the same figure a full previous month ago
-/// (ADR-0024 §4).
-class SpendingRow {
-  final EnvelopeId envelopeId;
+/// One row of the Ingreso por fuente section: a `source` label's income this
+/// month against the same figure a full previous month ago (ADR-0024 §4).
+class IncomeRow {
   final String label;
   final int amountUsdCents;
   final int previousAmountUsdCents;
 
-  const SpendingRow({
-    required this.envelopeId,
+  const IncomeRow({
     required this.label,
     required this.amountUsdCents,
     required this.previousAmountUsdCents,
   });
 
-  /// Null when there is nothing to compare against — a brand-new envelope
-  /// with no spending last month has no meaningful percentage change.
+  /// Null when there is nothing to compare against — a brand-new source
+  /// with no income last month has no meaningful percentage change.
   double? get changePercent {
     if (previousAmountUsdCents == 0) return null;
     return (amountUsdCents - previousAmountUsdCents) /
@@ -37,34 +31,25 @@ class SpendingRow {
   }
 }
 
-/// The Gasto por sobre section's data (ADR-0024 §7): user envelope rows,
-/// sorted highest spend first, plus the Ajustes/Diferencial realizado
-/// system rows shown separately from them (ADR-0024 §2).
-class SpendingByEnvelopeResult {
-  final List<SpendingRow> rows;
-  final SpendingRow? adjustments;
-  final SpendingRow? differential;
+/// The Ingreso por fuente section's data (ADR-0024 §7): rows sorted highest
+/// income first.
+class IncomeBySourceResult {
+  final List<IncomeRow> rows;
   final int totalUsdCents;
 
-  const SpendingByEnvelopeResult({
-    required this.rows,
-    required this.adjustments,
-    required this.differential,
-    required this.totalUsdCents,
-  });
+  const IncomeBySourceResult({required this.rows, required this.totalUsdCents});
 
-  bool get isEmpty =>
-      rows.isEmpty && adjustments == null && differential == null;
+  bool get isEmpty => rows.isEmpty;
 }
 
-/// Computed by the pure [SpendingByEnvelopeEngine], fed by this app-layer
+/// Computed by the pure [IncomeBySourceEngine], fed by this app-layer
 /// mapping from contabilidad's ledger into reportes' own
 /// [TransactionView]/[EnvelopeView] (ADR-0005 — reportes never imports
 /// contabilidad's `domain/`). Re-subscribes to [eventBusProvider] and
 /// invalidates itself on every recorded [Transaction], mirroring
-/// `patrimonioSnapshotProvider`'s reactivity pattern.
-final spendingByEnvelopeProvider =
-    FutureProvider.family<SpendingByEnvelopeResult, ReportMonth>((
+/// `spendingByEnvelopeProvider`'s reactivity pattern.
+final incomeBySourceProvider =
+    FutureProvider.family<IncomeBySourceResult, ReportMonth>((
       ref,
       month,
     ) async {
@@ -79,7 +64,6 @@ final spendingByEnvelopeProvider =
       final store = await ref.watch(eventStoreProvider.future);
       final allTransactions = await store.queryLog();
 
-      final envelopesById = {for (final e in catalog.envelopes) e.id: e};
       final envelopeViews = [
         for (final envelope in catalog.envelopes)
           EnvelopeView(
@@ -90,23 +74,23 @@ final spendingByEnvelopeProvider =
       ];
 
       final localOffset = DateTime.now().timeZoneOffset;
-      final current = _spendingFor(
+      final current = _incomeFor(
         month,
         allTransactions,
         envelopeViews,
         localOffset,
       );
-      final previous = _spendingFor(
+      final previous = _incomeFor(
         month.previousMonth,
         allTransactions,
         envelopeViews,
         localOffset,
       );
 
-      return _buildResult(current, previous, envelopesById);
+      return _buildResult(current, previous);
     });
 
-Map<EnvelopeId, int> _spendingFor(
+Map<String, int> _incomeFor(
   ReportMonth month,
   List<Transaction> allTransactions,
   List<EnvelopeView> envelopes,
@@ -161,50 +145,25 @@ TransactionView _toView(Transaction tx) {
     reverses: tx.metadata.reverses,
     hasAccountPosting: hasAccountPosting,
     envelopePostings: envelopePostings,
+    source: tx.metadata.source,
   );
 }
 
-SpendingByEnvelopeResult _buildResult(
-  Map<EnvelopeId, int> current,
-  Map<EnvelopeId, int> previous,
-  Map<EnvelopeId, contabilidad.Envelope> envelopesById,
+IncomeBySourceResult _buildResult(
+  Map<String, int> current,
+  Map<String, int> previous,
 ) {
-  final rows = <SpendingRow>[];
-  SpendingRow? adjustments;
-  SpendingRow? differential;
-
-  for (final entry in current.entries) {
-    final envelope = envelopesById[entry.key];
-    if (envelope == null) continue;
-
-    final row = SpendingRow(
-      envelopeId: entry.key,
-      label: switch (envelope.role) {
-        contabilidad.EnvelopeRole.adjustments => 'Ajustes',
-        contabilidad.EnvelopeRole.differential => 'Diferencial realizado',
-        _ => envelope.name,
-      },
-      amountUsdCents: entry.value,
-      previousAmountUsdCents: previous[entry.key] ?? 0,
-    );
-
-    switch (envelope.role) {
-      case contabilidad.EnvelopeRole.adjustments:
-        adjustments = row;
-      case contabilidad.EnvelopeRole.differential:
-        differential = row;
-      default:
-        rows.add(row);
-    }
-  }
+  final rows = [
+    for (final entry in current.entries)
+      IncomeRow(
+        label: entry.key,
+        amountUsdCents: entry.value,
+        previousAmountUsdCents: previous[entry.key] ?? 0,
+      ),
+  ];
 
   rows.sort((a, b) => b.amountUsdCents.compareTo(a.amountUsdCents));
   final totalUsdCents = rows.fold(0, (sum, row) => sum + row.amountUsdCents);
 
-  return SpendingByEnvelopeResult(
-    rows: rows,
-    adjustments: adjustments,
-    differential: differential,
-    totalUsdCents: totalUsdCents,
-  );
+  return IncomeBySourceResult(rows: rows, totalUsdCents: totalUsdCents);
 }
