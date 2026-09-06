@@ -41,6 +41,10 @@ void main() {
         ),
       ),
     );
+    // Gasto por sobre (#259) is now backed by a FutureProvider — let it
+    // resolve before the other five (still-placeholder) sections' identical
+    // empty-state text is asserted against.
+    await tester.pumpAndSettle();
   }
 
   testWidgets('opens on the current month with five empty sections, the '
