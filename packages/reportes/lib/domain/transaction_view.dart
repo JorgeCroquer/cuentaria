@@ -9,18 +9,22 @@ import 'posting_view.dart';
 /// [SpendingByEnvelopeEngine] uses to tell an Expense/Income/Adjustment
 /// (money crossing into/out of the user's total pool) apart from a
 /// Distribution (only Envelope-to-Envelope postings, own pockets, ADR-0024
-/// §2) without switching on the event type.
+/// §2) without switching on the event type. [source] is the free-form label
+/// an Income was recorded with (ADR-0024 §2) — null for every other event
+/// type, which `IncomeBySourceEngine` groups under "Sin fuente".
 class TransactionView extends Equatable {
   final EventId id;
   final EventId? reverses;
   final bool hasAccountPosting;
   final List<PostingView> envelopePostings;
+  final String? source;
 
   const TransactionView({
     required this.id,
     this.reverses,
     required this.hasAccountPosting,
     required this.envelopePostings,
+    this.source,
   });
 
   @override
@@ -29,5 +33,6 @@ class TransactionView extends Equatable {
     reverses,
     hasAccountPosting,
     envelopePostings,
+    source,
   ];
 }
