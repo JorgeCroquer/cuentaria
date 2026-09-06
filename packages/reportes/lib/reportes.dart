@@ -1,4 +1,7 @@
 export 'domain/envelope_view.dart';
+export 'domain/funding_envelope_view.dart';
+export 'domain/funding_pace_engine.dart';
+export 'domain/funding_target_view.dart';
 export 'domain/month_calendar.dart';
 export 'domain/posting_view.dart';
 export 'domain/report_month.dart';

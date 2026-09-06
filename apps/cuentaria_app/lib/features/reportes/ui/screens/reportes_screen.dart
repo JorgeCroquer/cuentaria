@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
+import '../widgets/funding_pace_section.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
 import '../widgets/spending_by_envelope_section.dart';
@@ -14,13 +15,15 @@ class _SectionSpec {
 }
 
 /// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
-/// Aportes · Deuda. Gasto por sobre (#259) is now live; the rest stay
-/// placeholders until the slices that follow this skeleton fill them in.
-const _placeholderSections = [
+/// Aportes · Deuda. Gasto por sobre (#259) and Aportes a metas (#263) are
+/// now live; the rest stay placeholders until the slices that follow this
+/// skeleton fill them in.
+const _sectionsBeforeAportes = [
   _SectionSpec('ingresoPorFuente', 'Ingreso por fuente'),
   _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
   _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
-  _SectionSpec('aportesAMetas', 'Aportes a metas'),
+];
+const _sectionsAfterAportes = [
   _SectionSpec('deudaPorPersona', 'Deuda por persona'),
 ];
 
@@ -84,7 +87,16 @@ class _ReportesScreenState extends State<ReportesScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: SpendingByEnvelopeSection(month: _selectedMonth),
           ),
-          for (final section in _placeholderSections)
+          for (final section in _sectionsBeforeAportes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ReportSection(slug: section.slug, title: section.title),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FundingPaceSection(month: _selectedMonth),
+          ),
+          for (final section in _sectionsAfterAportes)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ReportSection(slug: section.slug, title: section.title),
