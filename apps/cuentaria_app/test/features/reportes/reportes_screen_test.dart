@@ -47,10 +47,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens on the current month with five empty sections, the '
-      'live Patrimonio en el tiempo entry and the Serie de tasas entry', (
-    tester,
-  ) async {
+  testWidgets('opens on the current month with four empty sections, the '
+      'live Diferencial cambiario and Patrimonio en el tiempo entries and '
+      'the Serie de tasas entry', (tester) async {
     await pumpScreen(tester);
 
     expect(find.text('Septiembre 2026'), findsOneWidget);
@@ -58,7 +57,6 @@ void main() {
     const emptySections = [
       'Gasto por sobre',
       'Ingreso por fuente',
-      'Diferencial cambiario',
       'Aportes a metas',
       'Deuda por persona',
     ];
@@ -71,6 +69,15 @@ void main() {
     );
     expect(find.text('Patrimonio en el tiempo'), findsOneWidget);
     expect(find.byKey(const Key('patrimonioEnTiempoEntry')), findsOneWidget);
+    expect(
+      find.byKey(const Key('reportSection_diferencialCambiario')),
+      findsOneWidget,
+    );
+    expect(find.text('Diferencial cambiario'), findsOneWidget);
+    expect(
+      find.byKey(const Key('exchangeDifferentialRealizado')),
+      findsOneWidget,
+    );
     expect(find.text('Serie de tasas'), findsOneWidget);
 
     final nextButton = tester.widget<IconButton>(
