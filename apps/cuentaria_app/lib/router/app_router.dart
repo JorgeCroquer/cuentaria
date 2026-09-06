@@ -12,6 +12,7 @@ import '../features/distribution/ui/screens/distribute_screen.dart';
 import '../features/envelopes/ui/screens/envelope_edit_screen.dart';
 import '../features/envelopes/ui/screens/envelopes_list_screen.dart';
 import '../features/patrimonio/ui/screens/patrimonio_screen.dart';
+import '../features/reportes/ui/screens/reportes_screen.dart';
 import '../ui/screens/movements/movement_detail_screen.dart';
 import '../ui/screens/movements/movements_screen.dart';
 import '../ui/shell/patrimonio_shell.dart';
@@ -63,6 +64,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CloudCopyScreen(),
       ),
       GoRoute(path: '/debts', builder: (context, state) => const DebtsScreen()),
+      GoRoute(
+        path: '/reports',
+        builder: (context, state) => const ReportesScreen(),
+      ),
       GoRoute(
         path: '/movements/:id',
         builder:
