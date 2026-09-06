@@ -1,4 +1,5 @@
 import 'package:cuentaria_app/features/reportes/ui/screens/reportes_screen.dart';
+import 'package:cuentaria_app/features/reportes/ui/screens/patrimonio_en_tiempo_screen.dart';
 import 'package:cuentaria_app/features/reportes/ui/screens/rate_series_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/theme/app_theme.dart';
@@ -24,6 +25,10 @@ void main() {
           path: '/reports/rate-series',
           builder: (context, state) => const RateSeriesScreen(),
         ),
+        GoRoute(
+          path: '/reports/patrimonio-en-el-tiempo',
+          builder: (context, state) => const PatrimonioEnTiempoScreen(),
+        ),
       ],
     );
     await tester.pumpWidget(
@@ -38,27 +43,30 @@ void main() {
     );
   }
 
-  testWidgets('opens on the current month with all six empty sections and '
-      'the Serie de tasas entry', (tester) async {
+  testWidgets('opens on the current month with five empty sections, the '
+      'live Patrimonio en el tiempo entry and the Serie de tasas entry', (
+    tester,
+  ) async {
     await pumpScreen(tester);
 
     expect(find.text('Septiembre 2026'), findsOneWidget);
 
-    const sections = [
+    const emptySections = [
       'Gasto por sobre',
       'Ingreso por fuente',
-      'Patrimonio en el tiempo',
       'Diferencial cambiario',
       'Aportes a metas',
       'Deuda por persona',
     ];
-    for (final title in sections) {
+    for (final title in emptySections) {
       expect(find.text(title), findsOneWidget);
     }
     expect(
       find.text('Aún no hay datos para este mes'),
-      findsNWidgets(sections.length),
+      findsNWidgets(emptySections.length),
     );
+    expect(find.text('Patrimonio en el tiempo'), findsOneWidget);
+    expect(find.byKey(const Key('patrimonioEnTiempoEntry')), findsOneWidget);
     expect(find.text('Serie de tasas'), findsOneWidget);
 
     final nextButton = tester.widget<IconButton>(
@@ -117,4 +125,16 @@ void main() {
 
     expect(find.byType(RateSeriesScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'tapping Patrimonio en el tiempo navigates to PatrimonioEnTiempoScreen',
+    (tester) async {
+      await pumpScreen(tester);
+
+      await tester.tap(find.byKey(const Key('patrimonioEnTiempoEntry')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatrimonioEnTiempoScreen), findsOneWidget);
+    },
+  );
 }
