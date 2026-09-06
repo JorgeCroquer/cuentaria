@@ -130,6 +130,29 @@ void main() {
     },
   );
 
+  test('a same-month reversal of an expense does not count as an aporte', () {
+    final expense = TransactionView(
+      id: EventId('evt-gasto'),
+      hasAccountPosting: true,
+      envelopePostings: [PostingView(envelopeId: viaje, amountUsdCents: -5000)],
+    );
+    final reversal = TransactionView(
+      id: EventId('evt-reversal'),
+      reverses: EventId('evt-gasto'),
+      hasAccountPosting: true,
+      envelopePostings: [PostingView(envelopeId: viaje, amountUsdCents: 5000)],
+    );
+
+    final result = engine(
+      [expense, reversal],
+      const [],
+      [goalEnvelope(dueDate: dueDateInSixMonths)],
+      reportMonth,
+    );
+
+    expect(result.single.contributedThisMonthUsdCents, 0);
+  });
+
   test('an envelope with no funding target never appears', () {
     final envelope = FundingEnvelopeView(
       id: viaje,

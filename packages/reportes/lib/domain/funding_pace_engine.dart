@@ -41,9 +41,12 @@ class FundingPaceRow extends Equatable {
 
 /// Pure funding-pace motor (#263): today's progress already lives in
 /// Patrimonio (ADR-0015) and is not repeated here — this only looks at the
-/// Report Month's contributions. Only inflows (positive `amount_usd`
-/// postings) into the Envelope count as an aporte; an expense leaving it is
-/// never a negative aporte. Without a [GoalLineView.dueDate] (or for a
+/// Report Month's contributions. An aporte is a Distribution/Transfer
+/// inflow — Envelope-to-Envelope only, [TransactionView.hasAccountPosting]
+/// false — the same signal `SpendingByEnvelopeEngine` reads, just gated the
+/// other way round: a transaction that ever touched an Account (an Expense
+/// or the Reversal of one) never counts here, even when its posting is
+/// positive. Without a [GoalLineView.dueDate] (or for a
 /// [CapView], which never has one), only [FundingPaceRow.contributedThisMonthUsdCents]
 /// is meaningful — required/status stay null. A balance that already meets
 /// the goal is always `goalReached`, regardless of this month's aporte.
@@ -64,6 +67,8 @@ class FundingPaceEngine {
     final contributed = <EnvelopeId, int>{};
 
     void apply(TransactionView tx, int sign) {
+      if (tx.hasAccountPosting) return;
+
       for (final posting in tx.envelopePostings) {
         if (posting.amountUsdCents <= 0) continue;
         contributed.update(
