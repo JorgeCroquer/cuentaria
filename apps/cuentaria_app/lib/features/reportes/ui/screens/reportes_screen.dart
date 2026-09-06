@@ -100,6 +100,9 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 'diferencialCambiario' => ExchangeDifferentialSection(
                   month: _selectedMonth,
                 ),
+                'deudaPorPersona' => _DeudaPorPersonaEntry(
+                  title: section.title,
+                ),
                 _ => ReportSection(slug: section.slug, title: section.title),
               },
             ),
@@ -133,6 +136,28 @@ class _PatrimonioEnTiempoEntry extends StatelessWidget {
         title: Text(title),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/reports/patrimonio-en-el-tiempo'),
+      ),
+    );
+  }
+}
+
+/// Live entry point for Deuda por persona (#265), same navigable-card
+/// pattern as [_PatrimonioEnTiempoEntry] — both replay the ledger across 12
+/// months rather than a single one, so they get their own screen instead of
+/// an inline [ReportSection].
+class _DeudaPorPersonaEntry extends StatelessWidget {
+  const _DeudaPorPersonaEntry({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('deudaPorPersonaEntry'),
+      child: ListTile(
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/reports/deuda-por-persona'),
       ),
     );
   }
