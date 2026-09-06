@@ -1,7 +1,11 @@
 import 'package:cuentaria_app/features/reportes/ui/screens/reportes_screen.dart';
+import 'package:cuentaria_app/features/reportes/ui/screens/rate_series_screen.dart';
+import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   final september6th2026 = DateTime(2026, 9, 6, 12);
@@ -9,10 +13,27 @@ void main() {
   Future<void> pumpScreen(WidgetTester tester, {Brightness? brightness}) async {
     await tester.binding.setSurfaceSize(const Size(600, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = GoRouter(
+      initialLocation: '/reports',
+      routes: [
+        GoRoute(
+          path: '/reports',
+          builder: (context, state) => ReportesScreen(now: september6th2026),
+        ),
+        GoRoute(
+          path: '/reports/rate-series',
+          builder: (context, state) => const RateSeriesScreen(),
+        ),
+      ],
+    );
     await tester.pumpWidget(
-      MaterialApp(
-        theme: brightness == Brightness.dark ? appDarkTheme() : appLightTheme(),
-        home: ReportesScreen(now: september6th2026),
+      ProviderScope(
+        overrides: [isWebProvider.overrideWithValue(true)],
+        child: MaterialApp.router(
+          theme:
+              brightness == Brightness.dark ? appDarkTheme() : appLightTheme(),
+          routerConfig: router,
+        ),
       ),
     );
   }
@@ -84,5 +105,16 @@ void main() {
 
     expect(color, isNotNull);
     expect(color, isNot(Colors.black));
+  });
+
+  testWidgets('tapping Serie de tasas navigates to RateSeriesScreen', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.byKey(const Key('rateSeriesEntry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RateSeriesScreen), findsOneWidget);
   });
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
 import '../widgets/month_selector.dart';
@@ -83,11 +84,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: ReportSection(slug: section.slug, title: section.title),
             ),
-          const Card(
-            key: Key('rateSeriesEntry'),
+          Card(
+            key: const Key('rateSeriesEntry'),
             child: ListTile(
-              title: Text('Serie de tasas'),
-              trailing: Icon(Icons.chevron_right),
+              title: const Text('Serie de tasas'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.push('/reports/rate-series'),
             ),
           ),
         ],
