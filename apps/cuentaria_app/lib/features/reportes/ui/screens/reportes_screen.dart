@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
-import 'rate_series_screen.dart';
 
 class _SectionSpec {
   const _SectionSpec(this.slug, this.title);
@@ -89,13 +89,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
             child: ListTile(
               title: const Text('Serie de tasas'),
               trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const RateSeriesScreen(),
-                  ),
-                );
-              },
+              onTap: () => context.push('/reports/rate-series'),
             ),
           ),
         ],

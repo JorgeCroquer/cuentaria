@@ -49,7 +49,7 @@ class RateSeriesChart extends StatelessWidget {
                   for (final observation in entry.value)
                     FlSpot(
                       observation.observedAt.millisecondsSinceEpoch.toDouble(),
-                      double.parse(observation.nativePerUsd.toString()),
+                      observation.nativePerUsd.toDouble(),
                     ),
                 ],
               ),

@@ -5,6 +5,7 @@ import 'package:cuentaria_app/ui/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
   final september6th2026 = DateTime(2026, 9, 6, 12);
@@ -12,13 +13,26 @@ void main() {
   Future<void> pumpScreen(WidgetTester tester, {Brightness? brightness}) async {
     await tester.binding.setSurfaceSize(const Size(600, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
+    final router = GoRouter(
+      initialLocation: '/reports',
+      routes: [
+        GoRoute(
+          path: '/reports',
+          builder: (context, state) => ReportesScreen(now: september6th2026),
+        ),
+        GoRoute(
+          path: '/reports/rate-series',
+          builder: (context, state) => const RateSeriesScreen(),
+        ),
+      ],
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [isWebProvider.overrideWithValue(true)],
-        child: MaterialApp(
+        child: MaterialApp.router(
           theme:
               brightness == Brightness.dark ? appDarkTheme() : appLightTheme(),
-          home: ReportesScreen(now: september6th2026),
+          routerConfig: router,
         ),
       ),
     );
