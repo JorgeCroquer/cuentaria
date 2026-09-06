@@ -4,6 +4,7 @@ import 'package:reportes/reportes.dart';
 
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
+import '../widgets/spending_by_envelope_section.dart';
 
 class _SectionSpec {
   const _SectionSpec(this.slug, this.title);
@@ -13,9 +14,9 @@ class _SectionSpec {
 }
 
 /// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
-/// Aportes · Deuda, filled in the slices that follow this skeleton.
-const _sections = [
-  _SectionSpec('gastoPorSobre', 'Gasto por sobre'),
+/// Aportes · Deuda. Gasto por sobre (#259) is now live; the rest stay
+/// placeholders until the slices that follow this skeleton fill them in.
+const _placeholderSections = [
   _SectionSpec('ingresoPorFuente', 'Ingreso por fuente'),
   _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
   _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
@@ -79,7 +80,11 @@ class _ReportesScreenState extends State<ReportesScreen> {
             onNext: _goToNextMonth,
           ),
           const SizedBox(height: 16),
-          for (final section in _sections)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: SpendingByEnvelopeSection(month: _selectedMonth),
+          ),
+          for (final section in _placeholderSections)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ReportSection(slug: section.slug, title: section.title),

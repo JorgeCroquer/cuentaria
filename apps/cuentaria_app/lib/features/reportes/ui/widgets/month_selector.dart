@@ -16,8 +16,12 @@ const _monthNames = [
   'diciembre',
 ];
 
+/// Lowercase Spanish name of a calendar [month] (1-12), shared with any
+/// widget that needs to name a [ReportMonth] in prose (e.g. "vs julio").
+String monthName(int month) => _monthNames[month - 1];
+
 String _monthLabel(ReportMonth month) {
-  final name = _monthNames[month.month - 1];
+  final name = monthName(month.month);
   return '${name[0].toUpperCase()}${name.substring(1)} ${month.year}';
 }
 
