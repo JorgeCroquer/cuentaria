@@ -9,6 +9,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+/// Every action in Patrimonio's AppBar besides Reportes lives behind the ⋮
+/// overflow menu (#279) — open it before tapping one of its items.
+Future<void> _openOverflowMenu(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+  await tester.pumpAndSettle();
+}
+
 Future<void> _tapDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
@@ -122,6 +129,7 @@ void main() {
 
       // -- Accounts: Bancamiga (USD, opening $200), Binance (USD, opening
       // $150), BdV (VES, no opening) -----------------------------------
+      await _openOverflowMenu(tester);
       await tester.tap(find.byKey(const Key('manageAccountsAction')));
       await tester.pumpAndSettle();
 
@@ -158,6 +166,7 @@ void main() {
       );
 
       // -- Envelopes: Mercado (Cap $120), Mudanza (GoalLine $1000) ------
+      await _openOverflowMenu(tester);
       await tester.tap(find.byKey(const Key('manageEnvelopesAction')));
       await tester.pumpAndSettle();
 
@@ -248,6 +257,7 @@ void main() {
       expect(projections.envelopeUsdBalance(mudanzaId), 73000);
 
       // -- Record today's VES rates (needed before the Bs expense) ------
+      await _openOverflowMenu(tester);
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
@@ -396,20 +406,22 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Ganancia/pérdida no realizada: \$0.00',
+        '\$0.00',
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'Referencia BCV: \$830.00',
+        '50.00 VES/USD · hoy',
       );
       expect(find.byKey(const Key('missingRateFlag')), findsNothing);
 
+      // Costo real == Hoy for both groups at this checkpoint, so the
+      // "hoy · costo" subline stays hidden (#279) — only when they diverge.
       expect(
         find.descendant(
           of: find.byKey(const Key('accountGroup_USD')),
-          matching: find.text('Costo real: \$750.00 · Hoy: \$750.00'),
+          matching: find.textContaining('costo'),
         ),
-        findsOneWidget,
+        findsNothing,
       );
 
       // The VES group sits below the fold on the test surface — scroll the
@@ -422,11 +434,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(
+        tester
+            .widget<Text>(find.byKey(const Key('accountGroupNativeAmount_VES')))
+            .data,
+        '4000.00 VES',
+      );
+      expect(
         find.descendant(
           of: find.byKey(const Key('accountGroup_VES')),
-          matching: find.text('Costo real: \$100.00 · Hoy: \$100.00'),
+          matching: find.textContaining('costo'),
         ),
-        findsOneWidget,
+        findsNothing,
       );
     },
   );
@@ -453,6 +471,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await _openOverflowMenu(tester);
       await tester.tap(find.byKey(const Key('manageAccountsAction')));
       await tester.pumpAndSettle();
 
@@ -527,7 +546,7 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Ganancia/pérdida no realizada: \$0.00',
+        '\$0.00',
       );
     },
   );

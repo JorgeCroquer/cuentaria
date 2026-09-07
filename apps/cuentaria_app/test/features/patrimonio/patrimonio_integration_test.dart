@@ -129,6 +129,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('manageAccountsAction')));
       await tester.pumpAndSettle();
 
@@ -239,6 +241,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
@@ -257,20 +261,18 @@ void main() {
       );
       expect(
         tester.widget<Text>(find.byKey(const Key('unrealizedPnlAmount'))).data,
-        'Ganancia/pérdida no realizada: \$0.00',
+        '\$0.00',
       );
-      expect(
-        tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'Referencia BCV: \$100.00',
-      );
+      // No non-USD account exists, so there is nothing to disclose a rate
+      // for — the chips row (and its bcvReferenceAmount chip) don't render.
+      expect(find.byKey(const Key('bcvReferenceAmount')), findsNothing);
       expect(find.byKey(const Key('missingRateFlag')), findsNothing);
-      expect(find.textContaining('Sin asignar: \$100.00'), findsOneWidget);
+      expect(find.textContaining('Sin asignar · \$100.00'), findsOneWidget);
       expect(
-        find.descendant(
-          of: find.byKey(const Key('accountGroup_USD')),
-          matching: find.text('Costo real: \$100.00 · Hoy: \$100.00'),
-        ),
-        findsOneWidget,
+        tester
+            .widget<Text>(find.byKey(const Key('accountGroupNativeAmount_USD')))
+            .data,
+        '100.00 USD',
       );
     },
   );
@@ -312,6 +314,8 @@ void main() {
 
       expect(find.byType(PatrimonioScreen), findsOneWidget);
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
@@ -365,7 +369,7 @@ void main() {
 
       expect(find.textContaining('Sin asignar'), findsOneWidget);
 
-      await tester.tap(find.textContaining('Sin asignar'));
+      await tester.tap(find.byKey(const Key('repartirButton')));
       await tester.pumpAndSettle();
 
       expect(find.byType(DistributeScreen), findsOneWidget);
