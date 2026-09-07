@@ -280,10 +280,7 @@ class _Hero extends StatelessWidget {
               SignedAmountText(
                 amount: _formatUsdCents(pnl),
                 textKey: const Key('unrealizedPnlAmount'),
-                sign:
-                    pnl < 0
-                        ? AmountSign.negative
-                        : (pnl > 0 ? AmountSign.positive : AmountSign.neutral),
+                sign: pnl < 0 ? AmountSign.negative : AmountSign.positive,
               ),
               const Text(' no realizado'),
             ],
