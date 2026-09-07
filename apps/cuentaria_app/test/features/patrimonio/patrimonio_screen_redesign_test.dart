@@ -88,6 +88,27 @@ void main() {
     expect(text.style?.color, Theme.of(context).colorScheme.primary);
   });
 
+  testWidgets('paints the unrealized P&L in primary when zero', (tester) async {
+    final container = containerWith(snapshotWithPnl(0));
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: PatrimonioScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final text = tester.widget<Text>(
+      find.byKey(const Key('unrealizedPnlAmount')),
+    );
+    final context = tester.element(
+      find.byKey(const Key('unrealizedPnlAmount')),
+    );
+    expect(text.style?.color, Theme.of(context).colorScheme.primary);
+  });
+
   testWidgets(
     'the Sin asignar card sits on secondaryContainer and its Repartir '
     'button navigates to /distribute',

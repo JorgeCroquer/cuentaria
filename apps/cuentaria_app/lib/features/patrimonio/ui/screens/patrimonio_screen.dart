@@ -7,6 +7,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 import 'package:tasas/domain/rate_resolver.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
@@ -257,45 +258,33 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
     final pnl = snapshot.unrealizedPnlUsdCents;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Valor hoy (paralelo)',
-          style: textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: AppSpacing.xs),
-        Text(
-          _formatUsdCents(snapshot.todayValueUsdCents),
-          key: const Key('todayValueAmount'),
-          style: textTheme.displaySmall,
-        ),
-        const SizedBox(height: AppSpacing.sm),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            const Text('Costo real '),
-            Text(
-              _formatUsdCents(snapshot.realCostUsdCents),
-              key: const Key('realCostAmount'),
-            ),
-            const Text(' · '),
-            Text(
-              _formatUsdCents(pnl),
-              key: const Key('unrealizedPnlAmount'),
-              style: TextStyle(
-                color: pnl < 0 ? colorScheme.error : colorScheme.primary,
+        HeroAmount(
+          label: 'Valor hoy (paralelo)',
+          amount: _formatUsdCents(snapshot.todayValueUsdCents),
+          amountKey: const Key('todayValueAmount'),
+          secondaryLine: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              const Text('Costo real '),
+              Text(
+                _formatUsdCents(snapshot.realCostUsdCents),
+                key: const Key('realCostAmount'),
               ),
-            ),
-            const Text(' no realizado'),
-          ],
+              const Text(' · '),
+              SignedAmountText(
+                amount: _formatUsdCents(pnl),
+                textKey: const Key('unrealizedPnlAmount'),
+                sign: pnl < 0 ? AmountSign.negative : AmountSign.positive,
+              ),
+              const Text(' no realizado'),
+            ],
+          ),
         ),
         if (snapshot.hasMissingRate) ...[
           const SizedBox(height: AppSpacing.sm),
@@ -320,50 +309,22 @@ class _RateChipsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final chipShape = StadiumBorder(
-      side: BorderSide(color: colorScheme.outlineVariant),
-    );
-
     return Wrap(
       key: const Key('rateChipsRow'),
       alignment: WrapAlignment.center,
       spacing: AppSpacing.sm,
       runSpacing: AppSpacing.sm,
       children: [
-        Chip(
-          shape: chipShape,
-          backgroundColor: Colors.transparent,
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Paralelo ', style: TextStyle(color: colorScheme.primary)),
-              Flexible(
-                child: Text(
-                  _rateChipValueText(group.parallelRate, group.currency),
-                  key: const Key('paraleloRateAmount'),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+        RateChip(
+          name: 'Paralelo',
+          isPrimary: true,
+          value: _rateChipValueText(group.parallelRate, group.currency),
+          valueKey: const Key('paraleloRateAmount'),
         ),
-        Chip(
-          shape: chipShape,
-          backgroundColor: Colors.transparent,
-          label: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('BCV '),
-              Flexible(
-                child: Text(
-                  _rateChipValueText(group.bcvRate, group.currency),
-                  key: const Key('bcvReferenceAmount'),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
+        RateChip(
+          name: 'BCV',
+          value: _rateChipValueText(group.bcvRate, group.currency),
+          valueKey: const Key('bcvReferenceAmount'),
         ),
       ],
     );
@@ -382,55 +343,26 @@ class _UnassignedCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final onContainer = colorScheme.onSecondaryContainer;
     final stage = this.stage;
     final opening = this.opening;
 
-    return Card(
-      color: colorScheme.secondaryContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (stage != null)
-                    Text(
-                      'Sin asignar · ${_formatUsdCents(stage.balanceUsd)}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.titleMedium?.copyWith(color: onContainer),
-                    ),
-                  if (opening != null)
-                    InkWell(
-                      key: const Key('openingBalanceNotice'),
-                      onTap: () => context.push('/distribute?source=apertura'),
-                      child: Text(
-                        '+ ${_formatUsdCents(opening.balanceUsd)} de '
-                        'apertura por repartir',
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodySmall?.copyWith(color: onContainer),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (stage != null) ...[
-              const SizedBox(width: AppSpacing.md),
-              FilledButton(
-                key: const Key('repartirButton'),
-                onPressed: () => context.push('/distribute'),
-                child: const Text('Repartir'),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return ActionCard(
+      title:
+          stage == null
+              ? null
+              : 'Sin asignar · ${_formatUsdCents(stage.balanceUsd)}',
+      subline:
+          opening == null
+              ? null
+              : '+ ${_formatUsdCents(opening.balanceUsd)} de apertura por repartir',
+      sublineKey: opening == null ? null : const Key('openingBalanceNotice'),
+      onSublineTap:
+          opening == null
+              ? null
+              : () => context.push('/distribute?source=apertura'),
+      buttonLabel: stage == null ? null : 'Repartir',
+      buttonKey: stage == null ? null : const Key('repartirButton'),
+      onButtonPressed: stage == null ? null : () => context.push('/distribute'),
     );
   }
 }
@@ -445,26 +377,12 @@ class _EnvelopesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: Text(
-              'SOBRES',
-              key: const Key('envelopesFrozenCostLabel'),
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ),
-          for (final envelope in envelopes) _EnvelopeRow(envelope: envelope),
-        ],
-      ),
+    return SectionCard(
+      header: 'SOBRES',
+      headerKey: const Key('envelopesFrozenCostLabel'),
+      children: [
+        for (final envelope in envelopes) _EnvelopeRow(envelope: envelope),
+      ],
     );
   }
 }
@@ -528,25 +446,9 @@ class _AccountsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.md,
-              AppSpacing.lg,
-              AppSpacing.xs,
-            ),
-            child: Text(
-              'CUENTAS',
-              style: Theme.of(context).textTheme.labelSmall,
-            ),
-          ),
-          for (final group in groups) _AccountGroupRow(group: group),
-        ],
-      ),
+    return SectionCard(
+      header: 'CUENTAS',
+      children: [for (final group in groups) _AccountGroupRow(group: group)],
     );
   }
 }
