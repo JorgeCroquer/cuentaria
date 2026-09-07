@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../design/widgets.dart';
 import '../../../features/movements/application/movements_providers.dart';
 import '../../../providers/composition_root.dart';
 import '../../theme/app_icons.dart';
@@ -24,6 +25,61 @@ String _formatUsdCents(int cents) {
   final sign = cents < 0 ? '-' : '';
   return '$sign\$${(cents.abs() / 100).toStringAsFixed(2)}';
 }
+
+/// Same as [_formatUsdCents] but with an explicit `+` for positive amounts —
+/// used for day subtotals, where sign alone (via color) isn't enough to tell
+/// "no movements summed" from "net positive day" at a glance.
+String _formatSignedUsdCents(int cents) {
+  final sign = cents < 0 ? '-' : (cents > 0 ? '+' : '');
+  return '$sign\$${(cents.abs() / 100).toStringAsFixed(2)}';
+}
+
+AmountSign _signFor(int cents) {
+  if (cents < 0) return AmountSign.negative;
+  if (cents > 0) return AmountSign.positive;
+  return AmountSign.neutral;
+}
+
+const _spanishMonthAbbreviations = [
+  'ENE',
+  'FEB',
+  'MAR',
+  'ABR',
+  'MAY',
+  'JUN',
+  'JUL',
+  'AGO',
+  'SEP',
+  'OCT',
+  'NOV',
+  'DIC',
+];
+
+/// Local calendar day (midnight, device timezone) a [DomainTimestamp] falls
+/// on — the day cutoff is hour-local, same doctrine as ADR-0024 §4, so a
+/// transaction near midnight UTC still groups under the day the user lived
+/// it in.
+DateTime _localDay(DateTime dateTime) {
+  final local = dateTime.toLocal();
+  return DateTime(local.year, local.month, local.day);
+}
+
+String _dayGroupLabel(DateTime day, DateTime today) {
+  final monthLabel = '${day.day} ${_spanishMonthAbbreviations[day.month - 1]}';
+  if (day == today) return 'HOY · $monthLabel';
+  if (day == today.subtract(const Duration(days: 1))) {
+    return 'AYER · $monthLabel';
+  }
+  return monthLabel;
+}
+
+/// Day subtotal (#282): sum of [_netUsd] across the day's movements, minus
+/// inter-account moves (Transfer, AcquisitionConversion, ...) — those net to
+/// zero on the ledger by construction and shouldn't inflate/deflate the
+/// day's real financial movement.
+int _daySubtotal(List<Transaction> transactions) => transactions
+    .where((transaction) => !_isInterAccountMove(transaction))
+    .fold(0, (sum, transaction) => sum + _netUsd(transaction));
 
 /// True for an inter-account move (Transfer, AcquisitionConversion): every
 /// posting is on the Account dimension, none on Envelope. The self-balancing
@@ -61,7 +117,9 @@ int _netUsd(Transaction transaction) {
 /// Icon/color for a movement row (#99): the appearance of the first user
 /// Envelope it touches, matching the tagging users already did in the
 /// Envelopes management screen (#95) — falls back to a generic icon for
-/// account-only movements (Transfer, AcquisitionConversion).
+/// account-only movements (Transfer, AcquisitionConversion). A reversal
+/// always gets its own icon (#282): reusing the reversed envelope's
+/// appearance would render identically to the movement it undoes.
 class MovementVisual {
   const MovementVisual({required this.icon, this.color});
 
@@ -73,6 +131,9 @@ MovementVisual movementVisualFor(
   Transaction transaction,
   CatalogRepository catalog,
 ) {
+  if (transaction.metadata.reverses != null) {
+    return const MovementVisual(icon: Icons.undo);
+  }
   for (final posting in transaction.postings) {
     final target = posting.target;
     if (target is! EnvelopeTarget) continue;
@@ -116,11 +177,9 @@ class MovementsScreen extends ConsumerWidget {
           }
           return catalogAsync.when(
             data:
-                (catalog) => ListView(
-                  children: [
-                    for (final transaction in transactions)
-                      _MovementTile(transaction: transaction, catalog: catalog),
-                  ],
+                (catalog) => _MovementsList(
+                  transactions: transactions,
+                  catalog: catalog,
                 ),
             loading: () => const Center(child: CircularProgressIndicator()),
             error:
@@ -137,27 +196,132 @@ class MovementsScreen extends ConsumerWidget {
   }
 }
 
-class _MovementTile extends StatelessWidget {
-  const _MovementTile({required this.transaction, required this.catalog});
+/// Movements grouped by local calendar day (#282), newest day first —
+/// [movementsListProvider] already sorts the feed newest-first, so grouping
+/// by first-seen day preserves that order without a manual sort.
+class _MovementsList extends StatelessWidget {
+  const _MovementsList({required this.transactions, required this.catalog});
 
-  final Transaction transaction;
+  final List<Transaction> transactions;
   final CatalogRepository catalog;
 
   @override
   Widget build(BuildContext context) {
+    final byEventId = {
+      for (final transaction in transactions)
+        transaction.metadata.eventId.value: transaction,
+    };
+    final today = _localDay(DateTime.now());
+
+    final groups = <DateTime, List<Transaction>>{};
+    for (final transaction in transactions) {
+      final day = _localDay(transaction.metadata.occurredAt.value);
+      groups.putIfAbsent(day, () => []).add(transaction);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      children: [
+        for (final entry in groups.entries) ...[
+          _DayGroupCard(
+            day: entry.key,
+            today: today,
+            transactions: entry.value,
+            catalog: catalog,
+            byEventId: byEventId,
+          ),
+          const SizedBox(height: AppSpacing.md),
+        ],
+      ],
+    );
+  }
+}
+
+class _DayGroupCard extends StatelessWidget {
+  const _DayGroupCard({
+    required this.day,
+    required this.today,
+    required this.transactions,
+    required this.catalog,
+    required this.byEventId,
+  });
+
+  final DateTime day;
+  final DateTime today;
+  final List<Transaction> transactions;
+  final CatalogRepository catalog;
+  final Map<String, Transaction> byEventId;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtotal = _daySubtotal(transactions);
+    final dayKey = _formatDate(day);
+
+    return SectionCard(
+      header: _dayGroupLabel(day, today),
+      headerKey: Key('dayHeader_$dayKey'),
+      trailing: SignedAmountText(
+        textKey: Key('daySubtotal_$dayKey'),
+        amount: _formatSignedUsdCents(subtotal),
+        sign: _signFor(subtotal),
+      ),
+      showDividers: true,
+      children: [
+        for (final transaction in transactions)
+          _MovementTile(
+            transaction: transaction,
+            catalog: catalog,
+            byEventId: byEventId,
+          ),
+      ],
+    );
+  }
+}
+
+String? _subtitleFor(
+  Transaction transaction,
+  Map<String, Transaction> byEventId,
+) {
+  final metadata = transaction.metadata;
+  final note = metadata.source ?? metadata.memo;
+  final reverses = metadata.reverses;
+  if (reverses == null) return note;
+
+  final original = byEventId[reverses.value];
+  final description =
+      original == null
+          ? 'Deshace un movimiento'
+          : 'Deshace ${humanMovementLabel(original.metadata.type)}';
+  return note == null ? description : '$description · $note';
+}
+
+class _MovementTile extends StatelessWidget {
+  const _MovementTile({
+    required this.transaction,
+    required this.catalog,
+    required this.byEventId,
+  });
+
+  final Transaction transaction;
+  final CatalogRepository catalog;
+  final Map<String, Transaction> byEventId;
+
+  @override
+  Widget build(BuildContext context) {
     final visual = movementVisualFor(transaction, catalog);
-    final note = transaction.metadata.source ?? transaction.metadata.memo;
+    final subtitle = _subtitleFor(transaction, byEventId);
+    final netUsd = _netUsd(transaction);
+    final sign =
+        _isInterAccountMove(transaction)
+            ? AmountSign.neutral
+            : _signFor(netUsd);
 
     return ListTile(
       key: Key('movement_${transaction.metadata.eventId.value}'),
       leading: Icon(visual.icon, color: visual.color),
       title: Text(humanMovementLabel(transaction.metadata.type)),
-      subtitle: Text(
-        note == null
-            ? _formatDate(transaction.metadata.occurredAt.value)
-            : '${_formatDate(transaction.metadata.occurredAt.value)} · $note',
-      ),
-      trailing: Text(_formatUsdCents(_netUsd(transaction))),
+      subtitle: subtitle == null ? null : Text(subtitle),
+      trailing: SignedAmountText(amount: _formatUsdCents(netUsd), sign: sign),
       onTap:
           () =>
               context.push('/movements/${transaction.metadata.eventId.value}'),
