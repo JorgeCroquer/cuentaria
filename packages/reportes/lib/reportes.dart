@@ -1,8 +1,14 @@
+export 'domain/debt_point.dart';
 export 'domain/envelope_view.dart';
+export 'domain/exchange_differential_engine.dart';
+export 'domain/exchange_differential_point.dart';
 export 'domain/funding_envelope_view.dart';
 export 'domain/funding_pace_engine.dart';
 export 'domain/funding_target_view.dart';
+export 'domain/income_by_source_engine.dart';
 export 'domain/month_calendar.dart';
+export 'domain/patrimonio_point.dart';
+export 'domain/person_debt_point.dart';
 export 'domain/posting_view.dart';
 export 'domain/report_month.dart';
 export 'domain/spending_by_envelope_engine.dart';

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
+import '../widgets/exchange_differential_section.dart';
 import '../widgets/funding_pace_section.dart';
+import '../widgets/income_by_source_section.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
 import '../widgets/spending_by_envelope_section.dart';
@@ -15,11 +17,10 @@ class _SectionSpec {
 }
 
 /// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
-/// Aportes · Deuda. Gasto por sobre (#259) and Aportes a metas (#263) are
-/// now live; the rest stay placeholders until the slices that follow this
-/// skeleton fill them in.
+/// Aportes · Deuda. Every section is now live: Gasto por sobre (#259),
+/// Ingreso por fuente (#262), Patrimonio en el tiempo (#260), Diferencial
+/// cambiario (#264), Aportes a metas (#263) and Deuda por persona (#265).
 const _sectionsBeforeAportes = [
-  _SectionSpec('ingresoPorFuente', 'Ingreso por fuente'),
   _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
   _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
 ];
@@ -87,10 +88,22 @@ class _ReportesScreenState extends State<ReportesScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: SpendingByEnvelopeSection(month: _selectedMonth),
           ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: IncomeBySourceSection(month: _selectedMonth),
+          ),
           for (final section in _sectionsBeforeAportes)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: ReportSection(slug: section.slug, title: section.title),
+              child: switch (section.slug) {
+                'patrimonioEnElTiempo' => _PatrimonioEnTiempoEntry(
+                  title: section.title,
+                ),
+                'diferencialCambiario' => ExchangeDifferentialSection(
+                  month: _selectedMonth,
+                ),
+                _ => ReportSection(slug: section.slug, title: section.title),
+              },
             ),
           Padding(
             padding: const EdgeInsets.only(bottom: 12),
@@ -99,7 +112,12 @@ class _ReportesScreenState extends State<ReportesScreen> {
           for (final section in _sectionsAfterAportes)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: ReportSection(slug: section.slug, title: section.title),
+              child: switch (section.slug) {
+                'deudaPorPersona' => _DeudaPorPersonaEntry(
+                  title: section.title,
+                ),
+                _ => ReportSection(slug: section.slug, title: section.title),
+              },
             ),
           Card(
             key: const Key('rateSeriesEntry'),
@@ -110,6 +128,49 @@ class _ReportesScreenState extends State<ReportesScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Live entry point for Patrimonio en el tiempo (#260), replacing the
+/// generic [ReportSection] empty state now that the section is implemented
+/// — same navigable-card pattern as the Serie de tasas entry (#261).
+class _PatrimonioEnTiempoEntry extends StatelessWidget {
+  const _PatrimonioEnTiempoEntry({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('patrimonioEnTiempoEntry'),
+      child: ListTile(
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/reports/patrimonio-en-el-tiempo'),
+      ),
+    );
+  }
+}
+
+/// Live entry point for Deuda por persona (#265), same navigable-card
+/// pattern as [_PatrimonioEnTiempoEntry] — both replay the ledger across 12
+/// months rather than a single one, so they get their own screen instead of
+/// an inline [ReportSection].
+class _DeudaPorPersonaEntry extends StatelessWidget {
+  const _DeudaPorPersonaEntry({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      key: const Key('deudaPorPersonaEntry'),
+      child: ListTile(
+        title: Text(title),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/reports/deuda-por-persona'),
       ),
     );
   }

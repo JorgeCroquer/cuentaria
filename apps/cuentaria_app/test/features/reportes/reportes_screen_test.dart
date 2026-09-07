@@ -1,4 +1,6 @@
 import 'package:cuentaria_app/features/reportes/ui/screens/reportes_screen.dart';
+import 'package:cuentaria_app/features/reportes/ui/screens/deuda_por_persona_screen.dart';
+import 'package:cuentaria_app/features/reportes/ui/screens/patrimonio_en_tiempo_screen.dart';
 import 'package:cuentaria_app/features/reportes/ui/screens/rate_series_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/theme/app_theme.dart';
@@ -24,6 +26,14 @@ void main() {
           path: '/reports/rate-series',
           builder: (context, state) => const RateSeriesScreen(),
         ),
+        GoRoute(
+          path: '/reports/patrimonio-en-el-tiempo',
+          builder: (context, state) => const PatrimonioEnTiempoScreen(),
+        ),
+        GoRoute(
+          path: '/reports/deuda-por-persona',
+          builder: (context, state) => const DeudaPorPersonaScreen(),
+        ),
       ],
     );
     await tester.pumpWidget(
@@ -42,27 +52,38 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens on the current month with all six empty sections and '
-      'the Serie de tasas entry', (tester) async {
+  testWidgets('opens on the current month with three empty sections, the '
+      'live Diferencial cambiario, Patrimonio en el tiempo and Deuda por '
+      'persona entries, and the Serie de tasas entry', (tester) async {
     await pumpScreen(tester);
 
     expect(find.text('Septiembre 2026'), findsOneWidget);
 
-    const sections = [
+    const emptySections = [
       'Gasto por sobre',
       'Ingreso por fuente',
-      'Patrimonio en el tiempo',
-      'Diferencial cambiario',
       'Aportes a metas',
-      'Deuda por persona',
     ];
-    for (final title in sections) {
+    for (final title in emptySections) {
       expect(find.text(title), findsOneWidget);
     }
     expect(
       find.text('Aún no hay datos para este mes'),
-      findsNWidgets(sections.length),
+      findsNWidgets(emptySections.length),
     );
+    expect(find.text('Patrimonio en el tiempo'), findsOneWidget);
+    expect(find.byKey(const Key('patrimonioEnTiempoEntry')), findsOneWidget);
+    expect(
+      find.byKey(const Key('reportSection_diferencialCambiario')),
+      findsOneWidget,
+    );
+    expect(find.text('Diferencial cambiario'), findsOneWidget);
+    expect(
+      find.byKey(const Key('exchangeDifferentialRealizado')),
+      findsOneWidget,
+    );
+    expect(find.text('Deuda por persona'), findsOneWidget);
+    expect(find.byKey(const Key('deudaPorPersonaEntry')), findsOneWidget);
     expect(find.text('Serie de tasas'), findsOneWidget);
 
     final nextButton = tester.widget<IconButton>(
@@ -120,5 +141,28 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(RateSeriesScreen), findsOneWidget);
+  });
+
+  testWidgets(
+    'tapping Patrimonio en el tiempo navigates to PatrimonioEnTiempoScreen',
+    (tester) async {
+      await pumpScreen(tester);
+
+      await tester.tap(find.byKey(const Key('patrimonioEnTiempoEntry')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PatrimonioEnTiempoScreen), findsOneWidget);
+    },
+  );
+
+  testWidgets('tapping Deuda por persona navigates to DeudaPorPersonaScreen', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.byKey(const Key('deudaPorPersonaEntry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DeudaPorPersonaScreen), findsOneWidget);
   });
 }
