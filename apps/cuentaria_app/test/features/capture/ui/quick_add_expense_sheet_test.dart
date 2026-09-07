@@ -725,6 +725,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
       await tester.enterText(find.byKey(const Key('bcvRateField')), '40');

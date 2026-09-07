@@ -8,16 +8,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:patrimonio/patrimonio.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-/// #176: Patrimonio must announce which rate valued its figures — value,
-/// source and age, same format as the capture sheet's disclosure — per
-/// ADR-0018 §4, instead of showing a silent number.
+/// #176/#279: Patrimonio must announce which rate valued its figures —
+/// value and age, same disclosure convention as the capture sheet
+/// (ADR-0018 §4) — now condensed into the Paralelo/BCV rate chips instead
+/// of a per-currency paragraph.
 void main() {
   final ves = CurrencyCode('VES');
 
   Future<void> pumpWithGroup(
     WidgetTester tester,
-    PatrimonioAccountGroup group,
-  ) async {
+    PatrimonioAccountGroup group, {
+    bool hasMissingRate = false,
+  }) async {
     final container = ProviderContainer(
       overrides: [
         isWebProvider.overrideWithValue(true),
@@ -27,7 +29,7 @@ void main() {
             todayValueUsdCents: group.todayValueUsdCents,
             unrealizedPnlUsdCents: 0,
             bcvReferenceUsdCents: group.bcvReferenceUsdCents,
-            hasMissingRate: !group.hasRate,
+            hasMissingRate: hasMissingRate,
             accountGroups: [group],
             envelopes: const [],
           ),
@@ -46,7 +48,8 @@ void main() {
   }
 
   testWidgets(
-    'shows the parallel rate used, with source and age, when observed today',
+    'shows the parallel rate used, with its value and age, when observed '
+    'today',
     (tester) async {
       final observedAt = DateTime.now().toUtc();
       await pumpWithGroup(
@@ -55,7 +58,7 @@ void main() {
           currency: ves,
           nativeMinorAmount: BigInt.from(100000),
           realCostUsdCents: 1000,
-          todayValueUsdCents: 1000,
+          todayValueUsdCents: 1200,
           bcvReferenceUsdCents: 1000,
           hasRate: true,
           hasBcvRate: true,
@@ -72,15 +75,13 @@ void main() {
         ),
       );
 
+      expect(find.byKey(const Key('rateChipsRow')), findsOneWidget);
       final parallelText =
           tester
-              .widget<Text>(
-                find.byKey(const Key('parallelRateAnnouncement_VES')),
-              )
+              .widget<Text>(find.byKey(const Key('paraleloRateAmount')))
               .data!;
       expect(parallelText, contains('846.50'));
       expect(parallelText, contains('VES/USD'));
-      expect(parallelText, contains('Binance P2P'));
     },
   );
 
@@ -94,7 +95,7 @@ void main() {
         currency: ves,
         nativeMinorAmount: BigInt.from(100000),
         realCostUsdCents: 1000,
-        todayValueUsdCents: 1000,
+        todayValueUsdCents: 1200,
         bcvReferenceUsdCents: 1000,
         hasRate: true,
         hasBcvRate: true,
@@ -112,11 +113,9 @@ void main() {
     );
 
     final bcvText =
-        tester
-            .widget<Text>(find.byKey(const Key('bcvRateAnnouncement_VES')))
-            .data!;
+        tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data!;
     expect(bcvText, contains('700.00'));
-    expect(bcvText, contains('DolarApi (oficial)'));
+    expect(bcvText, contains('VES/USD'));
   });
 
   testWidgets(
@@ -147,14 +146,22 @@ void main() {
         ),
       );
 
-      expect(find.byKey(const Key('parallelStaleWarning_VES')), findsOneWidget);
-      // Non-blocking: the figures the group carries still render normally.
-      expect(find.text('Costo real: \$10.00 · Hoy: \$10.00'), findsOneWidget);
+      final parallelText =
+          tester
+              .widget<Text>(find.byKey(const Key('paraleloRateAmount')))
+              .data!;
+      expect(parallelText, contains('sin actualizar desde el'));
+      // Non-blocking: the group's own figures still render normally.
+      expect(
+        find.byKey(const Key('accountGroupNativeAmount_VES')),
+        findsOneWidget,
+      );
     },
   );
 
   testWidgets(
-    'declares a currency with no known rate instead of a silent number',
+    'hides the rate chips instead of a silent number when the currency has '
+    'no observation at all — the hero\'s missingRateFlag already declares it',
     (tester) async {
       await pumpWithGroup(
         tester,
@@ -167,19 +174,16 @@ void main() {
           hasRate: false,
           hasBcvRate: false,
         ),
+        hasMissingRate: true,
       );
 
-      expect(
-        find.byKey(const Key('parallelRateUnavailable_VES')),
-        findsOneWidget,
-      );
-      expect(find.byKey(const Key('bcvRateUnavailable_VES')), findsOneWidget);
+      expect(find.byKey(const Key('rateChipsRow')), findsNothing);
+      expect(find.byKey(const Key('missingRateFlag')), findsOneWidget);
     },
   );
 
-  testWidgets('USD groups need no rate disclosure — there is no conversion', (
-    tester,
-  ) async {
+  testWidgets('USD-only portfolios need no rate disclosure — there is no '
+      'conversion', (tester) async {
     await pumpWithGroup(
       tester,
       PatrimonioAccountGroup(
@@ -193,7 +197,8 @@ void main() {
       ),
     );
 
-    expect(find.textContaining('RateAnnouncement'), findsNothing);
-    expect(find.byKey(const Key('parallelRateUnavailable_USD')), findsNothing);
+    expect(find.byKey(const Key('rateChipsRow')), findsNothing);
+    expect(find.byKey(const Key('paraleloRateAmount')), findsNothing);
+    expect(find.byKey(const Key('bcvReferenceAmount')), findsNothing);
   });
 }

@@ -14,6 +14,8 @@ import '../../../backup/ui/widgets/restore_backup_button.dart';
 import '../../../debts/application/debts_providers.dart';
 import '../../application/patrimonio_providers.dart';
 
+final _usd = CurrencyCode('USD');
+
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 /// Human-readable provenance for a resolved Rate suggestion (#175), same
@@ -67,17 +69,50 @@ String _rateRecency(DateTime observedLocal, String source) {
   return 'hace $hours h';
 }
 
+/// One rate chip's value line (#279): value · currency/USD · age, or a
+/// stale/unavailable declaration — same disclosure convention as the
+/// capture sheet (ADR-0018 §4), condensed to fit a chip instead of a full
+/// per-currency paragraph.
+String _rateChipValueText(RateObservationView? rate, CurrencyCode currency) {
+  if (rate == null) return 'sin cotización disponible';
+  final observedLocal = rate.observedAt.toLocal();
+  final rateText = rate.nativePerUsd.toStringAsFixed(2);
+  if (_isRateFromToday(observedLocal)) {
+    return '$rateText ${currency.value}/USD · '
+        '${_rateRecency(observedLocal, rate.source)}';
+  }
+  return '$rateText ${currency.value}/USD · sin actualizar desde el '
+      '${_formatShortRateDate(observedLocal)}';
+}
+
 String _formatNativeAmount(BigInt minorAmount, CurrencyCode currency) {
   final decimal =
       (Decimal.fromBigInt(minorAmount) / Decimal.fromInt(100)).toDecimal();
   return '${decimal.toStringAsFixed(2)} ${currency.value}';
 }
 
-/// The icon/color a user Envelope was tagged with in the management screen
-/// (#95) — `null` (no leading widget) when neither was chosen, since older
-/// Envelopes and system ones never carry appearance.
-Widget? _envelopeLeading(PatrimonioEnvelope envelope) {
-  if (envelope.iconId == null && envelope.colorIndex == null) return null;
+String _currencySymbol(CurrencyCode currency) => switch (currency.value) {
+  'USD' => '\$',
+  'VES' => 'Bs',
+  _ => currency.value,
+};
+
+/// The first non-USD currency group, if any (#279): the rate chips disclose
+/// the observation that values it — in practice there is at most one
+/// foreign currency in play at a time.
+PatrimonioAccountGroup? _primaryForeignGroup(
+  List<PatrimonioAccountGroup> groups,
+) {
+  for (final group in groups) {
+    if (group.currency != _usd) return group;
+  }
+  return null;
+}
+
+/// The icon a user Envelope was tagged with in the management screen (#95),
+/// or the catalog default when none was chosen — the Sobres card always
+/// shows an avatar (#279).
+Icon _envelopeIcon(PatrimonioEnvelope envelope) {
   final color =
       envelope.colorIndex == null
           ? null
@@ -89,11 +124,12 @@ Widget? _envelopeLeading(PatrimonioEnvelope envelope) {
   );
 }
 
-/// Patrimonio screen (#82): header (real cost, today's value, unrealized
-/// P&L, BCV reference) + accounts grouped by currency, driven end-to-end by
-/// [patrimonioSnapshotProvider] — the engine, not the widget tree, does the
-/// valuation math. Shows a guidance empty state when the catalog has no
-/// accounts, rather than a spinner or a bare zero.
+/// Patrimonio screen (#82, redesigned #279 "Héroe y tarjetas"): a single
+/// hero figure (today's value), rate chips, and the Sin asignar/Sobres/
+/// Cuentas/Deudas cards — all driven end-to-end by [patrimonioSnapshotProvider]
+/// — the engine, not the widget tree, does the valuation math. Shows a
+/// guidance empty state when the catalog has no accounts, rather than a
+/// spinner or a bare zero.
 ///
 /// The empty-state check reads [patrimonioSnapshotProvider] rather than
 /// [catalogRepositoryProvider] directly: the latter resolves once to a
@@ -112,13 +148,7 @@ class PatrimonioScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [
-          _ManageAccountsAction(),
-          _ManageEnvelopesAction(),
-          _EditCascadeAction(),
-          _RecordRatesAction(),
-          _OverflowMenu(),
-        ],
+        actions: const [_ReportsAction(), _OverflowMenu()],
       ),
       body: snapshotAsync.when(
         data: (snapshot) {
@@ -145,27 +175,68 @@ class _PatrimonioBody extends ConsumerWidget {
     final debtsAsync = ref.watch(debtsSnapshotProvider);
 
     return snapshotAsync.when(
-      data:
-          (snapshot) => ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _Header(snapshot: snapshot),
-              const SizedBox(height: 24),
-              const Text(
-                'Sobres (a costo congelado)',
-                key: Key('envelopesFrozenCostLabel'),
+      data: (snapshot) {
+        final userEnvelopes =
+            snapshot.envelopes
+                .where((e) => e.role == EnvelopeRoleView.user)
+                .toList();
+        final unassigned = snapshot.envelopes
+            .cast<PatrimonioEnvelope?>()
+            .firstWhere(
+              (e) => e!.role == EnvelopeRoleView.stage,
+              orElse: () => null,
+            );
+        final opening = snapshot.envelopes
+            .cast<PatrimonioEnvelope?>()
+            .firstWhere(
+              (e) => e!.role == EnvelopeRoleView.opening,
+              orElse: () => null,
+            );
+
+        final children = <Widget>[_Hero(snapshot: snapshot)];
+
+        final foreignGroup = _primaryForeignGroup(snapshot.accountGroups);
+        if (foreignGroup != null &&
+            (foreignGroup.parallelRate != null ||
+                foreignGroup.bcvRate != null)) {
+          children
+            ..add(const SizedBox(height: AppSpacing.lg))
+            ..add(_RateChipsRow(group: foreignGroup));
+        }
+
+        if (unassigned != null || opening != null) {
+          children
+            ..add(const SizedBox(height: AppSpacing.lg))
+            ..add(_UnassignedCard(stage: unassigned, opening: opening));
+        }
+
+        if (userEnvelopes.isNotEmpty) {
+          children
+            ..add(const SizedBox(height: AppSpacing.md))
+            ..add(_EnvelopesCard(envelopes: userEnvelopes));
+        }
+
+        if (snapshot.accountGroups.isNotEmpty) {
+          children
+            ..add(const SizedBox(height: AppSpacing.md))
+            ..add(_AccountsCard(groups: snapshot.accountGroups));
+        }
+
+        if (debtsAsync.hasValue && debtsAsync.value!.personas.isNotEmpty) {
+          children
+            ..add(const SizedBox(height: AppSpacing.md))
+            ..add(
+              _DebtsCard(
+                globalNetoUsdCents: debtsAsync.value!.globalNetoUsdCents,
               ),
-              for (final envelope in snapshot.envelopes)
-                _EnvelopeTile(envelope: envelope),
-              const SizedBox(height: 24),
-              for (final group in snapshot.accountGroups)
-                _AccountGroupTile(group: group),
-              if (debtsAsync.hasValue && debtsAsync.value!.personas.isNotEmpty)
-                _DebtsLineTile(
-                  globalNetoUsdCents: debtsAsync.value!.globalNetoUsdCents,
-                ),
-            ],
-          ),
+            );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: children,
+        );
+      },
       loading: () => const Center(child: CircularProgressIndicator()),
       error:
           (error, stackTrace) =>
@@ -174,292 +245,378 @@ class _PatrimonioBody extends ConsumerWidget {
   }
 }
 
-/// The Deudas segregation (#207, ADR-0022): Debt Accounts are excluded from
-/// [PatrimonioSnapshot.accountGroups] at the app layer (patrimonio_providers)
-/// so they never surface as their own currency group — this single line
-/// stands in for all of them, linking to the Debts screen for the per-person
-/// breakdown.
-class _DebtsLineTile extends StatelessWidget {
-  const _DebtsLineTile({required this.globalNetoUsdCents});
-
-  final int globalNetoUsdCents;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      key: const Key('debtsLine'),
-      title: Text('Deudas · ${_formatUsdCents(globalNetoUsdCents)}'),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => context.push('/debts'),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.snapshot});
+/// The hero figure (#279): a single large "valor hoy" number, with real
+/// cost and unrealized P&L folded into one secondary line below it — the
+/// P&L paints [ColorScheme.error] when negative, [ColorScheme.primary]
+/// when positive, per ADR-0016 §5 ("the parallel rate values"). The BCV
+/// reference moves out of the hero entirely, into the rate chips below.
+class _Hero extends StatelessWidget {
+  const _Hero({required this.snapshot});
 
   final PatrimonioSnapshot snapshot;
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final pnl = snapshot.unrealizedPnlUsdCents;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text('Costo real'),
         Text(
-          _formatUsdCents(snapshot.realCostUsdCents),
-          key: const Key('realCostAmount'),
-          style: Theme.of(context).textTheme.headlineMedium,
+          'Valor hoy (paralelo)',
+          style: textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
         ),
-        const SizedBox(height: 16),
-        const Text('Valor hoy (paralelo)'),
+        const SizedBox(height: AppSpacing.xs),
         Text(
           _formatUsdCents(snapshot.todayValueUsdCents),
           key: const Key('todayValueAmount'),
-          style: Theme.of(context).textTheme.headlineMedium,
+          style: textTheme.displaySmall,
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Ganancia/pérdida no realizada: '
-          '${_formatUsdCents(snapshot.unrealizedPnlUsdCents)}',
-          key: const Key('unrealizedPnlAmount'),
+        const SizedBox(height: AppSpacing.sm),
+        Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            const Text('Costo real '),
+            Text(
+              _formatUsdCents(snapshot.realCostUsdCents),
+              key: const Key('realCostAmount'),
+            ),
+            const Text(' · '),
+            Text(
+              _formatUsdCents(pnl),
+              key: const Key('unrealizedPnlAmount'),
+              style: TextStyle(
+                color: pnl < 0 ? colorScheme.error : colorScheme.primary,
+              ),
+            ),
+            const Text(' no realizado'),
+          ],
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Referencia BCV: ${_formatUsdCents(snapshot.bcvReferenceUsdCents)}',
-          key: const Key('bcvReferenceAmount'),
-        ),
-        if (snapshot.hasMissingRate)
+        if (snapshot.hasMissingRate) ...[
+          const SizedBox(height: AppSpacing.sm),
           const Text(
             'sin tasa — algunas monedas aún no tienen tasa',
             key: Key('missingRateFlag'),
           ),
+        ],
       ],
     );
   }
 }
 
-/// One entry in the Envelopes block ("para qué", #83): a user Envelope
-/// rendered per its target metadata, or a system Envelope special-cased —
-/// Stage as "Sin asignar" with direct access to the distribute flow (C2),
-/// Apertura as a pending-distribution notice. Diferencial/Ajustes never
-/// reach here — the engine excludes them (ADR-0015).
-class _EnvelopeTile extends StatelessWidget {
-  const _EnvelopeTile({required this.envelope});
-
-  final PatrimonioEnvelope envelope;
-
-  @override
-  Widget build(BuildContext context) {
-    final key = Key('envelope_${envelope.id.value}');
-
-    if (envelope.role == EnvelopeRoleView.stage) {
-      return ListTile(
-        key: key,
-        title: Text('Sin asignar: ${_formatUsdCents(envelope.balanceUsd)}'),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () => context.push('/distribute'),
-      );
-    }
-
-    if (envelope.role == EnvelopeRoleView.opening) {
-      return ListTile(
-        key: key,
-        title: Text(envelope.name),
-        subtitle: const Text(
-          'saldos de apertura pendientes de distribuir',
-          key: Key('openingBalanceNotice'),
-        ),
-        trailing: Text(_formatUsdCents(envelope.balanceUsd)),
-        onTap: () => context.push('/distribute?source=apertura'),
-      );
-    }
-
-    final metadata = envelope.metadata;
-    return switch (metadata) {
-      GoalLineMetadata() => _GoalLineEnvelopeTile(
-        key: key,
-        envelope: envelope,
-        metadata: metadata,
-      ),
-      CapMetadata() => _CapEnvelopeTile(
-        key: key,
-        envelope: envelope,
-        metadata: metadata,
-      ),
-      NoMetadata() => ListTile(
-        key: key,
-        leading: _envelopeLeading(envelope),
-        title: Text(envelope.name),
-        trailing: Text(_formatUsdCents(envelope.balanceUsd)),
-      ),
-    };
-  }
-}
-
-class _GoalLineEnvelopeTile extends StatelessWidget {
-  const _GoalLineEnvelopeTile({
-    super.key,
-    required this.envelope,
-    required this.metadata,
-  });
-
-  final PatrimonioEnvelope envelope;
-  final GoalLineMetadata metadata;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: _envelopeLeading(envelope),
-      title: Text(envelope.name),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          LinearProgressIndicator(value: metadata.progressPercent / 100),
-          Text(
-            metadata.isOverdue
-                ? 'vencida'
-                : metadata.quotaPerMonthUsd > 0
-                ? 'Cuota sugerida: ${_formatUsdCents(metadata.quotaPerMonthUsd)}/mes'
-                : '${metadata.progressPercent}%',
-          ),
-        ],
-      ),
-      trailing: Text(_formatUsdCents(envelope.balanceUsd)),
-    );
-  }
-}
-
-class _CapEnvelopeTile extends StatelessWidget {
-  const _CapEnvelopeTile({
-    super.key,
-    required this.envelope,
-    required this.metadata,
-  });
-
-  final PatrimonioEnvelope envelope;
-  final CapMetadata metadata;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: _envelopeLeading(envelope),
-      title: Text(envelope.name),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          LinearProgressIndicator(value: metadata.fillPercent / 100),
-          if (metadata.isOverfilled) const Text('Sobrellenado'),
-        ],
-      ),
-      trailing: Text(_formatUsdCents(envelope.balanceUsd)),
-    );
-  }
-}
-
-class _AccountGroupTile extends StatelessWidget {
-  const _AccountGroupTile({required this.group});
+/// Rate disclosure chips (#279, ADR-0018 §4): the app must always announce
+/// what it valued with — condensed here to Paralelo/BCV chips fed by the
+/// same [PatrimonioAccountGroup.parallelRate]/[PatrimonioAccountGroup.bcvRate]
+/// observations that used to render as a per-currency paragraph.
+class _RateChipsRow extends StatelessWidget {
+  const _RateChipsRow({required this.group});
 
   final PatrimonioAccountGroup group;
 
   @override
   Widget build(BuildContext context) {
-    final isNegative = group.nativeMinorAmount < BigInt.zero;
-    return ListTile(
-      key: Key('accountGroup_${group.currency.value}'),
-      title: Text(group.currency.value),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _formatNativeAmount(group.nativeMinorAmount, group.currency),
-            key: Key('accountGroupNativeAmount_${group.currency.value}'),
-            style:
-                isNegative
-                    ? TextStyle(color: Theme.of(context).colorScheme.error)
-                    : null,
+    final colorScheme = Theme.of(context).colorScheme;
+    final chipShape = StadiumBorder(
+      side: BorderSide(color: colorScheme.outlineVariant),
+    );
+
+    return Wrap(
+      key: const Key('rateChipsRow'),
+      alignment: WrapAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
+      children: [
+        Chip(
+          shape: chipShape,
+          backgroundColor: Colors.transparent,
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Paralelo ', style: TextStyle(color: colorScheme.primary)),
+              Flexible(
+                child: Text(
+                  _rateChipValueText(group.parallelRate, group.currency),
+                  key: const Key('paraleloRateAmount'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          Text(
-            'Costo real: ${_formatUsdCents(group.realCostUsdCents)} · '
-            'Hoy: ${_formatUsdCents(group.todayValueUsdCents)}'
-            '${group.hasRate ? '' : ' (sin tasa)'}',
+        ),
+        Chip(
+          shape: chipShape,
+          backgroundColor: Colors.transparent,
+          label: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('BCV '),
+              Flexible(
+                child: Text(
+                  _rateChipValueText(group.bcvRate, group.currency),
+                  key: const Key('bcvReferenceAmount'),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          if (group.currency != CurrencyCode('USD')) ...[
-            _RateDisclosureLine(
-              label: 'Paralelo',
-              currency: group.currency,
-              rate: group.hasRate ? group.parallelRate : null,
-              keyPrefix: 'parallel',
+        ),
+      ],
+    );
+  }
+}
+
+/// "Sin asignar" action card (#279): Stage's balance with a one-touch
+/// [FilledButton] into the distribute flow (C2). Apertura folds in as a
+/// pending-distribution subline instead of its own row once it carries a
+/// balance (S2).
+class _UnassignedCard extends StatelessWidget {
+  const _UnassignedCard({this.stage, this.opening});
+
+  final PatrimonioEnvelope? stage;
+  final PatrimonioEnvelope? opening;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final onContainer = colorScheme.onSecondaryContainer;
+    final stage = this.stage;
+    final opening = this.opening;
+
+    return Card(
+      color: colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (stage != null)
+                    Text(
+                      'Sin asignar · ${_formatUsdCents(stage.balanceUsd)}',
+                      style: Theme.of(
+                        context,
+                      ).textTheme.titleMedium?.copyWith(color: onContainer),
+                    ),
+                  if (opening != null)
+                    InkWell(
+                      key: const Key('openingBalanceNotice'),
+                      onTap: () => context.push('/distribute?source=apertura'),
+                      child: Text(
+                        '+ ${_formatUsdCents(opening.balanceUsd)} de '
+                        'apertura por repartir',
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodySmall?.copyWith(color: onContainer),
+                      ),
+                    ),
+                ],
+              ),
             ),
-            _RateDisclosureLine(
-              label: 'BCV',
-              currency: group.currency,
-              rate: group.hasBcvRate ? group.bcvRate : null,
-              keyPrefix: 'bcv',
-            ),
+            if (stage != null) ...[
+              const SizedBox(width: AppSpacing.md),
+              FilledButton(
+                key: const Key('repartirButton'),
+                onPressed: () => context.push('/distribute'),
+                child: const Text('Repartir'),
+              ),
+            ],
           ],
-          if (isNegative)
-            Text(
-              'Saldo negativo — ¿falta registrar un ingreso?',
-              key: Key('negativeBalanceSignal_${group.currency.value}'),
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
+        ),
+      ),
+    );
+  }
+}
+
+/// The Sobres card (S2, #83, #279): user Envelopes at frozen real cost
+/// (ADR-0006) — Stage/Apertura live in [_UnassignedCard] instead, and
+/// Diferencial/Ajustes never reach here (the engine excludes them, ADR-0015).
+class _EnvelopesCard extends StatelessWidget {
+  const _EnvelopesCard({required this.envelopes});
+
+  final List<PatrimonioEnvelope> envelopes;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.xs,
             ),
+            child: Text(
+              'SOBRES',
+              key: Key('envelopesFrozenCostLabel'),
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
+          ),
+          for (final envelope in envelopes) _EnvelopeRow(envelope: envelope),
         ],
       ),
     );
   }
 }
 
-/// One rate disclosure line for a currency group (#176, ADR-0018 §4): the
-/// app must always announce what it valued with. Mirrors the quick-add
-/// capture sheet's announcement — value · source · age — and its stale
-/// warning, but never blocks: a missing or stale rate is declared, not
-/// hidden behind a mute number.
-class _RateDisclosureLine extends StatelessWidget {
-  const _RateDisclosureLine({
-    required this.label,
-    required this.currency,
-    required this.rate,
-    required this.keyPrefix,
-  });
+class _EnvelopeRow extends StatelessWidget {
+  const _EnvelopeRow({required this.envelope});
 
-  final String label;
-  final CurrencyCode currency;
-  final RateObservationView? rate;
-  final String keyPrefix;
+  final PatrimonioEnvelope envelope;
 
   @override
   Widget build(BuildContext context) {
-    final rate = this.rate;
-    if (rate == null) {
-      return Text(
-        '$label: sin cotización disponible para ${currency.value}',
-        key: Key('${keyPrefix}RateUnavailable_${currency.value}'),
-        style: TextStyle(color: Theme.of(context).colorScheme.error),
-      );
-    }
+    final colorScheme = Theme.of(context).colorScheme;
+    final isNegative = envelope.balanceUsd < 0;
+    final amountStyle = TextStyle(
+      color: isNegative ? colorScheme.error : null,
+      fontWeight: isNegative ? FontWeight.w500 : null,
+    );
+    final metadata = envelope.metadata;
 
-    final observedLocal = rate.observedAt.toLocal();
-    final rateText = rate.nativePerUsd.toStringAsFixed(2);
+    return ListTile(
+      key: Key('envelope_${envelope.id.value}'),
+      leading: CircleAvatar(child: _envelopeIcon(envelope)),
+      title: Text(envelope.name),
+      subtitle: switch (metadata) {
+        GoalLineMetadata() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(value: metadata.progressPercent / 100),
+            Text(
+              metadata.isOverdue
+                  ? 'vencida'
+                  : metadata.quotaPerMonthUsd > 0
+                  ? 'Cuota sugerida: ${_formatUsdCents(metadata.quotaPerMonthUsd)}/mes'
+                  : '${metadata.progressPercent}%',
+            ),
+          ],
+        ),
+        CapMetadata() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(value: metadata.fillPercent / 100),
+            if (metadata.isOverfilled) const Text('Sobrellenado'),
+          ],
+        ),
+        NoMetadata() => null,
+      },
+      trailing: Text(_formatUsdCents(envelope.balanceUsd), style: amountStyle),
+    );
+  }
+}
 
-    if (_isRateFromToday(observedLocal)) {
-      return Text(
-        '$label: $rateText ${currency.value}/USD · '
-        '${_sourceLabel(rate.source)}, '
-        '${_rateRecency(observedLocal, rate.source)}',
-        key: Key('${keyPrefix}RateAnnouncement_${currency.value}'),
-      );
-    }
+/// The Cuentas card (ADR-0016, #279): one row per currency group — native
+/// balance as the title, a "hoy · costo" subline only when they diverge
+/// (or the currency lacks a rate), and a chevron into Accounts management.
+class _AccountsCard extends StatelessWidget {
+  const _AccountsCard({required this.groups});
 
-    return Text(
-      '$label: ⚠ sin actualizar desde el '
-      '${_formatShortRateDate(observedLocal)} — valorando a $rateText '
-      '${currency.value}/USD',
-      key: Key('${keyPrefix}StaleWarning_${currency.value}'),
-      style: TextStyle(color: Theme.of(context).colorScheme.error),
+  final List<PatrimonioAccountGroup> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.md,
+              AppSpacing.lg,
+              AppSpacing.xs,
+            ),
+            child: Text(
+              'CUENTAS',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            ),
+          ),
+          for (final group in groups) _AccountGroupRow(group: group),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountGroupRow extends StatelessWidget {
+  const _AccountGroupRow({required this.group});
+
+  final PatrimonioAccountGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final isNegative = group.nativeMinorAmount < BigInt.zero;
+    final showValueLine =
+        group.todayValueUsdCents != group.realCostUsdCents || !group.hasRate;
+
+    return ListTile(
+      key: Key('accountGroup_${group.currency.value}'),
+      leading: CircleAvatar(child: Text(_currencySymbol(group.currency))),
+      title: Text(
+        _formatNativeAmount(group.nativeMinorAmount, group.currency),
+        key: Key('accountGroupNativeAmount_${group.currency.value}'),
+        style: isNegative ? TextStyle(color: colorScheme.error) : null,
+      ),
+      subtitle:
+          (showValueLine || isNegative)
+              ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (showValueLine)
+                    Text(
+                      'hoy ${_formatUsdCents(group.todayValueUsdCents)} · '
+                      'costo ${_formatUsdCents(group.realCostUsdCents)}'
+                      '${group.hasRate ? '' : ' (sin tasa)'}',
+                    ),
+                  if (isNegative)
+                    Text(
+                      'Saldo negativo — ¿falta registrar un ingreso?',
+                      key: Key('negativeBalanceSignal_${group.currency.value}'),
+                      style: TextStyle(color: colorScheme.error),
+                    ),
+                ],
+              )
+              : null,
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.push('/accounts'),
+    );
+  }
+}
+
+/// The Deudas segregation (#207, ADR-0022): Debt Accounts are excluded from
+/// [PatrimonioSnapshot.accountGroups] at the app layer (patrimonio_providers)
+/// so they never surface as their own currency group — this card stands in
+/// for all of them, linking to the Debts screen for the per-person
+/// breakdown.
+class _DebtsCard extends StatelessWidget {
+  const _DebtsCard({required this.globalNetoUsdCents});
+
+  final int globalNetoUsdCents;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        key: const Key('debtsLine'),
+        title: Text('Deudas · ${_formatUsdCents(globalNetoUsdCents)}'),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => context.push('/debts'),
+      ),
     );
   }
 }
@@ -521,80 +678,26 @@ class _CloudCopyEmptyStateLink extends StatelessWidget {
   }
 }
 
-/// Entry point to the Accounts catalog (#94), reached from Patrimonio so
-/// users can create, edit and archive Accounts without a dedicated tab.
-class _ManageAccountsAction extends StatelessWidget {
-  const _ManageAccountsAction();
+/// Entry point to Reportes (#258), kept as a visible AppBar action next to
+/// the overflow menu (#279) — daily-use enough to not bury behind ⋮.
+class _ReportsAction extends StatelessWidget {
+  const _ReportsAction();
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      key: const Key('manageAccountsAction'),
-      icon: const Icon(Icons.account_balance_wallet_outlined),
-      tooltip: 'Gestionar cuentas',
-      onPressed: () => context.push('/accounts'),
+      key: const Key('reportsAction'),
+      icon: const Icon(Icons.bar_chart_outlined),
+      tooltip: 'Reportes',
+      onPressed: () => context.push('/reports'),
     );
   }
 }
 
-/// Entry point into the Envelopes management screen (U1 slice 2, #95) — the
-/// only place from which user Envelopes can be created, edited or archived.
-class _ManageEnvelopesAction extends StatelessWidget {
-  const _ManageEnvelopesAction();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const Key('manageEnvelopesAction'),
-      icon: const Icon(Icons.category_outlined),
-      tooltip: 'Gestionar sobres',
-      onPressed: () => context.push('/envelopes'),
-    );
-  }
-}
-
-/// Entry point to the cascade editor (#111): always available from Patrimonio,
-/// independent of Stage/Opening balance. The cascade is the configuration that
-/// decides where money goes; it should be editable in cold, not just when
-/// distributing.
-class _EditCascadeAction extends StatelessWidget {
-  const _EditCascadeAction();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const Key('editCascadeAction'),
-      icon: const Icon(Icons.waterfall_chart_outlined),
-      tooltip: 'Editar cascada',
-      onPressed: () => context.push('/distribute/edit'),
-    );
-  }
-}
-
-/// Minimal manual capture action (ADR-0016 §4): appends one observation for
-/// BCV and one for the parallel rate. Append-only — there is no
-/// rate-management/history screen.
-class _RecordRatesAction extends StatelessWidget {
-  const _RecordRatesAction();
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      key: const Key('recordRatesAction'),
-      icon: const Icon(Icons.currency_exchange),
-      tooltip: 'Registrar tasas',
-      onPressed:
-          () => showDialog<void>(
-            context: context,
-            builder: (context) => const RecordRatesDialog(),
-          ),
-    );
-  }
-}
-
-/// Overflow menu (#192, ADR-0021): a single ⋮ next to the four existing
-/// icons rather than a fifth one, since Respaldo and Deudas (#205) are
-/// reached rarely — unlike the daily-use actions it sits beside.
+/// Overflow menu (#192, ADR-0021, redesigned #279): the AppBar now shows
+/// only Reportes and this ⋮ — every other action (cuentas, sobres, cascada,
+/// tasas, respaldo, deudas, copia en la nube) moves in here, same texts and
+/// destinations as when they were individual icons.
 class _OverflowMenu extends StatelessWidget {
   const _OverflowMenu();
 
@@ -603,13 +706,48 @@ class _OverflowMenu extends StatelessWidget {
     return PopupMenuButton<String>(
       key: const Key('patrimonioOverflowMenu'),
       onSelected: (value) {
-        if (value == 'backup') context.push('/backup');
-        if (value == 'debts') context.push('/debts');
-        if (value == 'reports') context.push('/reports');
-        if (value == 'cloudCopy') context.push('/cloud-copy');
+        switch (value) {
+          case 'accounts':
+            context.push('/accounts');
+          case 'envelopes':
+            context.push('/envelopes');
+          case 'cascade':
+            context.push('/distribute/edit');
+          case 'rates':
+            showDialog<void>(
+              context: context,
+              builder: (context) => const RecordRatesDialog(),
+            );
+          case 'backup':
+            context.push('/backup');
+          case 'debts':
+            context.push('/debts');
+          case 'cloudCopy':
+            context.push('/cloud-copy');
+        }
       },
       itemBuilder:
           (context) => const [
+            PopupMenuItem(
+              key: Key('manageAccountsAction'),
+              value: 'accounts',
+              child: Text('Gestionar cuentas'),
+            ),
+            PopupMenuItem(
+              key: Key('manageEnvelopesAction'),
+              value: 'envelopes',
+              child: Text('Gestionar sobres'),
+            ),
+            PopupMenuItem(
+              key: Key('editCascadeAction'),
+              value: 'cascade',
+              child: Text('Editar cascada'),
+            ),
+            PopupMenuItem(
+              key: Key('recordRatesAction'),
+              value: 'rates',
+              child: Text('Registrar tasas'),
+            ),
             PopupMenuItem(
               key: Key('backupMenuItem'),
               value: 'backup',
@@ -619,11 +757,6 @@ class _OverflowMenu extends StatelessWidget {
               key: Key('debtsMenuItem'),
               value: 'debts',
               child: Text('Deudas'),
-            ),
-            PopupMenuItem(
-              key: Key('reportsMenuItem'),
-              value: 'reports',
-              child: Text('Reportes'),
             ),
             PopupMenuItem(
               key: Key('cloudCopyMenuItem'),

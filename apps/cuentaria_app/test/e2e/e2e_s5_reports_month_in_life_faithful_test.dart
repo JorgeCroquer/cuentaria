@@ -385,9 +385,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('reportsMenuItem')));
+      await tester.tap(find.byKey(const Key('reportsAction')));
       await tester.pumpAndSettle();
 
       expect(find.byType(ReportesScreen), findsOneWidget);

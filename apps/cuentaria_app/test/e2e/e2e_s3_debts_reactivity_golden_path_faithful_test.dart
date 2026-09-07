@@ -130,6 +130,8 @@ void main() {
       await tester.pageBack();
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
