@@ -782,6 +782,11 @@ void main() {
           findsOneWidget,
         );
 
+        // The direction selector pushes the footer below the fold in the
+        // default test viewport — scroll it into view before tapping.
+        await tester.ensureVisible(
+          find.byKey(const Key('reconciliationConfirmButton')),
+        );
         await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
         await tester.pumpAndSettle();
 

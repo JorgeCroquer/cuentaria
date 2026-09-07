@@ -42,8 +42,7 @@ String _formatNative(BigInt minorUnits, CurrencyCode currency) =>
 /// stands in for, not like a different kind of text).
 String _formatDecimalAbs(BigInt minorUnits) {
   final decimal =
-      (Decimal.fromBigInt(minorUnits.abs()) / Decimal.fromInt(100))
-          .toDecimal();
+      (Decimal.fromBigInt(minorUnits.abs()) / Decimal.fromInt(100)).toDecimal();
   return decimal.toStringAsFixed(2);
 }
 
@@ -405,15 +404,16 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                             ? _formatDecimalAbs(projectedBalance.native.amount)
                             : _realBalance.displayText,
                         key: const Key('realBalanceDisplay'),
-                        style: Theme.of(context).textTheme.headlineLarge
-                            ?.copyWith(
-                              color:
-                                  isPlaceholder
-                                      ? Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant
-                                      : null,
-                            ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.headlineLarge?.copyWith(
+                          color:
+                              isPlaceholder
+                                  ? Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant
+                                  : null,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -447,12 +447,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                               outcome is RouteToIncome ? 'INGRESO' : 'GASTO',
                           children: [
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                16,
-                                0,
-                                16,
-                                16,
-                              ),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
@@ -470,8 +465,7 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                                   if (outcome is RouteToIncome)
                                     _RouteToIncomeSection(
                                       isSaving: _isSaving,
-                                      sourceController:
-                                          _incomeSourceController,
+                                      sourceController: _incomeSourceController,
                                       onConfirm:
                                           () => _confirmRouteToIncome(outcome),
                                     ),
@@ -483,12 +477,10 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                                       onEnvelopeSelected:
                                           (id) => setState(
                                             () =>
-                                                _selectedExpenseEnvelopeId =
-                                                    id,
+                                                _selectedExpenseEnvelopeId = id,
                                           ),
                                       onConfirm:
-                                          () =>
-                                              _confirmRouteToExpense(outcome),
+                                          () => _confirmRouteToExpense(outcome),
                                     ),
                                 ],
                               ),
