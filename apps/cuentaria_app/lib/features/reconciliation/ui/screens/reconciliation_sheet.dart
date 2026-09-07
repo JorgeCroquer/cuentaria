@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_resolver.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../capture/application/capture_providers.dart';
@@ -34,6 +35,17 @@ String _formatMoney(Money money) {
 
 String _formatNative(BigInt minorUnits, CurrencyCode currency) =>
     _formatMoney(Money(amount: minorUnits, currency: currency));
+
+/// Just the numeric part of a native amount, unsigned — matches the
+/// keypad's own tape, which never shows a currency code or a minus sign
+/// (fix directive gap 1: the placeholder must read like the value it
+/// stands in for, not like a different kind of text).
+String _formatDecimalAbs(BigInt minorUnits) {
+  final decimal =
+      (Decimal.fromBigInt(minorUnits.abs()) / Decimal.fromInt(100))
+          .toDecimal();
+  return decimal.toStringAsFixed(2);
+}
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
@@ -371,27 +383,47 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
               const SizedBox(height: 16),
             ],
             Center(
+              child: Text(
+                'Saldo real:',
+                key: const Key('realBalanceLabel'),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Center(
               child: AnimatedBuilder(
                 animation: _realBalance,
-                builder:
-                    (context, _) => Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          _realBalance.displayText,
-                          key: const Key('realBalanceDisplay'),
-                          style: Theme.of(context).textTheme.headlineLarge,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.account.nativeCurrency.value,
-                          key: const Key('realBalanceCurrency'),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
+                builder: (context, _) {
+                  final isPlaceholder = _realBalance.isEmpty;
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(
+                        isPlaceholder
+                            ? _formatDecimalAbs(projectedBalance.native.amount)
+                            : _realBalance.displayText,
+                        key: const Key('realBalanceDisplay'),
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(
+                              color:
+                                  isPlaceholder
+                                      ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant
+                                      : null,
+                            ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.account.nativeCurrency.value,
+                        key: const Key('realBalanceCurrency'),
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
             const SizedBox(height: 8),
@@ -409,33 +441,67 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (outcome != null)
-                      _OutcomeMessage(
-                        outcome: outcome,
-                        currency: widget.account.nativeCurrency,
-                        projectedNative: projectedBalance.native,
-                        declaredNative: _realBalanceWithSign,
-                      ),
-                    if (isRouted)
-                      _RoutedOccurredAtSection(
-                        currency: widget.account.nativeCurrency,
-                        date: _routedOccurredAt,
-                        onPickDate: _pickRoutedOccurredAt,
-                      ),
-                    if (outcome is RouteToIncome)
-                      _RouteToIncomeSection(
-                        isSaving: _isSaving,
-                        sourceController: _incomeSourceController,
-                        onConfirm: () => _confirmRouteToIncome(outcome),
-                      ),
-                    if (outcome is RouteToExpense)
-                      _RouteToExpenseSection(
-                        isSaving: _isSaving,
-                        selectedEnvelopeId: _selectedExpenseEnvelopeId,
-                        onEnvelopeSelected:
-                            (id) =>
-                                setState(() => _selectedExpenseEnvelopeId = id),
-                        onConfirm: () => _confirmRouteToExpense(outcome),
-                      ),
+                      if (isRouted)
+                        SectionCard(
+                          header:
+                              outcome is RouteToIncome ? 'INGRESO' : 'GASTO',
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                0,
+                                16,
+                                16,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  _OutcomeMessage(
+                                    outcome: outcome,
+                                    currency: widget.account.nativeCurrency,
+                                    projectedNative: projectedBalance.native,
+                                    declaredNative: _realBalanceWithSign,
+                                  ),
+                                  _RoutedOccurredAtSection(
+                                    currency: widget.account.nativeCurrency,
+                                    date: _routedOccurredAt,
+                                    onPickDate: _pickRoutedOccurredAt,
+                                  ),
+                                  if (outcome is RouteToIncome)
+                                    _RouteToIncomeSection(
+                                      isSaving: _isSaving,
+                                      sourceController:
+                                          _incomeSourceController,
+                                      onConfirm:
+                                          () => _confirmRouteToIncome(outcome),
+                                    ),
+                                  if (outcome is RouteToExpense)
+                                    _RouteToExpenseSection(
+                                      isSaving: _isSaving,
+                                      selectedEnvelopeId:
+                                          _selectedExpenseEnvelopeId,
+                                      onEnvelopeSelected:
+                                          (id) => setState(
+                                            () =>
+                                                _selectedExpenseEnvelopeId =
+                                                    id,
+                                          ),
+                                      onConfirm:
+                                          () =>
+                                              _confirmRouteToExpense(outcome),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        _OutcomeMessage(
+                          outcome: outcome,
+                          currency: widget.account.nativeCurrency,
+                          projectedNative: projectedBalance.native,
+                          declaredNative: _realBalanceWithSign,
+                        ),
                     if (_error != null) ...[
                       const SizedBox(height: 8),
                       Text(
