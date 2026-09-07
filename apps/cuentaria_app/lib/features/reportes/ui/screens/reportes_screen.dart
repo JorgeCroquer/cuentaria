@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:reportes/reportes.dart';
 
 import '../widgets/exchange_differential_section.dart';
+import '../widgets/funding_pace_section.dart';
 import '../widgets/income_by_source_section.dart';
 import '../widgets/month_selector.dart';
 import '../widgets/report_section.dart';
@@ -16,13 +17,14 @@ class _SectionSpec {
 }
 
 /// Order fixed by ADR-0024 §7: Gasto · Ingreso · Patrimonio · Diferencial ·
-/// Aportes · Deuda. Gasto por sobre (#259), Ingreso por fuente (#262) and
-/// Diferencial cambiario (#264) are now live; the rest stay placeholders
-/// until the slices that follow this skeleton fill them in.
-const _placeholderSections = [
+/// Aportes · Deuda. Every section is now live: Gasto por sobre (#259),
+/// Ingreso por fuente (#262), Patrimonio en el tiempo (#260), Diferencial
+/// cambiario (#264), Aportes a metas (#263) and Deuda por persona (#265).
+const _sectionsBeforeAportes = [
   _SectionSpec('patrimonioEnElTiempo', 'Patrimonio en el tiempo'),
   _SectionSpec('diferencialCambiario', 'Diferencial cambiario'),
-  _SectionSpec('aportesAMetas', 'Aportes a metas'),
+];
+const _sectionsAfterAportes = [
   _SectionSpec('deudaPorPersona', 'Deuda por persona'),
 ];
 
@@ -90,7 +92,7 @@ class _ReportesScreenState extends State<ReportesScreen> {
             padding: const EdgeInsets.only(bottom: 12),
             child: IncomeBySourceSection(month: _selectedMonth),
           ),
-          for (final section in _placeholderSections)
+          for (final section in _sectionsBeforeAportes)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: switch (section.slug) {
@@ -100,6 +102,17 @@ class _ReportesScreenState extends State<ReportesScreen> {
                 'diferencialCambiario' => ExchangeDifferentialSection(
                   month: _selectedMonth,
                 ),
+                _ => ReportSection(slug: section.slug, title: section.title),
+              },
+            ),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: FundingPaceSection(month: _selectedMonth),
+          ),
+          for (final section in _sectionsAfterAportes)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: switch (section.slug) {
                 'deudaPorPersona' => _DeudaPorPersonaEntry(
                   title: section.title,
                 ),
