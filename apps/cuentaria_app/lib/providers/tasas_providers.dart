@@ -1,9 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/application/rate_resolution_service.dart';
+import 'package:tasas/application/rate_series_query_service.dart';
 import 'package:tasas/application/record_rate_use_case.dart';
 import 'package:tasas/application/sync_rate_series_use_case.dart';
 import 'package:tasas/domain/rate_feed.dart';
+import 'package:tasas/domain/rate_observation.dart';
 import 'package:tasas/domain/rate_resolver.dart';
 import 'package:tasas/domain/rate_series.dart';
 import 'package:tasas/infrastructure/drift/drift_rate_series.dart';
@@ -91,4 +93,42 @@ final paraleloRateAsOfProvider =
       final (currency, asOf) = key;
       final series = await ref.watch(rateSeriesProvider.future);
       return RateResolutionService(series)(currency, asOf: asOf);
+    });
+
+final rateSeriesQueryServiceProvider = FutureProvider<RateSeriesQueryService>((
+  ref,
+) async {
+  final series = await ref.watch(rateSeriesProvider.future);
+  return RateSeriesQueryService(series);
+});
+
+/// Currencies the Serie de tasas selector (#261) may offer — only those
+/// with at least one recorded observation.
+final currenciesWithObservationsProvider = FutureProvider<List<CurrencyCode>>((
+  ref,
+) async {
+  final service = await ref.watch(rateSeriesQueryServiceProvider.future);
+  return service.currenciesWithObservations();
+});
+
+/// Last 12 months of observations for [currency] — what the Serie de tasas
+/// chart (#261) plots.
+final rateSeriesObservationsProvider =
+    FutureProvider.family<List<RateObservation>, CurrencyCode>((
+      ref,
+      currency,
+    ) async {
+      final service = await ref.watch(rateSeriesQueryServiceProvider.future);
+      return service.observationsFor(currency);
+    });
+
+/// Latest observation per source for [currency] — the rows the Serie de
+/// tasas list (#261) shows below the chart.
+final latestPerSourceProvider =
+    FutureProvider.family<List<RateObservation>, CurrencyCode>((
+      ref,
+      currency,
+    ) async {
+      final series = await ref.watch(rateSeriesProvider.future);
+      return series.candidatesFor(currency);
     });
