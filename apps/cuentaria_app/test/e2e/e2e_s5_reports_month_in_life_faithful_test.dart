@@ -9,7 +9,10 @@
 /// $100,00. Agosto: gasto Comida $40,00 (revertido en septiembre), gasto
 /// Comida 4.000,00 Bs congelado a $100,00 (tasa 40,00), Transfer $500,00
 /// Banco -> Efectivo, ingreso «Acme» $500,00, ingreso sin fuente $150,00,
-/// una CryptoSale que realiza +$12,00, una conciliación que absorbe
+/// una CryptoSale parcial (mitad de la posición) que realiza +$12,00 y deja
+/// un residual de $88,00 en Cripto, una nueva tasa paralela de BTC que
+/// diverge de la de apertura (para que el residual tenga un valor de
+/// mercado distinto de su costo real), una conciliación que absorbe
 /// -$0,60, y un gasto de $20,00 en Transporte el último día del mes a las
 /// 23:30. Septiembre: Reversal del gasto de $40,00 de agosto.
 ///
@@ -40,12 +43,14 @@ import 'package:cuentaria_app/features/reportes/ui/widgets/month_selector.dart'
     show monthName;
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/tasas_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reportes/reportes.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+import 'package:tasas/domain/rate_observation.dart';
 
 const _deviceId = 'device-s5-e2e';
 
@@ -193,10 +198,12 @@ void main() {
       // ---------------------------------------------------------------
       // Agosto: Efectivo (destino del Transfer), BdV (Bs, apertura
       // 4.000,00 Bs a tasa 40,00 -> congela $100,00) y Cripto (apertura
-      // con costo base $88,00, a una tasa 1,00 puramente para satisfacer
-      // la Cadena de Resolución — Patrimonio en el tiempo exige una tasa
-      // para *cualquier* moneda que aparezca en el catálogo, incluso con
-      // saldo cero, o el punto queda en "sin tasa disponible").
+      // con costo base $176,00, a una tasa 1,00 — el catálogo exige una
+      // tasa para *cualquier* moneda que aparezca en él, incluso con saldo
+      // cero, o el punto queda en "sin tasa disponible"; aquí, además, solo
+      // se vende la mitad de la posición más abajo, dejando un residual de
+      // $88,00 cuyo valor de mercado diverge del costo real una vez que se
+      // registra una tasa paralela nueva — ver más abajo).
       // ---------------------------------------------------------------
       final efectivoId = await createAccount(
         name: 'Efectivo',
@@ -222,7 +229,7 @@ void main() {
         name: 'Cripto',
         nativeCurrency: CurrencyCode('BTC'),
         openingBalance: Money(
-          amount: BigInt.from(8800),
+          amount: BigInt.from(17600),
           currency: CurrencyCode('BTC'),
         ),
         openingBalanceRate: Decimal.parse('1.00'),
@@ -295,8 +302,10 @@ void main() {
         occurredAt: _ts(_on(augustMonth, 18)),
       );
 
-      // CryptoSale: se vende el saldo completo de Cripto (costo base
-      // $88,00) por $100,00, realizando +$12,00 hacia Diferencial.
+      // CryptoSale: se vende la mitad de la posición de Cripto (costo base
+      // proporcional $88,00 de los $176,00 totales) por $100,00, realizando
+      // +$12,00 hacia Diferencial y dejando un residual de $88,00 (mitad
+      // del saldo original) en la cuenta.
       await recordRealization.cryptoSale(
         eventId: EventId('evt-aug-crypto-sale'),
         deviceId: _deviceId,
@@ -312,6 +321,23 @@ void main() {
         ),
         rateRef: '1.00 BTC/USD',
         occurredAt: _ts(_on(augustMonth, 20)),
+      );
+
+      // Nueva tasa paralela de BTC (1,10, distinta de la 1,00 de apertura),
+      // registrada a través del mismo caso de uso real que usa la pantalla
+      // Patrimonio para "Actualizar tasas" — sin esto, el residual de
+      // Cripto se valoraría con la tasa de apertura y el valor de mercado
+      // coincidiría trivialmente con el costo real, sin ejercer la
+      // divergencia que el diferencial no realizado de Patrimonio en el
+      // tiempo debe reflejar.
+      final recordRate = await container.read(recordRateUseCaseProvider.future);
+      await recordRate.execute(
+        paralelo: RateObservation(
+          currency: CurrencyCode('BTC'),
+          nativePerUsd: Decimal.parse('1.10'),
+          observedAt: _on(augustMonth, 25).toUtc(),
+          source: 'manual:paralelo',
+        ),
       );
 
       // Conciliación de Banco: delta -$0,60, dentro de la Tolerancia de
@@ -503,11 +529,17 @@ void main() {
       // Patrimonio en el tiempo: el punto de fin de agosto coincide con
       // el saldo real que dejó el escenario — Banco $1.489,40 (apertura
       // $1.000,00 - $40,00 - $500,00 transfer + $500,00 + $150,00 +
-      // $100,00 crypto - $0,60 - $20,00) + Efectivo $500,00, con BdV y
-      // Cripto en cero. Sin moneda extranjera con saldo, el valor de
-      // mercado coincide con el costo real: el diferencial no realizado
-      // de agosto es exactamente la diferencia entre esas dos líneas, y
-      // aquí es $0,00.
+      // $100,00 crypto - $0,60 - $20,00) + Efectivo $500,00 + Cripto
+      // residual $88,00 (costo real congelado a la tasa 1,00 de apertura),
+      // con BdV en cero: costo real $2.077,40.
+      //
+      // El valor de mercado difiere solo en el residual de Cripto, ahora
+      // valorado a la tasa paralela nueva de 1,10 registrada más arriba:
+      // $88,00 / 1,10 = $80,00 (Banco/Efectivo/BdV no tienen moneda
+      // extranjera con saldo, así que no se mueven). Valor de mercado
+      // total: $2.069,40. El diferencial no realizado de agosto es
+      // exactamente la diferencia entre esas dos líneas: $2.069,40 -
+      // $2.077,40 = -$8,00 — ya no un caso degenerado de diferencial cero.
       // ---------------------------------------------------------------
       await tester.tap(find.byKey(const Key('patrimonioEnTiempoEntry')));
       await tester.pumpAndSettle();
@@ -543,7 +575,7 @@ void main() {
         tester
             .widget<Text>(find.byKey(const Key('patrimonioEnTiempoRealCost')))
             .data,
-        'Costo real: \$1989.40',
+        'Costo real: \$2077.40',
       );
       expect(
         tester
@@ -551,7 +583,7 @@ void main() {
               find.byKey(const Key('patrimonioEnTiempoMarketValue')),
             )
             .data,
-        'Valor de mercado: \$1989.40',
+        'Valor de mercado: \$2069.40',
       );
     },
   );
