@@ -122,6 +122,12 @@ void main() {
       );
       addTearDown(container.dispose);
 
+      // The U2 capture sheet (#281) is taller than the default test
+      // surface — without this, the keypad renders unscrolled-into-view
+      // and its taps land outside the render tree.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: const MyApp()),
       );
@@ -465,6 +471,12 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+
+      // The U2 capture sheet (#281) is taller than the default test
+      // surface — without this, the keypad renders unscrolled-into-view
+      // and its taps land outside the render tree.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
 
       await tester.pumpWidget(
         UncontrolledProviderScope(container: container, child: const MyApp()),

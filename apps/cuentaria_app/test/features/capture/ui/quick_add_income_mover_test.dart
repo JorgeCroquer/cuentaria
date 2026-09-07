@@ -23,6 +23,13 @@ Future<ProviderContainer> _openSheet(
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
 
+  // The U2 sheet stacks a mode selector, hero amount, question cards, a
+  // date/note row and the keypad (#281) — taller than the default test
+  // surface, which would otherwise leave the keypad unscrolled-into-view
+  // and its taps landing outside the render tree.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   if (withRouter) {
     final router = GoRouter(
       initialLocation: '/',

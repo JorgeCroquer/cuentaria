@@ -782,6 +782,9 @@ void main() {
           findsOneWidget,
         );
 
+        await tester.ensureVisible(
+          find.byKey(const Key('reconciliationConfirmButton')),
+        );
         await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
         await tester.pumpAndSettle();
 
