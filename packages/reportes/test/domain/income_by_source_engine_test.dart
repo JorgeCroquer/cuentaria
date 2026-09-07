@@ -9,6 +9,7 @@ void main() {
   final comida = EnvelopeId('comida');
   final ajustes = EnvelopeId('ajustes');
   final apertura = EnvelopeId('apertura');
+  final diferencial = EnvelopeId('diferencial');
 
   final envelopes = [
     EnvelopeView(id: stage, name: 'Stage', role: EnvelopeRoleView.stage),
@@ -22,6 +23,11 @@ void main() {
       id: apertura,
       name: 'Apertura',
       role: EnvelopeRoleView.opening,
+    ),
+    EnvelopeView(
+      id: diferencial,
+      name: 'Diferencial',
+      role: EnvelopeRoleView.differential,
     ),
   ];
 
@@ -80,6 +86,17 @@ void main() {
   test('an absorbed Adjustment never appears', () {
     final result = engine(
       [incomeTx('evt-adjustment', ajustes, 60, source: 'Cliente A')],
+      const [],
+      envelopes,
+    );
+
+    expect(result, isEmpty);
+  });
+
+  test('a CryptoSale realized differential never appears as income — it has '
+      'its own renglón in Gasto por sobre, not a source', () {
+    final result = engine(
+      [incomeTx('evt-crypto-sale', diferencial, 1200)],
       const [],
       envelopes,
     );

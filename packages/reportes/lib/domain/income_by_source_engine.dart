@@ -6,8 +6,10 @@ import 'transaction_view.dart';
 /// touched**, never the event type. A posting that enters an Envelope (a
 /// non-negative `amount_usd`) is ingreso, grouped by the transaction's
 /// free-form `source` label — landing in Stage, like every quick-add Income
-/// does, still counts. Only Apertura and Ajustes are excluded outright: they
-/// are not money from outside. A transaction with no Account-dimension
+/// does, still counts. Apertura, Ajustes and Diferencial are excluded
+/// outright: they are not money from outside — a CryptoSale's realized
+/// differential has its own renglón in Gasto por sobre (ADR-0024 §2), it is
+/// never attributed to a `source`. A transaction with no Account-dimension
 /// posting (a Distribution: only Envelope-to-Envelope legs, "own pockets")
 /// never contributes, even though its incoming leg may land in a role=user
 /// Envelope just like an Income does.
@@ -39,6 +41,7 @@ class IncomeBySourceEngine {
         if (envelope == null) continue;
         if (envelope.role == EnvelopeRoleView.opening) continue;
         if (envelope.role == EnvelopeRoleView.adjustments) continue;
+        if (envelope.role == EnvelopeRoleView.differential) continue;
         if (posting.amountUsdCents < 0) continue;
         amount += posting.amountUsdCents;
       }
