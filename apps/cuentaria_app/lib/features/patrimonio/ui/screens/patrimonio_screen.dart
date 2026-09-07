@@ -449,8 +449,8 @@ class _EnvelopesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
               AppSpacing.md,
               AppSpacing.lg,
@@ -458,8 +458,8 @@ class _EnvelopesCard extends StatelessWidget {
             ),
             child: Text(
               'SOBRES',
-              key: Key('envelopesFrozenCostLabel'),
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              key: const Key('envelopesFrozenCostLabel'),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
           for (final envelope in envelopes) _EnvelopeRow(envelope: envelope),
@@ -532,8 +532,8 @@ class _AccountsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
               AppSpacing.lg,
               AppSpacing.md,
               AppSpacing.lg,
@@ -541,7 +541,7 @@ class _AccountsCard extends StatelessWidget {
             ),
             child: Text(
               'CUENTAS',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
           for (final group in groups) _AccountGroupRow(group: group),
