@@ -143,6 +143,73 @@ void main() {
       });
     });
 
+    group('fixedUntilCap amount rules', () {
+      test('fixedUntilCap amount == 0 → error', () {
+        final catalog = _catalog([_userEnv('e1')]);
+        final result = CascadeValidator.validate(
+          cascade: _cascade([
+            CascadeStep.fixedUntilCap(
+              envelopeId: EnvelopeId('e1'),
+              amountUsd: 0,
+            ),
+          ]),
+          catalog: catalog,
+        );
+        expect(result.errors, isNotEmpty);
+      });
+
+      test('fixedUntilCap amount negative → error', () {
+        final catalog = _catalog([_userEnv('e1')]);
+        final result = CascadeValidator.validate(
+          cascade: _cascade([
+            CascadeStep.fixedUntilCap(
+              envelopeId: EnvelopeId('e1'),
+              amountUsd: -50,
+            ),
+          ]),
+          catalog: catalog,
+        );
+        expect(result.errors, isNotEmpty);
+      });
+    });
+
+    group('fixedUntilCap without cap → warning (not error)', () {
+      test(
+        'destination has no cap → warning, still valid (degrades to fixed)',
+        () {
+          final catalog = _catalog([_userEnv('e1')]); // NoTarget
+          final result = CascadeValidator.validate(
+            cascade: _cascade([
+              CascadeStep.fixedUntilCap(
+                envelopeId: EnvelopeId('e1'),
+                amountUsd: 5000,
+              ),
+            ]),
+            catalog: catalog,
+          );
+          expect(result.errors, isEmpty);
+          expect(result.warnings, isNotEmpty);
+        },
+      );
+
+      test('destination has a cap → no warning', () {
+        final catalog = _catalog([
+          _userEnv('e1', target: const Cap(amountUsd: 65000)),
+        ]);
+        final result = CascadeValidator.validate(
+          cascade: _cascade([
+            CascadeStep.fixedUntilCap(
+              envelopeId: EnvelopeId('e1'),
+              amountUsd: 5000,
+            ),
+          ]),
+          catalog: catalog,
+        );
+        expect(result.errors, isEmpty);
+        expect(result.warnings, isEmpty);
+      });
+    });
+
     group('percent rules', () {
       test('percent == 0 → error', () {
         final catalog = _catalog([_userEnv('e1')]);

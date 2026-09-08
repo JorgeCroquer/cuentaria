@@ -104,6 +104,54 @@ void main() {
     });
   });
 
+  // ─── fixedUntilCap step ───────────────────────────────────────────────────
+  group('fixedUntilCap', () {
+    test('gives min(F, cap - balance, remaining)', () {
+      final result = run(
+        10000,
+        [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 5000)],
+        states: {e1: state(balance: 62000, cap: 65000)},
+      );
+      expect(result.single.amountUsd, 3000);
+    });
+
+    test('gives 0 when balance already at cap', () {
+      final result = run(
+        10000,
+        [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 5000)],
+        states: {e1: state(balance: 65000, cap: 65000)},
+      );
+      expect(result.single.amountUsd, 0);
+    });
+
+    test('behaves like fixed when envelope has no cap', () {
+      final result = run(
+        10000,
+        [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 5000)],
+        states: {e1: state(balance: 0)}, // no cap
+      );
+      expect(result.single.amountUsd, 5000);
+    });
+
+    test('clamps to remaining', () {
+      final result = run(
+        2000,
+        [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 5000)],
+        states: {e1: state(balance: 62000, cap: 65000)},
+      );
+      expect(result.single.amountUsd, 2000);
+    });
+
+    test('gives 0 when balance above cap', () {
+      final result = run(
+        10000,
+        [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 5000)],
+        states: {e1: state(balance: 70000, cap: 65000)},
+      );
+      expect(result.single.amountUsd, 0);
+    });
+  });
+
   // ─── percentOfRemainder step ──────────────────────────────────────────────
   group('percentOfRemainder', () {
     test('base=remainder uses remaining counter', () {
@@ -319,6 +367,7 @@ void main() {
             CascadeStep.catchAll(envelopeId: e2),
           ],
         ),
+        (10, [CascadeStep.fixedUntilCap(envelopeId: e1, amountUsd: 200)]),
       ];
       for (final (amount, steps) in scenarios) {
         final result = run(
@@ -337,18 +386,24 @@ void main() {
     });
 
     test('sum <= amount always', () {
+      final capEnvelope = EnvelopeId('capEnvelope');
       for (final amount in [0, 1, 100, 999, 10000]) {
         final result = run(
           amount,
           [
             CascadeStep.fixed(envelopeId: e1, amountUsd: 300),
+            CascadeStep.fixedUntilCap(envelopeId: capEnvelope, amountUsd: 200),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
               percent: Decimal.parse('0.5'),
               base: PercentBase.remainder,
             ),
           ],
-          states: {e1: state(), e2: state()},
+          states: {
+            e1: state(),
+            capEnvelope: state(balance: 50, cap: 150),
+            e2: state(),
+          },
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
         expect(
@@ -360,11 +415,13 @@ void main() {
     });
 
     test('sum == amount when catch-all present', () {
+      final capEnvelope = EnvelopeId('capEnvelope');
       for (final amount in [0, 1, 100, 333, 10000]) {
         final result = run(
           amount,
           [
             CascadeStep.fixed(envelopeId: e1, amountUsd: 100),
+            CascadeStep.fixedUntilCap(envelopeId: capEnvelope, amountUsd: 200),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
               percent: Decimal.parse('0.30'),
@@ -372,7 +429,12 @@ void main() {
             ),
             CascadeStep.catchAll(envelopeId: e3),
           ],
-          states: {e1: state(), e2: state(), e3: state()},
+          states: {
+            e1: state(),
+            capEnvelope: state(balance: 50, cap: 150),
+            e2: state(),
+            e3: state(),
+          },
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
         expect(

@@ -113,4 +113,20 @@ void main() {
       expect((step as FixedStep).amountUsd, 9999);
     },
   );
+
+  testWidgets('fixedUntilCap amount field round-trips through Decimal (#302)', (
+    tester,
+  ) async {
+    final envelope = _envelope('mercado');
+
+    final step = await _buildStep(
+      tester,
+      envelope: envelope,
+      fundingType: 'Fijo hasta tope',
+      amount: '50',
+    );
+
+    expect(step, isA<FixedUntilCapStep>());
+    expect((step as FixedUntilCapStep).amountUsd, 5000);
+  });
 }

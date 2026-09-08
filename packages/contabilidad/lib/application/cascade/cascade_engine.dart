@@ -29,6 +29,10 @@ final class CascadeEngine {
       final calc = switch (step) {
         FixedStep(:final amountUsd) => amountUsd,
         FillToCapStep() => _fillToCapCalc(state),
+        FixedUntilCapStep(:final amountUsd) => _fixedUntilCapCalc(
+          amountUsd,
+          state,
+        ),
         PercentOfRemainderStep(:final percent, :final base) => _percentCalc(
           percent,
           base,
@@ -54,6 +58,14 @@ final class CascadeEngine {
     if (cap == null) return 0; // no cap → 0 (total engine)
     final deficit = cap - state.balanceUsd;
     return deficit > 0 ? deficit : 0;
+  }
+
+  static int _fixedUntilCapCalc(int amountUsd, EnvelopeState state) {
+    final cap = state.capUsd;
+    if (cap == null) return amountUsd; // no cap → behaves like fixed
+    final deficit = cap - state.balanceUsd;
+    final capped = deficit < amountUsd ? deficit : amountUsd;
+    return capped > 0 ? capped : 0;
   }
 
   static int _percentCalc(

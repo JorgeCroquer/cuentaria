@@ -4,11 +4,12 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
-enum _StepKind { fixed, fillToCap, percentOfRemainder, catchAll }
+enum _StepKind { fixed, fillToCap, fixedUntilCap, percentOfRemainder, catchAll }
 
 String _stepKindLabel(_StepKind kind) => switch (kind) {
   _StepKind.fixed => 'Monto fijo',
   _StepKind.fillToCap => 'Llenar hasta el tope',
+  _StepKind.fixedUntilCap => 'Fijo hasta tope',
   _StepKind.percentOfRemainder => '% del restante',
   _StepKind.catchAll => 'Resto',
 };
@@ -16,6 +17,7 @@ String _stepKindLabel(_StepKind kind) => switch (kind) {
 _StepKind _kindOf(CascadeStep step) => switch (step) {
   FixedStep() => _StepKind.fixed,
   FillToCapStep() => _StepKind.fillToCap,
+  FixedUntilCapStep() => _StepKind.fixedUntilCap,
   PercentOfRemainderStep() => _StepKind.percentOfRemainder,
   CatchAllStep() => _StepKind.catchAll,
 };
@@ -54,6 +56,8 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
       switch (existing) {
         case FixedStep(:final amountUsd):
           _amountController.text = (amountUsd / 100).toStringAsFixed(2);
+        case FixedUntilCapStep(:final amountUsd):
+          _amountController.text = (amountUsd / 100).toStringAsFixed(2);
         case PercentOfRemainderStep(:final percent):
           _percentController.text = (percent * Decimal.fromInt(100)).toString();
         case FillToCapStep():
@@ -86,6 +90,14 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
         );
       case _StepKind.fillToCap:
         step = CascadeStep.fillToCap(envelopeId: envelopeId);
+      case _StepKind.fixedUntilCap:
+        final dollars =
+            Decimal.tryParse(_amountController.text) ?? Decimal.zero;
+        step = CascadeStep.fixedUntilCap(
+          envelopeId: envelopeId,
+          amountUsd:
+              (dollars * Decimal.fromInt(100)).round().toBigInt().toInt(),
+        );
       case _StepKind.percentOfRemainder:
         // Straight to Decimal, never via double (money/rate values are never
         // double, per the ledger's hard rule) — `double.tryParse` here
@@ -137,7 +149,7 @@ class _CascadeStepFormState extends State<CascadeStepForm> {
               if (kind != null) setState(() => _kind = kind);
             },
           ),
-          if (_kind == _StepKind.fixed) ...[
+          if (_kind == _StepKind.fixed || _kind == _StepKind.fixedUntilCap) ...[
             const SizedBox(height: 8),
             TextField(
               key: const Key('stepAmountField'),
