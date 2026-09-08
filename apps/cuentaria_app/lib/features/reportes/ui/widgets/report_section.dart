@@ -19,7 +19,7 @@ class ReportSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            Text(title, style: Theme.of(context).textTheme.labelSmall),
             const SizedBox(height: 8),
             Text(
               'Aún no hay datos para este mes',
