@@ -145,7 +145,14 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
                 .add(account);
           }
           return ListView(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            // Extra bottom room so the FAB never covers the last row
+            // (device finding 2026-09-08, Samsung S25 FE).
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              96,
+            ),
             children: [
               for (final group in groups.entries) ...[
                 SectionCard(
@@ -212,53 +219,79 @@ class _AccountTile extends StatelessWidget {
     final color =
         _hexToColor(account.colorHex) ?? Theme.of(context).colorScheme.primary;
     final isNegative = balance.amount < BigInt.zero;
-    return ListTile(
+    // A custom row instead of ListTile: with the balance plus two action
+    // buttons as trailing, ListTile squeezed the title to a few characters
+    // per line (device finding 2026-09-08). The name column takes whatever
+    // the actions leave and ellipsizes instead of wrapping char by char.
+    return InkWell(
       key: Key('account_${account.id.value}'),
       onTap: onReconcile,
-      leading: CircleAvatar(backgroundColor: color, radius: 12),
-      title: Text(account.name),
-      subtitle: Text(
-        _formatLastReconciled(account.lastReconciledAt),
-        key: Key('lastReconciled_${account.id.value}'),
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (isNegative)
-            Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Tooltip(
-                message: 'Saldo negativo — ¿falta registrar un ingreso?',
-                child: Icon(
-                  Icons.error_outline,
-                  key: Key('negativeBalanceIndicator_${account.id.value}'),
-                  color: Theme.of(context).colorScheme.error,
-                  size: 18,
-                ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.sm,
+        ),
+        child: Row(
+          children: [
+            CircleAvatar(backgroundColor: color, radius: 12),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    account.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    _formatLastReconciled(account.lastReconciledAt),
+                    key: Key('lastReconciled_${account.id.value}'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: SignedAmountText(
-              amount: _formatBalance(balance),
-              textKey: Key('accountBalance_${account.id.value}'),
-              sign: isNegative ? AmountSign.negative : AmountSign.neutral,
+            const SizedBox(width: AppSpacing.sm),
+            if (isNegative)
+              Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Tooltip(
+                  message: 'Saldo negativo — ¿falta registrar un ingreso?',
+                  child: Icon(
+                    Icons.error_outline,
+                    key: Key('negativeBalanceIndicator_${account.id.value}'),
+                    color: Theme.of(context).colorScheme.error,
+                    size: 18,
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: SignedAmountText(
+                amount: _formatBalance(balance),
+                textKey: Key('accountBalance_${account.id.value}'),
+                sign: isNegative ? AmountSign.negative : AmountSign.neutral,
+              ),
             ),
-          ),
-          IconButton(
-            key: Key('editAccount_${account.id.value}'),
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Editar',
-            onPressed: onEdit,
-          ),
-          IconButton(
-            key: Key('archiveAccount_${account.id.value}'),
-            icon: const Icon(Icons.archive_outlined),
-            tooltip: 'Archivar',
-            onPressed: onArchive,
-          ),
-        ],
+            IconButton(
+              key: Key('editAccount_${account.id.value}'),
+              icon: const Icon(Icons.edit_outlined),
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Editar',
+              onPressed: onEdit,
+            ),
+            IconButton(
+              key: Key('archiveAccount_${account.id.value}'),
+              icon: const Icon(Icons.archive_outlined),
+              visualDensity: VisualDensity.compact,
+              tooltip: 'Archivar',
+              onPressed: onArchive,
+            ),
+          ],
+        ),
       ),
     );
   }
