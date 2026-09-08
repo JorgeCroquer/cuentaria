@@ -43,65 +43,68 @@ class DistributeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: previewAsync.when(
-        data: (proposal) {
-          if (proposal == null) {
-            return const Center(
-              child: Text(
-                'Aún no hay cascada configurada.',
-                key: Key('noCascadeMessage'),
-              ),
-            );
-          }
-          final allocations =
-              proposal.allocations.where((a) => a.amountUsd > 0).toList();
-          if (allocations.isEmpty) {
-            return const Center(
-              child: Text(
-                'No hay nada que distribuir.',
-                key: Key('nothingToDistributeMessage'),
-              ),
-            );
-          }
-          return catalogAsync.when(
-            data:
-                (catalog) => ListView(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  children: [
-                    SectionCard(
-                      header: 'Repartir',
-                      children: [
-                        for (final line in allocations)
-                          ListTile(
-                            title: Text(
-                              catalog.getEnvelope(line.envelopeId)?.name ??
-                                  line.envelopeId.value,
-                            ),
-                            trailing: SignedAmountText(
-                              amount: _formatUsdCents(line.amountUsd),
-                              sign: AmountSign.neutral,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    FilledButton(
-                      key: const Key('applyDistributionButton'),
-                      onPressed: () => _apply(context, ref),
-                      child: const Text('Aplicar'),
-                    ),
-                  ],
+      body: SafeArea(
+        top: false,
+        child: previewAsync.when(
+          data: (proposal) {
+            if (proposal == null) {
+              return const Center(
+                child: Text(
+                  'Aún no hay cascada configurada.',
+                  key: Key('noCascadeMessage'),
                 ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error:
-                (error, stackTrace) =>
-                    Center(child: Text('No se pudo cargar: $error')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+              );
+            }
+            final allocations =
+                proposal.allocations.where((a) => a.amountUsd > 0).toList();
+            if (allocations.isEmpty) {
+              return const Center(
+                child: Text(
+                  'No hay nada que distribuir.',
+                  key: Key('nothingToDistributeMessage'),
+                ),
+              );
+            }
+            return catalogAsync.when(
+              data:
+                  (catalog) => ListView(
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    children: [
+                      SectionCard(
+                        header: 'Repartir',
+                        children: [
+                          for (final line in allocations)
+                            ListTile(
+                              title: Text(
+                                catalog.getEnvelope(line.envelopeId)?.name ??
+                                    line.envelopeId.value,
+                              ),
+                              trailing: SignedAmountText(
+                                amount: _formatUsdCents(line.amountUsd),
+                                sign: AmountSign.neutral,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      FilledButton(
+                        key: const Key('applyDistributionButton'),
+                        onPressed: () => _apply(context, ref),
+                        child: const Text('Aplicar'),
+                      ),
+                    ],
+                  ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, stackTrace) =>
+                      Center(child: Text('No se pudo cargar: $error')),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
     );
   }

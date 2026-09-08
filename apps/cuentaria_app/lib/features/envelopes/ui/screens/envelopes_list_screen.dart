@@ -34,32 +34,35 @@ class EnvelopesListScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Sobres')),
-      body: envelopesAsync.when(
-        data: (envelopes) {
-          if (envelopes.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Sin sobres aún. Crea uno para empezar a financiar una '
-                  'meta.',
-                  key: Key('envelopesEmptyState'),
-                  textAlign: TextAlign.center,
+      body: SafeArea(
+        top: false,
+        child: envelopesAsync.when(
+          data: (envelopes) {
+            if (envelopes.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'Sin sobres aún. Crea uno para empezar a financiar una '
+                    'meta.',
+                    key: Key('envelopesEmptyState'),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
-              ),
+              );
+            }
+            return ListView(
+              children: [
+                for (final envelope in envelopes)
+                  _EnvelopeListTile(envelope: envelope),
+              ],
             );
-          }
-          return ListView(
-            children: [
-              for (final envelope in envelopes)
-                _EnvelopeListTile(envelope: envelope),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('createEnvelopeButton'),

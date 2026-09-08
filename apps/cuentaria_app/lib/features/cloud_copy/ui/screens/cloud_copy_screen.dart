@@ -54,34 +54,39 @@ class CloudCopyScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Copia en tu nube')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const TransparencySection(),
-            const SizedBox(height: 24),
-            CloudStatusLabel(
-              status: status,
-              onRetry: () => ref.read(cloudSyncStatusProvider.notifier).retry(),
-            ),
-            const SizedBox(height: 16),
-            AccountButton(
-              isConnected: session.isConnected,
-              accountName: session.accountName,
-              onConnect: onConnect,
-              onDisconnect: onDisconnect,
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              key: const Key('copyNowButton'),
-              onPressed:
-                  session.isConnected
-                      ? () => ref.read(cloudSyncStatusProvider.notifier).sync()
-                      : null,
-              child: const Text('Copiar ahora'),
-            ),
-          ],
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const TransparencySection(),
+              const SizedBox(height: 24),
+              CloudStatusLabel(
+                status: status,
+                onRetry:
+                    () => ref.read(cloudSyncStatusProvider.notifier).retry(),
+              ),
+              const SizedBox(height: 16),
+              AccountButton(
+                isConnected: session.isConnected,
+                accountName: session.accountName,
+                onConnect: onConnect,
+                onDisconnect: onDisconnect,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                key: const Key('copyNowButton'),
+                onPressed:
+                    session.isConnected
+                        ? () =>
+                            ref.read(cloudSyncStatusProvider.notifier).sync()
+                        : null,
+                child: const Text('Copiar ahora'),
+              ),
+            ],
+          ),
         ),
       ),
     );

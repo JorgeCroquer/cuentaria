@@ -126,29 +126,32 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Editar cascada')),
-      body: cascadeAsync.when(
-        data: (cascade) {
-          _steps ??= cascade?.steps ?? [];
-          return catalogAsync.when(
-            data:
-                (catalog) => envelopesAsync.when(
-                  data: (envelopes) => _buildBody(catalog, envelopes),
-                  loading:
-                      () => const Center(child: CircularProgressIndicator()),
-                  error:
-                      (error, stackTrace) =>
-                          Center(child: Text('No se pudo cargar: $error')),
-                ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error:
-                (error, stackTrace) =>
-                    Center(child: Text('No se pudo cargar: $error')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+      body: SafeArea(
+        top: false,
+        child: cascadeAsync.when(
+          data: (cascade) {
+            _steps ??= cascade?.steps ?? [];
+            return catalogAsync.when(
+              data:
+                  (catalog) => envelopesAsync.when(
+                    data: (envelopes) => _buildBody(catalog, envelopes),
+                    loading:
+                        () => const Center(child: CircularProgressIndicator()),
+                    error:
+                        (error, stackTrace) =>
+                            Center(child: Text('No se pudo cargar: $error')),
+                  ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, stackTrace) =>
+                      Center(child: Text('No se pudo cargar: $error')),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('addCascadeStepButton'),

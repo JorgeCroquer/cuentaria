@@ -73,42 +73,45 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Deudas')),
-      body: snapshotAsync.when(
-        data: (snapshot) {
-          if (snapshot.personas.isEmpty) {
-            return _EmptyState(onCreate: _openCreateDialog);
-          }
-          final debtAccounts = catalogAsync.maybeWhen(
-            data: (catalog) => catalog.accounts.where((a) => a.isDebtAccount),
-            orElse: () => const <Account>[],
-          );
-          return ListView(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  _formatUsdCents(snapshot.globalNetoUsdCents),
-                  key: const Key('debtsGlobalAmount'),
-                  style: Theme.of(context).textTheme.headlineMedium,
+      body: SafeArea(
+        top: false,
+        child: snapshotAsync.when(
+          data: (snapshot) {
+            if (snapshot.personas.isEmpty) {
+              return _EmptyState(onCreate: _openCreateDialog);
+            }
+            final debtAccounts = catalogAsync.maybeWhen(
+              data: (catalog) => catalog.accounts.where((a) => a.isDebtAccount),
+              orElse: () => const <Account>[],
+            );
+            return ListView(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    _formatUsdCents(snapshot.globalNetoUsdCents),
+                    key: const Key('debtsGlobalAmount'),
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
                 ),
-              ),
-              for (final persona in snapshot.personas)
-                _PersonTile(
-                  persona: persona,
-                  accounts:
-                      debtAccounts
-                          .where(
-                            (a) => a.counterpartyName == persona.personName,
-                          )
-                          .toList(),
-                ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+                for (final persona in snapshot.personas)
+                  _PersonTile(
+                    persona: persona,
+                    accounts:
+                        debtAccounts
+                            .where(
+                              (a) => a.counterpartyName == persona.personName,
+                            )
+                            .toList(),
+                  ),
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('addPersonFab'),

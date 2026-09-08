@@ -83,38 +83,41 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Movimiento')),
-      body: transactionAsync.when(
-        data: (transaction) {
-          if (transaction == null) {
-            return const Center(
-              child: Text(
-                'Movimiento no encontrado.',
-                key: Key('movementNotFound'),
-              ),
-            );
-          }
-          return catalogAsync.when(
-            data:
-                (catalog) => hasReversalAsync.when(
-                  data:
-                      (hasReversal) =>
-                          _buildBody(transaction, catalog, hasReversal),
-                  loading:
-                      () => const Center(child: CircularProgressIndicator()),
-                  error:
-                      (error, stackTrace) =>
-                          Center(child: Text('No se pudo cargar: $error')),
+      body: SafeArea(
+        top: false,
+        child: transactionAsync.when(
+          data: (transaction) {
+            if (transaction == null) {
+              return const Center(
+                child: Text(
+                  'Movimiento no encontrado.',
+                  key: Key('movementNotFound'),
                 ),
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error:
-                (error, stackTrace) =>
-                    Center(child: Text('No se pudo cargar: $error')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+              );
+            }
+            return catalogAsync.when(
+              data:
+                  (catalog) => hasReversalAsync.when(
+                    data:
+                        (hasReversal) =>
+                            _buildBody(transaction, catalog, hasReversal),
+                    loading:
+                        () => const Center(child: CircularProgressIndicator()),
+                    error:
+                        (error, stackTrace) =>
+                            Center(child: Text('No se pudo cargar: $error')),
+                  ),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error:
+                  (error, stackTrace) =>
+                      Center(child: Text('No se pudo cargar: $error')),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
     );
   }
