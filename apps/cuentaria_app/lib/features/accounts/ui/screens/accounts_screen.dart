@@ -396,8 +396,8 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
       } else {
         final createAccount = await ref.read(createAccountProvider.future);
         final deviceId = await ref.read(deviceIdProvider.future);
-        final openingWholeUnits = int.tryParse(
-          _openingBalanceController.text.trim(),
+        final openingMinorUnits = parseOpeningBalanceMinorUnits(
+          _openingBalanceController.text,
         );
         final currency = CurrencyCode(_currency);
         final trimmedRate = _openingBalanceRateController.text.trim();
@@ -407,9 +407,9 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
           nativeCurrency: currency,
           colorHex: _colorHex,
           openingBalance:
-              (openingWholeUnits != null && openingWholeUnits > 0)
+              openingMinorUnits != null
                   ? Money(
-                    amount: BigInt.from(openingWholeUnits * 100),
+                    amount: BigInt.from(openingMinorUnits),
                     currency: currency,
                   )
                   : null,
@@ -495,9 +495,11 @@ class _AccountFormDialogState extends ConsumerState<_AccountFormDialog> {
               TextField(
                 key: const Key('openingBalanceField'),
                 controller: _openingBalanceController,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
-                  labelText: 'Saldo inicial (opcional, unidades enteras)',
+                  labelText: 'Saldo inicial (opcional)',
                 ),
                 onChanged: (_) => setState(() {}),
               ),

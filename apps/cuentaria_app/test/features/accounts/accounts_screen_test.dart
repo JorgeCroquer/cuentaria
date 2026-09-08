@@ -541,8 +541,13 @@ void main() {
     },
   );
 
-  testWidgets('rejects a decimal opening balance', (tester) async {
-    await pumpAccountsScreen(tester);
+  testWidgets('accepts a decimal opening balance and posts it in cents '
+      '(device finding 2026-09-08: 100.50 → 10050)', (tester) async {
+    final container = ProviderContainer(
+      overrides: [isWebProvider.overrideWithValue(true)],
+    );
+    addTearDown(container.dispose);
+    await pumpWithContainer(tester, container);
 
     await tester.tap(find.byKey(const Key('addAccountFab')));
     await tester.pumpAndSettle();
@@ -555,7 +560,25 @@ void main() {
     await tester.tap(find.byKey(const Key('saveAccountButton')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('número entero'), findsOneWidget);
+    final catalog = await container.read(catalogRepositoryProvider.future);
+    final account = catalog.accounts.singleWhere((a) => a.name == 'Test');
+    final projections = container.read(ledgerProjectionsProvider);
+    expect(
+      projections.accountBalance(account.id).native.amount,
+      BigInt.from(10050),
+    );
+
+    // Más de 2 decimales sigue rechazado.
+    await tester.tap(find.byKey(const Key('addAccountFab')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('accountNameField')), 'Test2');
+    await tester.enterText(
+      find.byKey(const Key('openingBalanceField')),
+      '1.234',
+    );
+    await tester.tap(find.byKey(const Key('saveAccountButton')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('2 decimales'), findsOneWidget);
   });
 
   testWidgets('editing an account updates its name reactively', (tester) async {

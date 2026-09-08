@@ -29,8 +29,15 @@ void main() {
       expect(validateOpeningBalance('0'), isNull);
     });
 
-    test('rejects a decimal amount — money must be an integer', () {
-      expect(validateOpeningBalance('100.50'), isNotNull);
+    test('accepts decimals with dot or comma, up to 2 places (device '
+        'finding 2026-09-08)', () {
+      expect(validateOpeningBalance('100.50'), isNull);
+      expect(validateOpeningBalance('100,50'), isNull);
+      expect(validateOpeningBalance('0.5'), isNull);
+    });
+
+    test('rejects more than 2 decimal places', () {
+      expect(validateOpeningBalance('1.234'), isNotNull);
     });
 
     test('rejects a negative amount', () {
@@ -39,6 +46,22 @@ void main() {
 
     test('rejects non-numeric text', () {
       expect(validateOpeningBalance('abc'), isNotNull);
+    });
+  });
+
+  group('parseOpeningBalanceMinorUnits', () {
+    test('converts to cents: 25,50 → 2550, 200 → 20000, 0.5 → 50', () {
+      expect(parseOpeningBalanceMinorUnits('25,50'), 2550);
+      expect(parseOpeningBalanceMinorUnits('25.50'), 2550);
+      expect(parseOpeningBalanceMinorUnits('200'), 20000);
+      expect(parseOpeningBalanceMinorUnits('0.5'), 50);
+    });
+
+    test('empty, zero and invalid yield null (no opening balance)', () {
+      expect(parseOpeningBalanceMinorUnits(''), isNull);
+      expect(parseOpeningBalanceMinorUnits('0'), isNull);
+      expect(parseOpeningBalanceMinorUnits('abc'), isNull);
+      expect(parseOpeningBalanceMinorUnits('1.234'), isNull);
     });
   });
 
