@@ -5,7 +5,8 @@ import 'package:shared_kernel/shared_kernel.dart';
 enum PercentBase { remainder, gross }
 
 /// A single step in an ordered cascade plan.
-/// Sealed — exactly 4 variants, no others.
+/// Sealed — exactly 5 variants, no others: [FixedStep], [FillToCapStep],
+/// [FixedUntilCapStep], [PercentOfRemainderStep], [CatchAllStep].
 sealed class CascadeStep {
   final EnvelopeId envelopeId;
   const CascadeStep({required this.envelopeId});
@@ -17,6 +18,11 @@ sealed class CascadeStep {
 
   const factory CascadeStep.fillToCap({required EnvelopeId envelopeId}) =
       FillToCapStep;
+
+  const factory CascadeStep.fixedUntilCap({
+    required EnvelopeId envelopeId,
+    required int amountUsd,
+  }) = FixedUntilCapStep;
 
   // ponytail: Decimal (not const) — no const factory; other steps keep const.
   factory CascadeStep.percentOfRemainder({
@@ -36,6 +42,11 @@ final class FixedStep extends CascadeStep {
 
 final class FillToCapStep extends CascadeStep {
   const FillToCapStep({required super.envelopeId});
+}
+
+final class FixedUntilCapStep extends CascadeStep {
+  final int amountUsd;
+  const FixedUntilCapStep({required super.envelopeId, required this.amountUsd});
 }
 
 final class PercentOfRemainderStep extends CascadeStep {

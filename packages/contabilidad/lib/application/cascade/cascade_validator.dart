@@ -24,11 +24,13 @@ class CascadeValidationResult {
 /// Rules (errors):
 ///   - At most one catch-all step; it must be last.
 ///   - [FixedStep.amountUsd] must be > 0.
+///   - [FixedUntilCapStep.amountUsd] must be > 0.
 ///   - [PercentOfRemainderStep.percent] must be in (0, 1].
 ///   - Each step's target envelope must exist, have [EnvelopeRole.none], and not be archived.
 ///
 /// Rules (warnings):
 ///   - [FillToCapStep] whose target has no [Cap] → warns but does not reject.
+///   - [FixedUntilCapStep] whose target has no [Cap] → warns (degrades to fixed) but does not reject.
 final class CascadeValidator {
   CascadeValidator._();
 
@@ -96,6 +98,19 @@ final class CascadeValidator {
             warnings.add(
               'Step $pos: envelope "${step.envelopeId.value}" has no cap; '
               'fill-to-cap will always contribute 0.',
+            );
+          }
+
+        case FixedUntilCapStep(:final amountUsd):
+          if (amountUsd <= 0) {
+            errors.add(
+              'Step $pos: fixed-until-cap amount must be > 0 (got $amountUsd).',
+            );
+          }
+          if (usable && env.target is! Cap) {
+            warnings.add(
+              'Step $pos: envelope "${step.envelopeId.value}" has no cap; '
+              'fixed-until-cap will behave like a fixed contribution.',
             );
           }
 

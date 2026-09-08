@@ -20,6 +20,7 @@ String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 String _stepLabel(CascadeStep step, String envelopeName) => switch (step) {
   FixedStep() => 'Monto fijo → $envelopeName',
   FillToCapStep() => 'Llenar hasta el tope → $envelopeName',
+  FixedUntilCapStep() => 'Fijo hasta tope → $envelopeName',
   PercentOfRemainderStep(:final percent) =>
     '${(percent * Decimal.fromInt(100)).toStringAsFixed(0)}% del restante → '
         '$envelopeName',
@@ -27,10 +28,12 @@ String _stepLabel(CascadeStep step, String envelopeName) => switch (step) {
 };
 
 /// The derived amount shown as a step's secondary line — only [FixedStep]
-/// carries a concrete peso figure; the other funding types describe
-/// themselves fully in the title already.
+/// and [FixedUntilCapStep] carry a concrete peso figure; the other funding
+/// types describe themselves fully in the title already.
 String? _stepAmount(CascadeStep step) => switch (step) {
   FixedStep(:final amountUsd) => _formatUsdCents(amountUsd),
+  FixedUntilCapStep(:final amountUsd) =>
+    '${_formatUsdCents(amountUsd)} · hasta el tope del sobre',
   _ => null,
 };
 

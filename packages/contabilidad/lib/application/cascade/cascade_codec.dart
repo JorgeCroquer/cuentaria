@@ -25,6 +25,11 @@ class CascadeCodec {
       'type': 'fill_to_cap',
       'envelope_id': envelopeId.value,
     },
+    FixedUntilCapStep(:final envelopeId, :final amountUsd) => {
+      'type': 'fixed_until_cap',
+      'envelope_id': envelopeId.value,
+      'amount_usd': amountUsd,
+    },
     PercentOfRemainderStep(:final envelopeId, :final percent, :final base) => {
       'type': 'percent_of_remainder',
       'envelope_id': envelopeId.value,
@@ -46,6 +51,10 @@ class CascadeCodec {
         amountUsd: j['amount_usd'] as int,
       ),
       'fill_to_cap' => CascadeStep.fillToCap(envelopeId: envelopeId),
+      'fixed_until_cap' => CascadeStep.fixedUntilCap(
+        envelopeId: envelopeId,
+        amountUsd: j['amount_usd'] as int,
+      ),
       'percent_of_remainder' => CascadeStep.percentOfRemainder(
         envelopeId: envelopeId,
         percent: Decimal.parse(j['percent'] as String),
