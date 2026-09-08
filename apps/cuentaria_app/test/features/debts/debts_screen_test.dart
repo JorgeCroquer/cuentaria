@@ -20,6 +20,11 @@ Future<void> pumpWithContainer(
   WidgetTester tester,
   ProviderContainer container,
 ) async {
+  // The taller card keypad (#281) overflows the default 800x600 test
+  // viewport inside the reconciliation bottom sheet — same scaffolding as
+  // the capture sheet tests.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -31,9 +36,13 @@ Future<void> pumpWithContainer(
 
 Future<void> _typeDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
+    // The taller card keypad (#281) can sit below the fold in the default
+    // test viewport — scroll each key into view before tapping.
+    await tester.ensureVisible(find.byKey(Key('keypadDigit_$digit')));
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
     await tester.pump();
   }
+  await tester.ensureVisible(find.byKey(const Key('keypadDone')));
   await tester.tap(find.byKey(const Key('keypadDone')));
   await tester.pump();
 }
@@ -60,9 +69,17 @@ Future<void> _confirmReconciliation(WidgetTester tester) async {
   );
   if (absorbAnyway.evaluate().isNotEmpty) {
     await tester.ensureVisible(absorbAnyway);
-    await tester.tap(absorbAnyway);
+    // ensureVisible only reveals the top edge when the footer hangs past the
+    // surface — tap inside the revealed strip instead of the (clipped) center.
+    await tester.tapAt(
+      tester.getRect(absorbAnyway).topLeft + const Offset(24, 12),
+    );
   } else {
-    await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+    // The taller card keypad (#281) pushes the footer below the fold in the
+    // default test viewport — scroll it into view before tapping.
+    final confirm = find.byKey(const Key('reconciliationConfirmButton'));
+    await tester.ensureVisible(confirm);
+    await tester.tapAt(tester.getRect(confirm).topLeft + const Offset(24, 12));
   }
   await tester.pumpAndSettle();
 }
