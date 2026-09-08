@@ -23,6 +23,18 @@ void main() {
     expect(find.text('Copia en Drive: hace un momento'), findsOneWidget);
   });
 
+  testWidgets(
+    'waiting for merge consent shows "Esperando tu decisión de juntar"',
+    (tester) async {
+      const status = CloudCopyStatus(waitingForMergeConsent: true);
+      await tester.pumpWidget(
+        const MaterialApp(home: CloudStatusLabel(status: status)),
+      );
+
+      expect(find.text('Esperando tu decisión de juntar'), findsOneWidget);
+    },
+  );
+
   testWidgets('in progress shows "Copiando…"', (tester) async {
     const status = CloudCopyStatus(inProgress: true);
     await tester.pumpWidget(

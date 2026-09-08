@@ -10,10 +10,11 @@ String _relativeTime(DateTime at) {
   return '${diff.inDays} día${diff.inDays == 1 ? '' : 's'}';
 }
 
-/// The permanent Cloud Copy status label (issue #223, ADR-0023 §4): three
-/// shapes driven by [CloudCopyStatus] — in progress, failed (tap to
-/// [onRetry]), or the age of the last success. Reused as-is, compact, next
-/// to "Último respaldo" on the Backup screen (issue #223 AC #6).
+/// The permanent Cloud Copy status label (issue #223, ADR-0023 §4): four
+/// shapes driven by [CloudCopyStatus] — waiting on the merge gate (issue
+/// #297), in progress, failed (tap to [onRetry]), or the age of the last
+/// success. Reused as-is, compact, next to "Último respaldo" on the Backup
+/// screen (issue #223 AC #6).
 class CloudStatusLabel extends StatelessWidget {
   const CloudStatusLabel({required this.status, this.onRetry, super.key});
 
@@ -22,6 +23,12 @@ class CloudStatusLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (status.waitingForMergeConsent) {
+      return const Text(
+        'Esperando tu decisión de juntar',
+        key: Key('cloudStatusLabel'),
+      );
+    }
     if (status.inProgress) {
       return const Text('Copiando…', key: Key('cloudStatusLabel'));
     }
