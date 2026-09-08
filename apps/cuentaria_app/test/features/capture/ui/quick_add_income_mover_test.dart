@@ -694,5 +694,16 @@ void main() {
         );
       },
     );
+
+    testWidgets('DESDE and HACIA are separate section headers (#281)', (
+      tester,
+    ) async {
+      await _openSheet(tester);
+      await tester.tap(find.byKey(const Key('captureModeMover')));
+      await tester.pump();
+
+      expect(find.text('DESDE'), findsOneWidget);
+      expect(find.text('HACIA'), findsOneWidget);
+    });
   });
 }
