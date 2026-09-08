@@ -119,7 +119,9 @@ int _netUsd(Transaction transaction) {
 /// Envelopes management screen (#95) — falls back to a generic icon for
 /// account-only movements (Transfer, AcquisitionConversion). A reversal
 /// always gets its own icon (#282): reusing the reversed envelope's
-/// appearance would render identically to the movement it undoes.
+/// appearance would render identically to the movement it undoes. An
+/// Adjustment (reconciliation) also gets its own icon: it posts to the
+/// system Adjustments envelope, which carries no user appearance.
 class MovementVisual {
   const MovementVisual({required this.icon, this.color});
 
@@ -133,6 +135,9 @@ MovementVisual movementVisualFor(
 ) {
   if (transaction.metadata.reverses != null) {
     return const MovementVisual(icon: Icons.undo);
+  }
+  if (transaction.metadata.type == 'Adjustment') {
+    return const MovementVisual(icon: Icons.fact_check_outlined);
   }
   for (final posting in transaction.postings) {
     final target = posting.target;
@@ -257,42 +262,153 @@ class _DayGroupCard extends StatelessWidget {
     final subtotal = _daySubtotal(transactions);
     final dayKey = _formatDate(day);
 
-    return SectionCard(
-      header: _dayGroupLabel(day, today),
-      headerKey: Key('dayHeader_$dayKey'),
-      trailing: SignedAmountText(
-        textKey: Key('daySubtotal_$dayKey'),
-        amount: _formatSignedUsdCents(subtotal),
-        sign: _signFor(subtotal),
-      ),
-      showDividers: true,
+    return Column(
+      key: Key('dayGroup_$dayKey'),
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final transaction in transactions)
-          _MovementTile(
-            transaction: transaction,
-            catalog: catalog,
-            byEventId: byEventId,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md,
+            AppSpacing.lg,
+            AppSpacing.xs,
           ),
+          child: DayGroupHeader(
+            key: Key('dayHeader_$dayKey'),
+            label: _dayGroupLabel(day, today),
+            amount: _formatSignedUsdCents(subtotal),
+            sign: _signFor(subtotal),
+            amountKey: Key('daySubtotal_$dayKey'),
+          ),
+        ),
+        Card(
+          child: Column(
+            children: [
+              for (var i = 0; i < transactions.length; i++) ...[
+                if (i > 0) const Divider(height: 1),
+                _MovementTile(
+                  transaction: transactions[i],
+                  catalog: catalog,
+                  byEventId: byEventId,
+                ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }
 }
 
+/// The envelope of the first Envelope posting a movement touches — used to
+/// name an Expense row after what it was actually spent on.
+String? _envelopeNameFor(Transaction transaction, CatalogRepository catalog) {
+  for (final posting in transaction.postings) {
+    final target = posting.target;
+    if (target is EnvelopeTarget) {
+      return catalog.getEnvelope(target.envelopeId)?.name;
+    }
+  }
+  return null;
+}
+
+/// The single Account posting's account name — used to name the account a
+/// row's money actually sat in.
+String? _accountPostingNameFor(
+  Transaction transaction,
+  CatalogRepository catalog,
+) {
+  for (final posting in transaction.postings) {
+    final target = posting.target;
+    if (target is AccountTarget) {
+      return catalog.getAccount(target.accountId)?.name;
+    }
+  }
+  return null;
+}
+
+/// `<source account> → <destination account>` for an inter-account move
+/// ([_isInterAccountMove]): the negative leg is where the money left, the
+/// positive leg is where it landed (same sign convention [_netUsd] relies
+/// on for these families).
+String? _accountRouteFor(Transaction transaction, CatalogRepository catalog) {
+  final accountPostings =
+      transaction.postings.where((p) => p.target is AccountTarget).toList();
+  if (accountPostings.length < 2) return null;
+
+  final source = accountPostings.firstWhere(
+    (p) => p.amountUsd < 0,
+    orElse: () => accountPostings.first,
+  );
+  final destination = accountPostings.firstWhere(
+    (p) => p.amountUsd > 0,
+    orElse: () => accountPostings.last,
+  );
+  final sourceName =
+      catalog.getAccount((source.target as AccountTarget).accountId)?.name;
+  final destinationName =
+      catalog.getAccount((destination.target as AccountTarget).accountId)?.name;
+  return '$sourceName → $destinationName';
+}
+
+/// Row title (#282): distinguishes movements of the same type/amount at a
+/// glance — the envelope an Expense hit, the source of an Income, or the two
+/// Accounts a move ran between — instead of the generic family label.
+String _titleFor(Transaction transaction, CatalogRepository catalog) {
+  final metadata = transaction.metadata;
+  switch (metadata.type) {
+    case 'Expense':
+    case 'ForeignCurrencyExpense':
+      return _envelopeNameFor(transaction, catalog) ??
+          humanMovementLabel(metadata.type);
+    case 'Income':
+      final source = metadata.source;
+      return source == null || source.isEmpty ? 'Ingreso' : 'Ingreso · $source';
+    case 'Transfer':
+    case 'AcquisitionConversion':
+    case 'DisposalConversion':
+    case 'CryptoSale':
+      final route = _accountRouteFor(transaction, catalog);
+      return route == null
+          ? humanMovementLabel(metadata.type)
+          : 'Mover · $route';
+    default:
+      return humanMovementLabel(metadata.type);
+  }
+}
+
+/// Row subtitle (#282): the Account a movement's money sat in plus its note,
+/// or the reversed movement's family for a reversal.
 String? _subtitleFor(
   Transaction transaction,
+  CatalogRepository catalog,
   Map<String, Transaction> byEventId,
 ) {
   final metadata = transaction.metadata;
-  final note = metadata.source ?? metadata.memo;
   final reverses = metadata.reverses;
-  if (reverses == null) return note;
+  if (reverses != null) {
+    final original = byEventId[reverses.value];
+    final description =
+        original == null
+            ? 'Deshace un movimiento'
+            : 'Deshace ${humanMovementLabel(original.metadata.type)}';
+    return metadata.memo == null
+        ? description
+        : '$description · ${metadata.memo}';
+  }
 
-  final original = byEventId[reverses.value];
-  final description =
-      original == null
-          ? 'Deshace un movimiento'
-          : 'Deshace ${humanMovementLabel(original.metadata.type)}';
-  return note == null ? description : '$description · $note';
+  switch (metadata.type) {
+    case 'Expense':
+    case 'ForeignCurrencyExpense':
+    case 'Income':
+      final accountName = _accountPostingNameFor(transaction, catalog);
+      if (accountName == null) return metadata.memo;
+      return metadata.memo == null
+          ? accountName
+          : '$accountName · ${metadata.memo}';
+    default:
+      return metadata.memo;
+  }
 }
 
 class _MovementTile extends StatelessWidget {
@@ -309,7 +425,7 @@ class _MovementTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final visual = movementVisualFor(transaction, catalog);
-    final subtitle = _subtitleFor(transaction, byEventId);
+    final subtitle = _subtitleFor(transaction, catalog, byEventId);
     final netUsd = _netUsd(transaction);
     final sign =
         _isInterAccountMove(transaction)
@@ -319,7 +435,7 @@ class _MovementTile extends StatelessWidget {
     return ListTile(
       key: Key('movement_${transaction.metadata.eventId.value}'),
       leading: Icon(visual.icon, color: visual.color),
-      title: Text(humanMovementLabel(transaction.metadata.type)),
+      title: Text(_titleFor(transaction, catalog)),
       subtitle: subtitle == null ? null : Text(subtitle),
       trailing: SignedAmountText(amount: _formatUsdCents(netUsd), sign: sign),
       onTap:

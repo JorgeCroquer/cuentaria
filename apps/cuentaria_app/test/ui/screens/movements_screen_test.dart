@@ -2,6 +2,7 @@ import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
+import 'package:contabilidad/application/ledger/factories/record_adjustment.dart';
 import 'package:contabilidad/application/ledger/factories/record_income.dart';
 import 'package:contabilidad/application/ledger/factories/record_reversal.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
@@ -188,8 +189,8 @@ Future<void> _recordReversal(
 }
 
 /// `yyyy-MM-dd` for a local [DateTime] — mirrors the day-group [Key] suffix
-/// the screen stamps on each `SectionCard`, so tests can address a specific
-/// day's group without depending on its label text.
+/// the screen stamps on each day's group, so tests can address a specific
+/// day without depending on its label text.
 String _dayKey(DateTime date) {
   final year = date.year.toString().padLeft(4, '0');
   final month = date.month.toString().padLeft(2, '0');
@@ -301,8 +302,9 @@ void main() {
         await _pumpWithRouter(tester, container);
 
         expect(find.byKey(const Key('movement_evt-1')), findsOneWidget);
-        expect(find.text('Gasto'), findsOneWidget);
+        expect(find.text('Food'), findsOneWidget);
         expect(find.text('Expense'), findsNothing);
+        expect(find.text('Gasto'), findsNothing);
         expect(find.textContaining('Groceries'), findsOneWidget);
 
         final icon = tester.widget<Icon>(
@@ -477,23 +479,17 @@ void main() {
 
         await _pumpWithRouter(tester, container);
 
-        final hoyCard = find.ancestor(
-          of: find.byKey(Key('dayHeader_${_dayKey(today)}')),
-          matching: find.byType(Card),
-        );
-        expect(hoyCard, findsOneWidget);
+        final hoyGroup = find.byKey(Key('dayGroup_${_dayKey(today)}'));
+        expect(hoyGroup, findsOneWidget);
         expect(
-          find.descendant(of: hoyCard, matching: find.text('-\$18.20')),
+          find.descendant(of: hoyGroup, matching: find.text('-\$18.20')),
           findsOneWidget,
         );
 
-        final ayerCard = find.ancestor(
-          of: find.byKey(Key('dayHeader_${_dayKey(yesterday)}')),
-          matching: find.byType(Card),
-        );
-        expect(ayerCard, findsOneWidget);
+        final ayerGroup = find.byKey(Key('dayGroup_${_dayKey(yesterday)}'));
+        expect(ayerGroup, findsOneWidget);
         expect(
-          find.descendant(of: ayerCard, matching: find.text('+\$500.00')),
+          find.descendant(of: ayerGroup, matching: find.text('+\$500.00')),
           findsOneWidget,
         );
       },
@@ -598,16 +594,189 @@ void main() {
 
         await _pumpWithRouter(tester, container);
 
-        final card = find.ancestor(
-          of: find.byKey(const Key('movement_evt-late')),
-          matching: find.byType(Card),
-        );
-        expect(card, findsOneWidget);
+        final group = find.byKey(Key('dayGroup_${_dayKey(today)}'));
         expect(
-          find.descendant(of: card, matching: find.textContaining('HOY')),
+          find.descendant(
+            of: group,
+            matching: find.byKey(const Key('movement_evt-late')),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: group, matching: find.textContaining('HOY')),
           findsOneWidget,
         );
       },
     );
+  });
+
+  group('MovementsScreen enriched titles (#282 fix round)', () {
+    testWidgets('an Expense row titles itself after the Envelope it hit', (
+      tester,
+    ) async {
+      final container = await _seededContainer();
+      addTearDown(container.dispose);
+      await _recordExpense(container, eventId: 'evt-1', memo: 'Groceries');
+
+      await _pumpWithRouter(tester, container);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-1')),
+          matching: find.text('Food'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-1')),
+          matching: find.textContaining('Wallet'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an Income row titles itself "Ingreso · <fuente>"', (
+      tester,
+    ) async {
+      final container = await _seededContainer();
+      addTearDown(container.dispose);
+      await _recordIncome(container, eventId: 'evt-income', amountCents: 50000);
+
+      await _pumpWithRouter(tester, container);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-income')),
+          matching: find.text('Ingreso · Cliente X'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'a Transfer row titles itself "Mover · <cuenta A> → <cuenta B>"',
+      (tester) async {
+        final container = await _seededContainer();
+        addTearDown(container.dispose);
+        await _recordTransfer(container, eventId: 'evt-transfer');
+
+        await _pumpWithRouter(tester, container);
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('movement_evt-transfer')),
+            matching: find.text('Mover · Wallet → Savings'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'two different Incomes are distinguishable without the amount',
+      (tester) async {
+        final container = await _seededContainer();
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final store = await container.read(eventStoreProvider.future);
+        final projections = container.read(ledgerProjectionsProvider);
+        final eventBus = container.read(eventBusProvider);
+        final deviceId = await container.read(deviceIdProvider.future);
+        final recordTransaction = RecordTransaction(
+          store: store,
+          projections: projections,
+          eventBus: eventBus,
+          validator: ReferentialIntegrityValidator(catalog),
+        );
+        final recordIncome = RecordIncome(
+          record: recordTransaction,
+          catalog: catalog,
+        );
+        await recordIncome(
+          eventId: EventId('evt-income-2'),
+          deviceId: deviceId,
+          accountId: AccountId('acc-usd'),
+          amount: Money(
+            amount: BigInt.from(50000),
+            currency: CurrencyCode('USD'),
+          ),
+          source: 'Cliente Y',
+        );
+        await _recordIncome(
+          container,
+          eventId: 'evt-income-1',
+          amountCents: 50000,
+        );
+
+        await _pumpWithRouter(tester, container);
+
+        expect(find.text('Ingreso · Cliente X'), findsOneWidget);
+        expect(find.text('Ingreso · Cliente Y'), findsOneWidget);
+      },
+    );
+  });
+
+  group('MovementsScreen DayGroupHeader composition (#282 fix round)', () {
+    testWidgets('the day header is a DayGroupHeader, not a manual Row', (
+      tester,
+    ) async {
+      final container = await _seededContainer();
+      addTearDown(container.dispose);
+      await _recordExpense(container, eventId: 'evt-1', memo: 'Groceries');
+
+      await _pumpWithRouter(tester, container);
+
+      final today = DateTime.now();
+      expect(find.byKey(Key('dayHeader_${_dayKey(today)}')), findsOneWidget);
+      expect(
+        tester.widget(find.byKey(Key('dayHeader_${_dayKey(today)}'))),
+        isA<DayGroupHeader>(),
+      );
+    });
+  });
+
+  group('MovementsScreen Adjustment icon (#282 fix round)', () {
+    testWidgets('an Adjustment shows its own icon, distinguishable from '
+        'Expense/Income/Transfer/Reversal', (tester) async {
+      final container = await _seededContainer();
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final store = await container.read(eventStoreProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final eventBus = container.read(eventBusProvider);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordTransaction = RecordTransaction(
+        store: store,
+        projections: projections,
+        eventBus: eventBus,
+        validator: ReferentialIntegrityValidator(catalog),
+      );
+      final recordAdjustment = RecordAdjustment(
+        record: recordTransaction,
+        projections: projections,
+        catalog: catalog,
+      );
+
+      await recordAdjustment(
+        eventId: EventId('evt-adjustment'),
+        deviceId: deviceId,
+        accountId: AccountId('acc-usd'),
+        realNativeBalance: Money(
+          amount: BigInt.from(500),
+          currency: CurrencyCode('USD'),
+        ),
+      );
+
+      await _pumpWithRouter(tester, container);
+
+      final icon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('movement_evt-adjustment')),
+          matching: find.byType(Icon),
+        ),
+      );
+      expect(icon.icon, Icons.fact_check_outlined);
+    });
   });
 }

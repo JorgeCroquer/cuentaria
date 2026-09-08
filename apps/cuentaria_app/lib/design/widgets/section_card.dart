@@ -2,23 +2,20 @@ import 'package:flutter/material.dart';
 
 import '../../ui/theme/app_theme.dart';
 
-/// A [Card] with an uppercase [header] (optionally paired with a [trailing]
-/// widget on the same row, e.g. a day group's signed subtotal) and a list of
-/// [children], optionally separated by internal dividers.
+/// A [Card] with an uppercase [header] and a list of [children], optionally
+/// separated by internal dividers.
 class SectionCard extends StatelessWidget {
   const SectionCard({
     super.key,
     required this.header,
     required this.children,
     this.headerKey,
-    this.trailing,
     this.showDividers = false,
   });
 
   final String header;
   final List<Widget> children;
   final Key? headerKey;
-  final Widget? trailing;
   final bool showDividers;
 
   @override
@@ -40,15 +37,10 @@ class SectionCard extends StatelessWidget {
               AppSpacing.lg,
               AppSpacing.xs,
             ),
-            child: Row(
-              children: [
-                Text(
-                  header,
-                  key: headerKey,
-                  style: Theme.of(context).textTheme.labelSmall,
-                ),
-                if (trailing != null) ...[const Spacer(), trailing!],
-              ],
+            child: Text(
+              header,
+              key: headerKey,
+              style: Theme.of(context).textTheme.labelSmall,
             ),
           ),
           ...rows,
