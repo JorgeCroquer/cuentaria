@@ -3,9 +3,11 @@ import 'package:contabilidad/application/cascade/cascade.dart';
 import 'package:contabilidad/application/cascade/cascade_step.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/catalog/models/funding_target.dart';
 import 'package:contabilidad/application/ledger/factories/record_opening.dart';
 import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
 import 'package:contabilidad/application/record_transaction.dart';
+import 'package:cuentaria_app/features/distribution/application/distribution_providers.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/cascade_editor_screen.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
@@ -274,6 +276,158 @@ void main() {
     expect(find.text('Vacaciones'), findsOneWidget);
     expect(find.text('\$50.00'), findsOneWidget);
   });
+
+  testWidgets(
+    'fixedUntilCap step tops off a near-full cap and the catch-all absorbs '
+    'the rest, across two distribution runs (#302)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final recordIncome = await container.read(recordIncomeProvider.future);
+      final accountId = await _ensureTestAccount(catalog);
+
+      final mercado = EnvelopeId('mercado');
+      final ahorro = EnvelopeId('ahorro');
+      await catalog.saveEnvelope(
+        Envelope(
+          id: mercado,
+          name: 'Mercado',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ).withTarget(const Cap(amountUsd: 65000)),
+      );
+      await catalog.saveEnvelope(
+        Envelope(
+          id: ahorro,
+          name: 'Ahorro',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      final cascadeRepo = await container.read(
+        cascadeRepositoryProvider.future,
+      );
+
+      // Seed Mercado to $620 (near its $650 cap) via a one-off catch-all run.
+      await cascadeRepo.save(
+        Cascade(
+          steps: [CascadeStep.catchAll(envelopeId: mercado)],
+          updatedAt: DateTime.now(),
+        ),
+      );
+      await recordIncome(
+        eventId: EventId('evt-seed-mercado'),
+        deviceId: deviceId,
+        accountId: accountId,
+        amount: Money(
+          amount: BigInt.from(62000),
+          currency: CurrencyCode('USD'),
+        ),
+        source: 'Manual entry',
+      );
+
+      // DistributeScreen pops itself on apply, so each run needs a fresh
+      // pushed route rather than reusing the same root MaterialApp instance
+      // (which would leave the Navigator's history empty for the next pump).
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (context, state) => const SizedBox()),
+          GoRoute(
+            path: '/distribute',
+            builder: (context, state) => const DistributeScreen(),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      router.push('/distribute');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('applyDistributionButton')));
+      await tester.pumpAndSettle();
+
+      expect(projections.envelopeUsdBalance(mercado), 62000);
+
+      // The cascade under test: fixedUntilCap($50) → Mercado, catch-all → Ahorro.
+      await cascadeRepo.save(
+        Cascade(
+          steps: [
+            CascadeStep.fixedUntilCap(envelopeId: mercado, amountUsd: 5000),
+            CascadeStep.catchAll(envelopeId: ahorro),
+          ],
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      // First run of $100: Mercado tops off to its cap (+$30), Ahorro gets $70.
+      await recordIncome(
+        eventId: EventId('evt-round-1'),
+        deviceId: deviceId,
+        accountId: accountId,
+        amount: Money(
+          amount: BigInt.from(10000),
+          currency: CurrencyCode('USD'),
+        ),
+        source: 'Manual entry',
+      );
+      container.invalidate(distributionPreviewProvider(EnvelopeRole.stage));
+
+      router.push('/distribute');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mercado'), findsOneWidget);
+      expect(find.text('\$30.00'), findsOneWidget);
+      expect(find.text('Ahorro'), findsOneWidget);
+      expect(find.text('\$70.00'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('applyDistributionButton')));
+      await tester.pumpAndSettle();
+
+      expect(projections.envelopeUsdBalance(mercado), 65000);
+      expect(projections.envelopeUsdBalance(ahorro), 7000);
+
+      // Second run of $100: Mercado is already at cap (+$0), Ahorro gets $100.
+      await recordIncome(
+        eventId: EventId('evt-round-2'),
+        deviceId: deviceId,
+        accountId: accountId,
+        amount: Money(
+          amount: BigInt.from(10000),
+          currency: CurrencyCode('USD'),
+        ),
+        source: 'Manual entry',
+      );
+      container.invalidate(distributionPreviewProvider(EnvelopeRole.stage));
+
+      router.push('/distribute');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mercado'), findsNothing); // 0-amount line is filtered
+      expect(find.text('Ahorro'), findsOneWidget);
+      expect(find.text('\$100.00'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('applyDistributionButton')));
+      await tester.pumpAndSettle();
+
+      expect(projections.envelopeUsdBalance(mercado), 65000);
+      expect(projections.envelopeUsdBalance(ahorro), 17000);
+    },
+  );
 }
 
 /// The bootstrap no longer seeds a default Account (#94 removed the "Efectivo"

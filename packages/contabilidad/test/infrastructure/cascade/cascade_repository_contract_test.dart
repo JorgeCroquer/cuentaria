@@ -53,11 +53,13 @@ void _runContractSuite(
         final envB = EnvelopeId('env-b');
         final envC = EnvelopeId('env-c');
         final envD = EnvelopeId('env-d');
+        final envE = EnvelopeId('env-e');
 
         final cascade = Cascade(
           steps: [
             CascadeStep.fixed(envelopeId: envA, amountUsd: 30000),
             CascadeStep.fillToCap(envelopeId: envB),
+            CascadeStep.fixedUntilCap(envelopeId: envE, amountUsd: 5000),
             CascadeStep.percentOfRemainder(
               envelopeId: envC,
               percent: Decimal.parse('0.2'),
@@ -72,19 +74,22 @@ void _runContractSuite(
         final loaded = await repo.load();
 
         expect(loaded, isNotNull);
-        expect(loaded!.steps, hasLength(4));
+        expect(loaded!.steps, hasLength(5));
         expect(loaded.steps[0], isA<FixedStep>());
         expect((loaded.steps[0] as FixedStep).amountUsd, 30000);
         expect((loaded.steps[0] as FixedStep).envelopeId, envA);
         expect(loaded.steps[1], isA<FillToCapStep>());
         expect((loaded.steps[1] as FillToCapStep).envelopeId, envB);
-        expect(loaded.steps[2], isA<PercentOfRemainderStep>());
-        final pct = loaded.steps[2] as PercentOfRemainderStep;
+        expect(loaded.steps[2], isA<FixedUntilCapStep>());
+        expect((loaded.steps[2] as FixedUntilCapStep).amountUsd, 5000);
+        expect((loaded.steps[2] as FixedUntilCapStep).envelopeId, envE);
+        expect(loaded.steps[3], isA<PercentOfRemainderStep>());
+        final pct = loaded.steps[3] as PercentOfRemainderStep;
         expect(pct.envelopeId, envC);
         expect(pct.percent, Decimal.parse('0.2'));
         expect(pct.base, PercentBase.remainder);
-        expect(loaded.steps[3], isA<CatchAllStep>());
-        expect((loaded.steps[3] as CatchAllStep).envelopeId, envD);
+        expect(loaded.steps[4], isA<CatchAllStep>());
+        expect((loaded.steps[4] as CatchAllStep).envelopeId, envD);
       },
     );
 
