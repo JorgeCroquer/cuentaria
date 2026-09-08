@@ -27,16 +27,26 @@ itself on an HTTP 401 and throws `CloudUnavailable('sin sesión de Google')`,
 so the account button flips back to "Conectar mi Google Drive" for the user
 to reconnect. A network failure throws `CloudUnavailable('sin internet')`.
 
-### HITL setup (done 2026-08-27)
+### HITL setup (done 2026-08-27; re-done 2026-09-08 for the release identity)
 
 Google Cloud project `cuentaria`, Drive API enabled, OAuth consent screen in
-**Testing** mode with scope `drive.appdata`. Android OAuth client (public,
-not a secret — see `android/app/src/main/res/values/strings.xml`):
-`717754217213-48bt8ffelrm1gqhoi0iu92a2fbmdtfip.apps.googleusercontent.com`,
-package `com.example.cuentaria_app`, SHA-1 `9E:01:78:80:97:80:17:B0:F1:99:07:C7:E8:F4:6E:4D:2A:32:B7:A9`
-(`~/.android/debug.keystore`; release also signs with the debug key, see
-`android/app/build.gradle.kts`). On Android, `google_sign_in` resolves the
-OAuth client from package name + SHA-1 — no client ID needed in Dart code.
+**Testing** mode with scope `drive.appdata`. On Android, `google_sign_in`
+resolves the OAuth client from package name + SHA-1 — no client ID needed in
+Dart code, and Android client IDs are public, not secrets.
+
+Since the release-identity change (package `me.croquer.cuentaria`, own
+upload keystore) TWO Android OAuth clients must exist in the console:
+
+- package `me.croquer.cuentaria`, SHA-1 `9E:01:78:80:97:80:17:B0:F1:99:07:C7:E8:F4:6E:4D:2A:32:B7:A9`
+  (`~/.android/debug.keystore` — covers `flutter run` debug builds).
+- package `me.croquer.cuentaria`, SHA-1 `23:91:F0:33:A1:26:35:54:2A:7C:D4:21:E3:10:65:A7:39:09:E2:C5`
+  (`android/upload-keystore.jks`, gitignored — covers release builds; if
+  Play App Signing re-signs later, add Play's SHA-1 as a third client).
+
+The keystore and `android/key.properties` live outside the repo; back both
+up (contraseña incluida) — losing them means losing the release identity.
+The original client for `com.example.cuentaria_app` can be deleted once the
+migration is verified on device.
 
 ### Correr el contract test contra Drive real
 

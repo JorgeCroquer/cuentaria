@@ -4,7 +4,7 @@
          the release manifest needs it explicitly for the app itself. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="cuentaria_app"
+        android:label="Cuentaria"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
