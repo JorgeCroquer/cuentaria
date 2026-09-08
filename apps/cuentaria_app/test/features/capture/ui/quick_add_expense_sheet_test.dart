@@ -26,6 +26,13 @@ Future<ProviderContainer> _openSheet(
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
 
+  // The U2 sheet stacks a mode selector, hero amount, question cards, a
+  // date/note row and the keypad (#281) — taller than the default test
+  // surface, which would otherwise leave the keypad unscrolled-into-view
+  // and its taps landing outside the render tree.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -297,12 +304,10 @@ void main() {
 
       await _openSheet(tester, existing: container);
 
-      final today = DateTime.now();
-      final expected =
-          '${today.year.toString().padLeft(4, '0')}-'
-          '${today.month.toString().padLeft(2, '0')}-'
-          '${today.day.toString().padLeft(2, '0')}';
-      expect(find.textContaining(expected), findsOneWidget);
+      // The hero's secondary line reads "hoy · <short date>" when the
+      // capture date is today (U2 redesign, #281).
+      expect(find.textContaining('hoy ·'), findsOneWidget);
+      expect(find.text('Hoy'), findsOneWidget);
     });
 
     testWidgets('saving a USD expense posts a plain expense, closes the '
@@ -1044,5 +1049,120 @@ void main() {
         findsOneWidget,
       );
     });
+  });
+
+  group('U2 visual language (#281)', () {
+    testWidgets('Save button names what it saves, per mode', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-usd'),
+          name: 'USD wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await _openSheet(tester, existing: container);
+
+      expect(find.text('Guardar gasto'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pump();
+      expect(find.text('Guardar ingreso'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('captureModeMover')));
+      await tester.pump();
+      expect(find.text('Guardar movimiento'), findsOneWidget);
+    });
+
+    testWidgets(
+      'each question group renders inside a card with an uppercase header',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'USD wallet',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveEnvelope(
+          Envelope(
+            id: EnvelopeId('env-food'),
+            name: 'Food',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+
+        expect(find.text('¿DE QUÉ CUENTA?'), findsOneWidget);
+        expect(find.text('¿DE QUÉ SOBRE SALE?'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'a selected chip fills with the tonal secondaryContainer color; an '
+      'unselected chip stays outlined',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd'),
+            name: 'USD wallet',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-usd-2'),
+            name: 'Other wallet',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('accountChip_acc-usd')));
+        await tester.pump();
+
+        final selectedChip = tester.widget<ChoiceChip>(
+          find.byKey(const Key('accountChip_acc-usd')),
+        );
+        final unselectedChip = tester.widget<ChoiceChip>(
+          find.byKey(const Key('accountChip_acc-usd-2')),
+        );
+
+        final context = tester.element(
+          find.byKey(const Key('accountChip_acc-usd')),
+        );
+        final colorScheme = Theme.of(context).colorScheme;
+
+        expect(selectedChip.selectedColor, colorScheme.secondaryContainer);
+        expect(selectedChip.side!.color, Colors.transparent);
+        expect(unselectedChip.side!.color, colorScheme.outlineVariant);
+      },
+    );
   });
 }

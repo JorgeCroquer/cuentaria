@@ -142,6 +142,12 @@ void main() {
     'saving a quick-add expense from the FAB refreshes Patrimonio figures '
     'reactively, with no manual reload or cross-invalidation (#97)',
     (tester) async {
+      // The U2 capture sheet (#281) is taller than the default test
+      // surface — without this, the keypad renders unscrolled-into-view
+      // and its taps land outside the render tree.
+      await tester.binding.setSurfaceSize(const Size(800, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [

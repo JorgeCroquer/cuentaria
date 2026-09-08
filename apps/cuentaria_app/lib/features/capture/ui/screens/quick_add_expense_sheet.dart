@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_resolver.dart';
 
+import '../../../../design/widgets/section_card.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../patrimonio/ui/screens/patrimonio_screen.dart';
@@ -41,13 +42,6 @@ Future<void> showQuickAddExpenseSheet(
           contextTitle: contextTitle,
         ),
   );
-}
-
-String _formatDate(DateTime date) {
-  final year = date.year.toString().padLeft(4, '0');
-  final month = date.month.toString().padLeft(2, '0');
-  final day = date.day.toString().padLeft(2, '0');
-  return '$year-$month-$day';
 }
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -111,6 +105,31 @@ String _recency(DateTime observedLocal, String source) {
   if (source == 'manual:paralelo') return 'hoy';
   final hours = DateTime.now().difference(observedLocal).inHours;
   return 'hace $hours h';
+}
+
+/// A [ChoiceChip] styled to U2's tonal-selected / outlined-unselected
+/// language: selected fills [ColorScheme.secondaryContainer] with a
+/// checkmark, unselected stays outlined — the visible state that was
+/// missing in the condonación bug (device finding, 2026-09-04).
+Widget _tonalChoiceChip(
+  BuildContext context, {
+  required Key key,
+  required String label,
+  required bool selected,
+  required ValueChanged<bool>? onSelected,
+}) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return ChoiceChip(
+    key: key,
+    label: Text(label),
+    selected: selected,
+    onSelected: onSelected,
+    showCheckmark: true,
+    selectedColor: colorScheme.secondaryContainer,
+    side: BorderSide(
+      color: selected ? Colors.transparent : colorScheme.outlineVariant,
+    ),
+  );
 }
 
 enum _CaptureMode { gasto, ingreso, mover }
@@ -589,6 +608,19 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       _CaptureMode.mover => !_isSaving && _moverCanSave(captureContext),
     };
 
+    final heroController =
+        _mode == _CaptureMode.mover ? _moverGivenAmount : _amount;
+    final heroCurrency = switch (_mode) {
+      _CaptureMode.gasto => selectedAccount?.nativeCurrency,
+      _CaptureMode.ingreso => selectedIncomeAccount?.nativeCurrency,
+      _CaptureMode.mover => moverSourceAccount?.nativeCurrency,
+    };
+    final saveLabel = switch (_mode) {
+      _CaptureMode.gasto => 'Guardar gasto',
+      _CaptureMode.ingreso => 'Guardar ingreso',
+      _CaptureMode.mover => 'Guardar movimiento',
+    };
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -605,30 +637,62 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             const SizedBox(height: 16),
           ],
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              ChoiceChip(
-                key: const Key('captureModeGasto'),
-                label: const Text('Gasto'),
-                selected: _mode == _CaptureMode.gasto,
-                onSelected: (_) => setState(() => _mode = _CaptureMode.gasto),
+              Expanded(
+                child: _tonalChoiceChip(
+                  context,
+                  key: const Key('captureModeGasto'),
+                  label: 'Gasto',
+                  selected: _mode == _CaptureMode.gasto,
+                  onSelected: (_) => setState(() => _mode = _CaptureMode.gasto),
+                ),
               ),
               const SizedBox(width: 8),
-              ChoiceChip(
-                key: const Key('captureModeIngreso'),
-                label: const Text('Ingreso'),
-                selected: _mode == _CaptureMode.ingreso,
-                onSelected: (_) => setState(() => _mode = _CaptureMode.ingreso),
+              Expanded(
+                child: _tonalChoiceChip(
+                  context,
+                  key: const Key('captureModeIngreso'),
+                  label: 'Ingreso',
+                  selected: _mode == _CaptureMode.ingreso,
+                  onSelected:
+                      (_) => setState(() => _mode = _CaptureMode.ingreso),
+                ),
               ),
               const SizedBox(width: 8),
-              ChoiceChip(
-                key: const Key('captureModeMover'),
-                label: const Text('Mover'),
-                selected: _mode == _CaptureMode.mover,
-                onSelected: (_) => setState(() => _mode = _CaptureMode.mover),
+              Expanded(
+                child: _tonalChoiceChip(
+                  context,
+                  key: const Key('captureModeMover'),
+                  label: 'Mover',
+                  selected: _mode == _CaptureMode.mover,
+                  onSelected: (_) => setState(() => _mode = _CaptureMode.mover),
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          Center(
+            child: _AmountHero(
+              text: heroController.displayText,
+              currency: heroCurrency,
+              date: _date,
+              onTapDate: _pickDate,
+            ),
+          ),
+          if (_mode == _CaptureMode.gasto &&
+              selectedAccount != null &&
+              selectedAccount.nativeCurrency != CurrencyCode('USD'))
+            _RateValuationAnnouncement(
+              currency: selectedAccount.nativeCurrency,
+              onRegisterRate: _openRecordRatesDialog,
+            ),
+          if (_mode == _CaptureMode.ingreso &&
+              selectedIncomeAccount != null &&
+              selectedIncomeAccount.nativeCurrency != CurrencyCode('USD'))
+            _RateValuationAnnouncement(
+              currency: selectedIncomeAccount.nativeCurrency,
+              onRegisterRate: _openRecordRatesDialog,
+            ),
           const SizedBox(height: 16),
           switch (_mode) {
             _CaptureMode.gasto => _buildGastoBody(captureContext),
@@ -640,24 +704,39 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             ),
           },
           const SizedBox(height: 16),
-          TextButton(
-            key: const Key('quickAddDateField'),
-            onPressed: _pickDate,
-            child: Text(_formatDate(_date)),
-          ),
-          if (_mode == _CaptureMode.gasto)
-            if (!_noteExpanded)
-              TextButton(
-                key: const Key('quickAddNoteToggle'),
-                onPressed: () => setState(() => _noteExpanded = true),
-                child: const Text('Agregar nota'),
-              )
-            else
-              TextField(
-                key: const Key('quickAddNoteField'),
-                controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Nota (opcional)'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  key: const Key('quickAddDateField'),
+                  onPressed: _pickDate,
+                  child: Text(
+                    _isToday(_date) ? 'Hoy' : _formatShortDate(_date),
+                  ),
+                ),
               ),
+              if (_mode == _CaptureMode.gasto && !_noteExpanded) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    key: const Key('quickAddNoteToggle'),
+                    onPressed: () => setState(() => _noteExpanded = true),
+                    child: const Text('Agregar nota'),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          if (_mode == _CaptureMode.gasto && _noteExpanded) ...[
+            const SizedBox(height: 8),
+            TextField(
+              key: const Key('quickAddNoteField'),
+              controller: _noteController,
+              decoration: const InputDecoration(labelText: 'Nota (opcional)'),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Center(child: NumericKeypad(controller: heroController)),
           if (_error != null) ...[
             const SizedBox(height: 8),
             Text(
@@ -684,7 +763,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                           );
                       }
                     },
-            child: const Text('Guardar'),
+            child: Text(saveLabel),
           ),
         ],
       ),
@@ -709,76 +788,74 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   }
 
   Widget _buildGastoBody(QuickAddCaptureContext captureContext) {
-    final selectedAccount = _accountById(captureContext, _selectedAccountId);
     final gastoAccounts = _gastoAccounts(captureContext);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Center(
-          child: AnimatedBuilder(
-            animation: _amount,
-            builder:
-                (context, _) => _AmountDisplay(
-                  text: _amount.displayText,
-                  currency: selectedAccount?.nativeCurrency,
-                ),
-          ),
+        SectionCard(
+          header: '¿DE QUÉ CUENTA?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child:
+                  gastoAccounts.isEmpty
+                      ? const Text('Sin cuentas aún.')
+                      : Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final account in gastoAccounts)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key('accountChip_${account.id.value}'),
+                              label: _accountChipLabel(account),
+                              selected: account.id == _selectedAccountId,
+                              onSelected:
+                                  (_) => setState(
+                                    () => _selectedAccountId = account.id,
+                                  ),
+                            ),
+                        ],
+                      ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        Center(child: NumericKeypad(controller: _amount)),
-        if (selectedAccount != null &&
-            selectedAccount.nativeCurrency != CurrencyCode('USD'))
-          _RateValuationAnnouncement(
-            currency: selectedAccount.nativeCurrency,
-            onRegisterRate: _openRecordRatesDialog,
-          ),
         const SizedBox(height: 16),
-        if (gastoAccounts.isEmpty)
-          const Text('Sin cuentas aún.')
-        else
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final account in gastoAccounts)
-                ChoiceChip(
-                  key: Key('accountChip_${account.id.value}'),
-                  label: Text(_accountChipLabel(account)),
-                  selected: account.id == _selectedAccountId,
-                  onSelected:
-                      (_) => setState(() => _selectedAccountId = account.id),
-                ),
-            ],
-          ),
-        const SizedBox(height: 16),
-        if (captureContext.envelopes.isEmpty)
-          const Text('Sin sobres aún.')
-        else
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final envelope in captureContext.envelopes)
-                ChoiceChip(
-                  key: Key('envelopeChip_${envelope.id.value}'),
-                  label: Text(envelope.name),
-                  selected: envelope.id == _selectedEnvelopeId,
-                  onSelected:
-                      (_) => setState(() => _selectedEnvelopeId = envelope.id),
-                ),
-            ],
-          ),
+        SectionCard(
+          header: '¿DE QUÉ SOBRE SALE?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child:
+                  captureContext.envelopes.isEmpty
+                      ? const Text('Sin sobres aún.')
+                      : Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final envelope in captureContext.envelopes)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key('envelopeChip_${envelope.id.value}'),
+                              label: envelope.name,
+                              selected: envelope.id == _selectedEnvelopeId,
+                              onSelected:
+                                  (_) => setState(
+                                    () => _selectedEnvelopeId = envelope.id,
+                                  ),
+                            ),
+                        ],
+                      ),
+            ),
+          ],
+        ),
       ],
     );
   }
 
   Widget _buildIngresoBody(QuickAddCaptureContext captureContext) {
-    final selectedAccount = _accountById(
-      captureContext,
-      _selectedIncomeAccountId,
-    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_incomeStageBalanceUsd != null)
+        if (_incomeStageBalanceUsd != null) ...[
           ListTile(
             key: const Key('incomeDistributeCta'),
             title: Text(
@@ -792,63 +869,74 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               router.push('/distribute');
             },
           ),
-        Center(
-          child: AnimatedBuilder(
-            animation: _amount,
-            builder:
-                (context, _) => _AmountDisplay(
-                  text: _amount.displayText,
-                  currency: selectedAccount?.nativeCurrency,
-                ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Center(child: NumericKeypad(controller: _amount)),
-        if (selectedAccount != null &&
-            selectedAccount.nativeCurrency != CurrencyCode('USD'))
-          _RateValuationAnnouncement(
-            currency: selectedAccount.nativeCurrency,
-            onRegisterRate: _openRecordRatesDialog,
-          ),
-        const SizedBox(height: 16),
-        TextField(
-          key: const Key('incomeSourceField'),
-          controller: _sourceController,
-          decoration: const InputDecoration(labelText: 'Cliente / fuente'),
-        ),
-        if (captureContext.previousIncomeSources.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final source in captureContext.previousIncomeSources)
-                ActionChip(
-                  key: Key('incomeSourceSuggestion_$source'),
-                  label: Text(source),
-                  onPressed:
-                      () => setState(() => _sourceController.text = source),
-                ),
-            ],
-          ),
+          const SizedBox(height: 16),
         ],
+        SectionCard(
+          header: '¿DE QUÉ FUENTE?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
+                    key: const Key('incomeSourceField'),
+                    controller: _sourceController,
+                    decoration: const InputDecoration(
+                      labelText: 'Cliente / fuente',
+                    ),
+                  ),
+                  if (captureContext.previousIncomeSources.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final source
+                            in captureContext.previousIncomeSources)
+                          ActionChip(
+                            key: Key('incomeSourceSuggestion_$source'),
+                            label: Text(source),
+                            onPressed:
+                                () => setState(
+                                  () => _sourceController.text = source,
+                                ),
+                          ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
-        if (captureContext.regularAccounts.isEmpty)
-          const Text('Sin cuentas aún.')
-        else
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final account in captureContext.regularAccounts)
-                ChoiceChip(
-                  key: Key('incomeAccountChip_${account.id.value}'),
-                  label: Text(_accountChipLabel(account)),
-                  selected: account.id == _selectedIncomeAccountId,
-                  onSelected:
-                      (_) =>
-                          setState(() => _selectedIncomeAccountId = account.id),
-                ),
-            ],
-          ),
+        SectionCard(
+          header: '¿A QUÉ CUENTA?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child:
+                  captureContext.regularAccounts.isEmpty
+                      ? const Text('Sin cuentas aún.')
+                      : Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final account in captureContext.regularAccounts)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key('incomeAccountChip_${account.id.value}'),
+                              label: _accountChipLabel(account),
+                              selected: account.id == _selectedIncomeAccountId,
+                              onSelected:
+                                  (_) => setState(
+                                    () => _selectedIncomeAccountId = account.id,
+                                  ),
+                            ),
+                        ],
+                      ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -867,245 +955,312 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       key: const Key('moverStep1'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Desde'),
-        if (captureContext.accounts.isEmpty)
-          const Text('Sin cuentas aún.')
-        else ...[
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final account in captureContext.regularAccounts)
-                ChoiceChip(
-                  key: Key('moverSourceChip_${account.id.value}'),
-                  label: Text(_accountChipLabel(account)),
-                  selected: account.id == _moverSourceAccountId,
-                  onSelected:
-                      (_) => setState(() {
-                        _moverSourceAccountId = account.id;
-                        final currentDestination = _accountById(
-                          captureContext,
-                          _moverDestinationAccountId,
-                        );
-                        if (currentDestination != null &&
-                            !_moverDestinationSelectable(
-                              account,
-                              currentDestination,
-                            )) {
-                          _moverDestinationAccountId = null;
-                        }
-                      }),
-                ),
-            ],
-          ),
-          if (captureContext.debtAccounts.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const Text('Deudas'),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final account in captureContext.debtAccounts)
-                  ChoiceChip(
-                    key: Key('moverSourceChip_${account.id.value}'),
-                    label: Text(_accountChipLabel(account)),
-                    selected: account.id == _moverSourceAccountId,
-                    onSelected:
-                        (_) => setState(() {
-                          _moverSourceAccountId = account.id;
-                          final currentDestination = _accountById(
-                            captureContext,
-                            _moverDestinationAccountId,
-                          );
-                          if (currentDestination != null &&
-                              !_moverDestinationSelectable(
-                                account,
-                                currentDestination,
-                              )) {
-                            _moverDestinationAccountId = null;
-                          }
-                        }),
-                  ),
-              ],
-            ),
-          ],
-        ],
-        const SizedBox(height: 16),
-        const Text('Hacia'),
-        if (captureContext.accounts.isEmpty)
-          const Text('Sin cuentas aún.')
-        else ...[
-          Wrap(
-            spacing: 8,
-            children: [
-              for (final account in captureContext.regularAccounts)
-                ChoiceChip(
-                  key: Key('moverDestinationChip_${account.id.value}'),
-                  label: Text(_accountChipLabel(account)),
-                  selected: account.id == _moverDestinationAccountId,
-                  onSelected:
-                      !_moverDestinationSelectable(sourceAccount, account)
-                          ? null
-                          : (_) => setState(
-                            () => _moverDestinationAccountId = account.id,
+        SectionCard(
+          header: 'DESDE',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (captureContext.accounts.isEmpty)
+                    const Text('Sin cuentas aún.')
+                  else ...[
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final account in captureContext.regularAccounts)
+                          _tonalChoiceChip(
+                            context,
+                            key: Key('moverSourceChip_${account.id.value}'),
+                            label: _accountChipLabel(account),
+                            selected: account.id == _moverSourceAccountId,
+                            onSelected:
+                                (_) => setState(() {
+                                  _moverSourceAccountId = account.id;
+                                  final currentDestination = _accountById(
+                                    captureContext,
+                                    _moverDestinationAccountId,
+                                  );
+                                  if (currentDestination != null &&
+                                      !_moverDestinationSelectable(
+                                        account,
+                                        currentDestination,
+                                      )) {
+                                    _moverDestinationAccountId = null;
+                                  }
+                                }),
                           ),
-                ),
-            ],
-          ),
-          if (captureContext.debtAccounts.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            const Text('Deudas'),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final account in captureContext.debtAccounts)
-                  ChoiceChip(
-                    key: Key('moverDestinationChip_${account.id.value}'),
-                    label: Text(_accountChipLabel(account)),
-                    selected: account.id == _moverDestinationAccountId,
-                    onSelected:
-                        !_moverDestinationSelectable(sourceAccount, account)
-                            ? null
-                            : (_) => setState(
-                              () => _moverDestinationAccountId = account.id,
+                      ],
+                    ),
+                    if (captureContext.debtAccounts.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Text('Deudas'),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final account in captureContext.debtAccounts)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key('moverSourceChip_${account.id.value}'),
+                              label: _accountChipLabel(account),
+                              selected: account.id == _moverSourceAccountId,
+                              onSelected:
+                                  (_) => setState(() {
+                                    _moverSourceAccountId = account.id;
+                                    final currentDestination = _accountById(
+                                      captureContext,
+                                      _moverDestinationAccountId,
+                                    );
+                                    if (currentDestination != null &&
+                                        !_moverDestinationSelectable(
+                                          account,
+                                          currentDestination,
+                                        )) {
+                                      _moverDestinationAccountId = null;
+                                    }
+                                  }),
                             ),
-                  ),
-              ],
+                        ],
+                      ),
+                    ],
+                  ],
+                ],
+              ),
             ),
           ],
-        ],
-        const SizedBox(height: 16),
-        Center(
-          child: AnimatedBuilder(
-            animation: _moverGivenAmount,
-            builder:
-                (context, _) => _AmountDisplay(
-                  text: _moverGivenAmount.displayText,
-                  currency: sourceAccount?.nativeCurrency,
-                ),
-          ),
         ),
-        const SizedBox(height: 8),
-        Center(child: NumericKeypad(controller: _moverGivenAmount)),
-        if (!differentCurrency)
-          Builder(
-            builder: (context) {
-              final excess = _moverForeignExcess(
-                sourceAccount,
-                destinationAccount,
-              );
-              if (excess == null) return const SizedBox.shrink();
-              final resultingBalance = _formatCentsAsAmount(
-                ref
-                        .read(ledgerProjectionsProvider)
-                        .accountBalance(sourceAccount!.id)
-                        .native
-                        .amount -
-                    _moverGivenAmount.amountMinorUnits,
-              );
-              return _MoverExcessAnnouncement(
-                currency: sourceAccount.nativeCurrency,
-                resultingBalance:
-                    '$resultingBalance ${sourceAccount.nativeCurrency.value}',
-                onRegisterRate: _openRecordRatesDialog,
-              );
-            },
-          ),
-        if (differentCurrency) ...[
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              ChoiceChip(
-                key: const Key('moverToggleReceived'),
-                label: const Text('Monto recibido'),
-                selected: _rateInputMode == _RateInputMode.receivedAmount,
-                onSelected:
-                    (_) => _toggleRateInputMode(
-                      _RateInputMode.receivedAmount,
-                      sourceAccount,
-                      destinationAccount,
+        const SizedBox(height: 16),
+        SectionCard(
+          header: 'HACIA',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (captureContext.accounts.isEmpty)
+                    const Text('Sin cuentas aún.')
+                  else ...[
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final account in captureContext.regularAccounts)
+                          _tonalChoiceChip(
+                            context,
+                            key: Key(
+                              'moverDestinationChip_${account.id.value}',
+                            ),
+                            label: _accountChipLabel(account),
+                            selected: account.id == _moverDestinationAccountId,
+                            onSelected:
+                                !_moverDestinationSelectable(
+                                      sourceAccount,
+                                      account,
+                                    )
+                                    ? null
+                                    : (_) => setState(
+                                      () =>
+                                          _moverDestinationAccountId =
+                                              account.id,
+                                    ),
+                          ),
+                      ],
                     ),
-              ),
-              const SizedBox(width: 8),
-              ChoiceChip(
-                key: const Key('moverToggleRate'),
-                label: const Text('Tasa aplicada'),
-                selected: _rateInputMode == _RateInputMode.rate,
-                onSelected:
-                    (_) => _toggleRateInputMode(
-                      _RateInputMode.rate,
-                      sourceAccount,
-                      destinationAccount,
+                    if (captureContext.debtAccounts.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      const Text('Deudas'),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final account in captureContext.debtAccounts)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key(
+                                'moverDestinationChip_${account.id.value}',
+                              ),
+                              label: _accountChipLabel(account),
+                              selected:
+                                  account.id == _moverDestinationAccountId,
+                              onSelected:
+                                  !_moverDestinationSelectable(
+                                        sourceAccount,
+                                        account,
+                                      )
+                                      ? null
+                                      : (_) => setState(
+                                        () =>
+                                            _moverDestinationAccountId =
+                                                account.id,
+                                      ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ],
+                  if (!differentCurrency)
+                    Builder(
+                      builder: (context) {
+                        final excess = _moverForeignExcess(
+                          sourceAccount,
+                          destinationAccount,
+                        );
+                        if (excess == null) return const SizedBox.shrink();
+                        final resultingBalance = _formatCentsAsAmount(
+                          ref
+                                  .read(ledgerProjectionsProvider)
+                                  .accountBalance(sourceAccount!.id)
+                                  .native
+                                  .amount -
+                              _moverGivenAmount.amountMinorUnits,
+                        );
+                        return _MoverExcessAnnouncement(
+                          currency: sourceAccount.nativeCurrency,
+                          resultingBalance:
+                              '$resultingBalance '
+                              '${sourceAccount.nativeCurrency.value}',
+                          onRegisterRate: _openRecordRatesDialog,
+                        );
+                      },
                     ),
+                  if (differentCurrency) ...[
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _tonalChoiceChip(
+                          context,
+                          key: const Key('moverToggleReceived'),
+                          label: 'Monto recibido',
+                          selected:
+                              _rateInputMode == _RateInputMode.receivedAmount,
+                          onSelected:
+                              (_) => _toggleRateInputMode(
+                                _RateInputMode.receivedAmount,
+                                sourceAccount,
+                                destinationAccount,
+                              ),
+                        ),
+                        const SizedBox(width: 8),
+                        _tonalChoiceChip(
+                          context,
+                          key: const Key('moverToggleRate'),
+                          label: 'Tasa aplicada',
+                          selected: _rateInputMode == _RateInputMode.rate,
+                          onSelected:
+                              (_) => _toggleRateInputMode(
+                                _RateInputMode.rate,
+                                sourceAccount,
+                                destinationAccount,
+                              ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      key: const Key('moverRateInputField'),
+                      controller: _rateFieldController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText:
+                            _rateInputMode == _RateInputMode.receivedAmount
+                                ? 'Monto recibido '
+                                    '(${destinationAccount.nativeCurrency.value})'
+                                : 'Tasa aplicada '
+                                    '(${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD)',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                    Builder(
+                      builder: (context) {
+                        final derived = _deriveOtherFieldText(
+                          sourceAccount,
+                          destinationAccount,
+                        );
+                        if (derived == null) return const SizedBox.shrink();
+                        final label =
+                            _rateInputMode == _RateInputMode.receivedAmount
+                                ? 'Tasa: $derived '
+                                    '${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD'
+                                : 'Recibes: $derived '
+                                    '${destinationAccount.nativeCurrency.value}';
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            label,
+                            key: const Key('moverDerivedPreview'),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            key: const Key('moverRateInputField'),
-            controller: _rateFieldController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText:
-                  _rateInputMode == _RateInputMode.receivedAmount
-                      ? 'Monto recibido (${destinationAccount.nativeCurrency.value})'
-                      : 'Tasa aplicada '
-                          '(${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD)',
             ),
-            onChanged: (_) => setState(() {}),
-          ),
-          Builder(
-            builder: (context) {
-              final derived = _deriveOtherFieldText(
-                sourceAccount,
-                destinationAccount,
-              );
-              if (derived == null) return const SizedBox.shrink();
-              final label =
-                  _rateInputMode == _RateInputMode.receivedAmount
-                      ? 'Tasa: $derived '
-                          '${_foreignCurrencyOfPair(sourceAccount, destinationAccount).value}/USD'
-                      : 'Recibes: $derived '
-                          '${destinationAccount.nativeCurrency.value}';
-              return Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(label, key: const Key('moverDerivedPreview')),
-              );
-            },
-          ),
-        ],
+          ],
+        ),
       ],
     );
   }
 }
 
-/// The typed amount next to the currency it's being entered in (#118) — the
-/// same digits mean a different amount depending on the selected account's
-/// currency, so the sheet must always show which one is in play.
-class _AmountDisplay extends StatelessWidget {
-  const _AmountDisplay({required this.text, required this.currency});
+/// The protagonist amount figure: the typed digits in large centered type
+/// next to the selected account's currency, with the capture date as a
+/// small tappable secondary line below (opens the date picker).
+class _AmountHero extends StatelessWidget {
+  const _AmountHero({
+    required this.text,
+    required this.currency,
+    required this.date,
+    required this.onTapDate,
+  });
 
   final String text;
   final CurrencyCode? currency;
+  final DateTime date;
+  final VoidCallback onTapDate;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
       children: [
-        Text(
-          text,
-          key: const Key('amountDisplay'),
-          style: Theme.of(context).textTheme.headlineLarge,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              text,
+              key: const Key('amountDisplay'),
+              style: textTheme.displayMedium,
+            ),
+            if (currency != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                currency!.value,
+                key: const Key('amountCurrency'),
+                style: textTheme.titleMedium,
+              ),
+            ],
+          ],
         ),
-        if (currency != null) ...[
-          const SizedBox(width: 8),
-          Text(
-            currency!.value,
-            key: const Key('amountCurrency'),
-            style: Theme.of(context).textTheme.titleMedium,
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: onTapDate,
+          child: Text(
+            _isToday(date)
+                ? 'hoy · ${_formatShortDate(date)}'
+                : _formatShortDate(date),
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
-        ],
+        ),
       ],
     );
   }

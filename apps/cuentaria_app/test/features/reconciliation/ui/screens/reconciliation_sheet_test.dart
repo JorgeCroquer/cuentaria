@@ -24,6 +24,12 @@ Future<ProviderContainer> _openSheet(
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
 
+  // The taller card keypad (#281) overflows the default 800x600 test
+  // viewport inside the bottom sheet — same scaffolding as the capture
+  // sheet tests.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -49,9 +55,13 @@ Future<ProviderContainer> _openSheet(
 
 Future<void> _typeDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
+    // The taller card keypad (#281) can sit below the fold in the default
+    // test viewport — scroll each key into view before tapping.
+    await tester.ensureVisible(find.byKey(Key('keypadDigit_$digit')));
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
     await tester.pump();
   }
+  await tester.ensureVisible(find.byKey(const Key('keypadDone')));
   await tester.tap(find.byKey(const Key('keypadDone')));
   await tester.pump();
 }
@@ -231,7 +241,15 @@ void main() {
       );
       expect(confirmButton.onPressed, isNotNull);
 
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       expect(projections.accountBalance(account.id).usd, 0);
@@ -404,7 +422,15 @@ void main() {
         find.byKey(const Key('reconciliationAbsorbMessage')),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
@@ -842,6 +868,7 @@ void main() {
         );
         expect(selector.selected, {true});
 
+        await tester.ensureVisible(find.text('Le debo'));
         await tester.tap(find.text('Le debo'));
         await tester.pump();
 
@@ -858,7 +885,12 @@ void main() {
         await tester.ensureVisible(
           find.byKey(const Key('reconciliationConfirmButton')),
         );
-        await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+        await tester.tapAt(
+          tester
+                  .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                  .topLeft +
+              const Offset(24, 12),
+        );
         await tester.pumpAndSettle();
 
         final projections = container.read(ledgerProjectionsProvider);
@@ -1102,7 +1134,15 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       expect(projections.accountBalance(account.id).usd, 0);
