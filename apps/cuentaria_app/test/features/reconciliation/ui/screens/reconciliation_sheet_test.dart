@@ -24,6 +24,12 @@ Future<ProviderContainer> _openSheet(
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
 
+  // The taller card keypad (#281) overflows the default 800x600 test
+  // viewport inside the bottom sheet — same scaffolding as the capture
+  // sheet tests.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -49,9 +55,13 @@ Future<ProviderContainer> _openSheet(
 
 Future<void> _typeDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
+    // The taller card keypad (#281) can sit below the fold in the default
+    // test viewport — scroll each key into view before tapping.
+    await tester.ensureVisible(find.byKey(Key('keypadDigit_$digit')));
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
     await tester.pump();
   }
+  await tester.ensureVisible(find.byKey(const Key('keypadDone')));
   await tester.tap(find.byKey(const Key('keypadDone')));
   await tester.pump();
 }
@@ -87,6 +97,77 @@ void main() {
       expect(find.byKey(const Key('projectedBalanceText')), findsOneWidget);
       expect(find.textContaining('0.00'), findsWidgets);
     });
+
+    testWidgets(
+      'the real balance field labels itself clearly and hints the current '
+      'balance instead of a confusing "0" (#284)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-usd'),
+          name: 'USD wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+
+        // Seed a projected balance of $25.50 via an opening posting.
+        final store = await container.read(eventStoreProvider.future);
+        final projections = container.read(ledgerProjectionsProvider);
+        await store.append(
+          Transaction.create(
+            metadata: TransactionMetadata(
+              eventId: EventId('evt-opening'),
+              type: 'Opening',
+              occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+              recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+              deviceId: 'dev',
+              schemaVersion: 1,
+            ),
+            postings: [
+              Posting(
+                target: AccountTarget(account.id),
+                amountNative: Money(
+                  amount: BigInt.from(2550),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: 2550,
+              ),
+              Posting(
+                target: EnvelopeTarget(
+                  catalog.getSystemEnvelope(EnvelopeRole.opening),
+                ),
+                amountNative: Money(
+                  amount: BigInt.from(2550),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: 2550,
+              ),
+            ],
+          ),
+        );
+        projections.apply((await store.get(EventId('evt-opening')))!);
+
+        await _openSheet(tester, account, existing: container);
+
+        expect(find.byKey(const Key('realBalanceLabel')), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('realBalanceLabel'))).data,
+          'Saldo real:',
+        );
+        expect(
+          tester.widget<Text>(find.byKey(const Key('realBalanceDisplay'))).data,
+          '25.50',
+        );
+      },
+    );
 
     testWidgets('a zero real balance is declarable when the projected one '
         "isn't: shows the delta and absorbs on confirm (fix directive gap 1)", (
@@ -160,7 +241,15 @@ void main() {
       );
       expect(confirmButton.onPressed, isNotNull);
 
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       expect(projections.accountBalance(account.id).usd, 0);
@@ -333,7 +422,15 @@ void main() {
         find.byKey(const Key('reconciliationAbsorbMessage')),
         findsOneWidget,
       );
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       final adjustmentsId = catalog.getSystemEnvelope(EnvelopeRole.adjustments);
@@ -771,6 +868,7 @@ void main() {
         );
         expect(selector.selected, {true});
 
+        await tester.ensureVisible(find.text('Le debo'));
         await tester.tap(find.text('Le debo'));
         await tester.pump();
 
@@ -782,7 +880,17 @@ void main() {
           findsOneWidget,
         );
 
-        await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+        // The direction selector pushes the footer below the fold in the
+        // default test viewport — scroll it into view before tapping.
+        await tester.ensureVisible(
+          find.byKey(const Key('reconciliationConfirmButton')),
+        );
+        await tester.tapAt(
+          tester
+                  .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                  .topLeft +
+              const Offset(24, 12),
+        );
         await tester.pumpAndSettle();
 
         final projections = container.read(ledgerProjectionsProvider);
@@ -1026,7 +1134,15 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('reconciliationConfirmButton')),
+      );
+      await tester.tapAt(
+        tester
+                .getRect(find.byKey(const Key('reconciliationConfirmButton')))
+                .topLeft +
+            const Offset(24, 12),
+      );
       await tester.pumpAndSettle();
 
       expect(projections.accountBalance(account.id).usd, 0);

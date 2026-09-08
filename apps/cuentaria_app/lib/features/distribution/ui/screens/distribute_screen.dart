@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
+import '../../../../ui/theme/app_theme.dart';
 import '../../../patrimonio/application/patrimonio_providers.dart';
 import '../../application/distribution_providers.dart';
 
@@ -64,18 +66,26 @@ class DistributeScreen extends ConsumerWidget {
           return catalogAsync.when(
             data:
                 (catalog) => ListView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(AppSpacing.lg),
                   children: [
-                    for (final line in allocations)
-                      ListTile(
-                        title: Text(
-                          catalog.getEnvelope(line.envelopeId)?.name ??
-                              line.envelopeId.value,
-                        ),
-                        trailing: Text(_formatUsdCents(line.amountUsd)),
-                      ),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
+                    SectionCard(
+                      header: 'Repartir',
+                      children: [
+                        for (final line in allocations)
+                          ListTile(
+                            title: Text(
+                              catalog.getEnvelope(line.envelopeId)?.name ??
+                                  line.envelopeId.value,
+                            ),
+                            trailing: SignedAmountText(
+                              amount: _formatUsdCents(line.amountUsd),
+                              sign: AmountSign.neutral,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                    FilledButton(
                       key: const Key('applyDistributionButton'),
                       onPressed: () => _apply(context, ref),
                       child: const Text('Aplicar'),

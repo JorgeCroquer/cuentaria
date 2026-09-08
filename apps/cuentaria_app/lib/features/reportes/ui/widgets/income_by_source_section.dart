@@ -32,7 +32,7 @@ class IncomeBySourceSection extends ConsumerWidget {
           children: [
             Text(
               'Ingreso por fuente',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.labelSmall,
             ),
             const SizedBox(height: 8),
             resultAsync.when(

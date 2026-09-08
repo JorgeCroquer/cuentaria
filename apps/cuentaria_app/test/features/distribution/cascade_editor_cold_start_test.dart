@@ -99,13 +99,15 @@ void main() {
         reason: 'Stage row should not render with zero balance',
       );
 
-      // Verify: AppBar actions are all visible
+      // Verify: every action is reachable from the overflow menu (#279)
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('manageAccountsAction')), findsOneWidget);
       expect(find.byKey(const Key('manageEnvelopesAction')), findsOneWidget);
       expect(find.byKey(const Key('editCascadeAction')), findsOneWidget);
       expect(find.byKey(const Key('recordRatesAction')), findsOneWidget);
 
-      // Click the edit cascade action in AppBar
+      // Click the edit cascade action from the overflow menu
       await tester.tap(find.byKey(const Key('editCascadeAction')));
       await tester.pumpAndSettle();
 

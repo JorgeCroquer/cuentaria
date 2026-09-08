@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'Reportes is reachable from a cold start via Patrimonio\'s overflow '
-    'menu, next to Deudas (#258)',
+    'Reportes is reachable from a cold start via Patrimonio\'s AppBar '
+    '(#258, #279)',
     (tester) async {
       await tester.pumpWidget(
         ProviderScope(
@@ -18,12 +18,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
-      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('reportsAction')), findsOneWidget);
 
-      expect(find.byKey(const Key('reportsMenuItem')), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('reportsMenuItem')));
+      await tester.tap(find.byKey(const Key('reportsAction')));
       await tester.pumpAndSettle();
 
       expect(find.byType(ReportesScreen), findsOneWidget);

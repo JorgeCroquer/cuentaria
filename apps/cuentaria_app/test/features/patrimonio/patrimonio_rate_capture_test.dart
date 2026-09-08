@@ -32,6 +32,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
@@ -123,6 +125,8 @@ void main() {
       '\$100.00',
     );
 
+    await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('recordRatesAction')));
     await tester.pumpAndSettle();
 
@@ -139,7 +143,7 @@ void main() {
     );
     expect(
       tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-      'Referencia BCV: \$150.00',
+      '50.00 VES/USD · hoy',
     );
   });
 
@@ -228,6 +232,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('recordRatesAction')));
       await tester.pumpAndSettle();
 
@@ -262,10 +268,14 @@ void main() {
         tester.widget<Text>(find.byKey(const Key('todayValueAmount'))).data,
         '\$8.89',
       );
-      expect(
-        tester.widget<Text>(find.byKey(const Key('bcvReferenceAmount'))).data,
-        'Referencia BCV: \$10.58',
-      );
+      // The BCV chip still discloses the untouched dolarapi:oficial
+      // observation from setup (755.90) — only the parallel field changed.
+      final bcvText =
+          tester
+              .widget<Text>(find.byKey(const Key('bcvReferenceAmount')))
+              .data!;
+      expect(bcvText, contains('755.90'));
+      expect(bcvText, contains('VES/USD'));
     },
   );
 }

@@ -18,6 +18,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('patrimonioOverflowMenu')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('manageEnvelopesAction')));
       await tester.pumpAndSettle();
 

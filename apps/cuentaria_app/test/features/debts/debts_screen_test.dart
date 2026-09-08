@@ -20,6 +20,11 @@ Future<void> pumpWithContainer(
   WidgetTester tester,
   ProviderContainer container,
 ) async {
+  // The taller card keypad (#281) overflows the default 800x600 test
+  // viewport inside the reconciliation bottom sheet — same scaffolding as
+  // the capture sheet tests.
+  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -31,9 +36,13 @@ Future<void> pumpWithContainer(
 
 Future<void> _typeDigits(WidgetTester tester, String digits) async {
   for (final digit in digits.split('')) {
+    // The taller card keypad (#281) can sit below the fold in the default
+    // test viewport — scroll each key into view before tapping.
+    await tester.ensureVisible(find.byKey(Key('keypadDigit_$digit')));
     await tester.tap(find.byKey(Key('keypadDigit_$digit')));
     await tester.pump();
   }
+  await tester.ensureVisible(find.byKey(const Key('keypadDone')));
   await tester.tap(find.byKey(const Key('keypadDone')));
   await tester.pump();
 }
@@ -60,9 +69,17 @@ Future<void> _confirmReconciliation(WidgetTester tester) async {
   );
   if (absorbAnyway.evaluate().isNotEmpty) {
     await tester.ensureVisible(absorbAnyway);
-    await tester.tap(absorbAnyway);
+    // ensureVisible only reveals the top edge when the footer hangs past the
+    // surface — tap inside the revealed strip instead of the (clipped) center.
+    await tester.tapAt(
+      tester.getRect(absorbAnyway).topLeft + const Offset(24, 12),
+    );
   } else {
-    await tester.tap(find.byKey(const Key('reconciliationConfirmButton')));
+    // The taller card keypad (#281) pushes the footer below the fold in the
+    // default test viewport — scroll it into view before tapping.
+    final confirm = find.byKey(const Key('reconciliationConfirmButton'));
+    await tester.ensureVisible(confirm);
+    await tester.tapAt(tester.getRect(confirm).topLeft + const Offset(24, 12));
   }
   await tester.pumpAndSettle();
 }
@@ -709,4 +726,125 @@ void main() {
     );
     expect(pedroChip.selected, isTrue);
   });
+
+  testWidgets(
+    'Pedro\'s card shows all four actions with visible text: Prestar and '
+    'Cobrar as primary buttons, Conciliar and Condonar in the ⋮ menu',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('pedro'),
+          name: 'Pedro',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Pedro'},
+        ),
+      );
+
+      await pumpWithContainer(tester, container);
+
+      expect(find.text('Prestar'), findsOneWidget);
+      expect(find.text('Cobrar'), findsOneWidget);
+
+      await _openDebtActionsMenu(tester, 'Pedro');
+
+      expect(find.text('Conciliar'), findsOneWidget);
+      expect(find.text('Condonar'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'the balance headline paints in error when negative and in primary '
+    'when positive',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      final deviceId = await container.read(deviceIdProvider.future);
+      final projections = container.read(ledgerProjectionsProvider);
+      final stageEnvelope = catalog.getSystemEnvelope(EnvelopeRole.stage);
+
+      Future<void> seed(AccountId id, String name, int usdCents) async {
+        await catalog.saveAccount(
+          Account(
+            id: id,
+            name: name,
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+            meta: {'counterpartyName': name},
+          ),
+        );
+        projections.apply(
+          Transaction.create(
+            postings: [
+              Posting(
+                target: AccountTarget(id),
+                amountNative: Money(
+                  amount: BigInt.from(usdCents),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: usdCents,
+              ),
+              Posting(
+                target: EnvelopeTarget(stageEnvelope),
+                amountNative: Money(
+                  amount: BigInt.from(usdCents),
+                  currency: CurrencyCode('USD'),
+                ),
+                currency: CurrencyCode('USD'),
+                amountUsd: usdCents,
+              ),
+            ],
+            metadata: TransactionMetadata(
+              eventId: EventId('evt-${id.value}'),
+              type: 'Adjustment',
+              occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+              recordedAt: DomainTimestamp(DateTime.now().toUtc()),
+              deviceId: deviceId,
+              schemaVersion: 1,
+            ),
+          ),
+        );
+      }
+
+      await seed(AccountId('pedro'), 'Pedro', 10000);
+      await seed(AccountId('luis'), 'Luis', -5000);
+
+      await pumpWithContainer(tester, container);
+
+      final positiveText = tester.widget<Text>(
+        find.text('Pedro te debe \$100.00'),
+      );
+      final positiveContext = tester.element(
+        find.text('Pedro te debe \$100.00'),
+      );
+      expect(
+        positiveText.style?.color,
+        Theme.of(positiveContext).colorScheme.primary,
+      );
+
+      final negativeText = tester.widget<Text>(
+        find.text('le debés \$50.00 a Luis'),
+      );
+      final negativeContext = tester.element(
+        find.text('le debés \$50.00 a Luis'),
+      );
+      expect(
+        negativeText.style?.color,
+        Theme.of(negativeContext).colorScheme.error,
+      );
+    },
+  );
 }

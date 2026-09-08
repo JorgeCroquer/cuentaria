@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../envelopes/application/envelopes_providers.dart';
 import '../../application/distribution_providers.dart';
@@ -17,13 +18,20 @@ import '../widgets/cascade_step_form.dart';
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
 String _stepLabel(CascadeStep step, String envelopeName) => switch (step) {
-  FixedStep(:final amountUsd) =>
-    'Monto fijo ${_formatUsdCents(amountUsd)} → $envelopeName',
+  FixedStep() => 'Monto fijo → $envelopeName',
   FillToCapStep() => 'Llenar hasta el tope → $envelopeName',
   PercentOfRemainderStep(:final percent) =>
     '${(percent * Decimal.fromInt(100)).toStringAsFixed(0)}% del restante → '
         '$envelopeName',
   CatchAllStep() => 'Resto → $envelopeName',
+};
+
+/// The derived amount shown as a step's secondary line — only [FixedStep]
+/// carries a concrete peso figure; the other funding types describe
+/// themselves fully in the title already.
+String? _stepAmount(CascadeStep step) => switch (step) {
+  FixedStep(:final amountUsd) => _formatUsdCents(amountUsd),
+  _ => null,
 };
 
 /// [ReorderableListView.onReorder] semantics: when moving an item down,
@@ -172,34 +180,50 @@ class _CascadeEditorScreenState extends ConsumerState<CascadeEditorScreen> {
                       key: Key('cascadeEmptyState'),
                     ),
                   )
-                  : ReorderableListView(
-                    onReorder: _onReorder,
-                    buildDefaultDragHandles: false,
-                    children: [
-                      for (var i = 0; i < steps.length; i++)
-                        ListTile(
-                          key: Key('cascadeStep_$i'),
-                          leading: ReorderableDragStartListener(
-                            index: i,
-                            key: Key('dragHandle_$i'),
-                            child: const Icon(Icons.drag_handle),
-                          ),
-                          title: Text(
-                            _stepLabel(
-                              steps[i],
-                              catalogMap[steps[i].envelopeId]?.name ??
-                                  steps[i].envelopeId.value,
-                            ),
-                          ),
-                          onTap: () => _editStep(i, envelopes),
-                          trailing: IconButton(
-                            key: Key('deleteCascadeStep_$i'),
-                            icon: const Icon(Icons.delete_outline),
-                            tooltip: 'Eliminar',
-                            onPressed: () => _removeStep(i),
-                          ),
+                  : SingleChildScrollView(
+                    child: SectionCard(
+                      header: 'Repartir',
+                      children: [
+                        ReorderableListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          onReorder: _onReorder,
+                          buildDefaultDragHandles: false,
+                          children: [
+                            for (var i = 0; i < steps.length; i++)
+                              ListTile(
+                                key: Key('cascadeStep_$i'),
+                                leading: ReorderableDragStartListener(
+                                  index: i,
+                                  key: Key('dragHandle_$i'),
+                                  child: const Icon(Icons.drag_handle),
+                                ),
+                                title: Text(
+                                  _stepLabel(
+                                    steps[i],
+                                    catalogMap[steps[i].envelopeId]?.name ??
+                                        steps[i].envelopeId.value,
+                                  ),
+                                ),
+                                subtitle: switch (_stepAmount(steps[i])) {
+                                  final amount? => SignedAmountText(
+                                    amount: amount,
+                                    sign: AmountSign.neutral,
+                                  ),
+                                  _ => null,
+                                },
+                                onTap: () => _editStep(i, envelopes),
+                                trailing: IconButton(
+                                  key: Key('deleteCascadeStep_$i'),
+                                  icon: const Icon(Icons.delete_outline),
+                                  tooltip: 'Eliminar',
+                                  onPressed: () => _removeStep(i),
+                                ),
+                              ),
+                          ],
                         ),
-                    ],
+                      ],
+                    ),
                   ),
         ),
         Padding(

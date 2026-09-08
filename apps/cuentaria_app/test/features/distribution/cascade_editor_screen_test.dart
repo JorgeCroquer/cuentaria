@@ -1,5 +1,6 @@
 import 'package:contabilidad/application/cascade/cascade_step.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:cuentaria_app/design/widgets.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/cascade_editor_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:flutter/material.dart';
@@ -131,7 +132,8 @@ void main() {
     );
     await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Resto');
 
-    expect(find.text('Monto fijo \$100.00 → Mercado'), findsOneWidget);
+    expect(find.text('Monto fijo → Mercado'), findsOneWidget);
+    expect(find.text('\$100.00'), findsOneWidget);
     expect(find.text('Llenar hasta el tope → Suscripciones'), findsOneWidget);
     expect(find.text('50% del restante → Mudanza'), findsOneWidget);
     expect(find.text('Resto → Ocio'), findsOneWidget);
@@ -187,7 +189,8 @@ void main() {
     router.push('/distribute/edit');
     await tester.pumpAndSettle();
 
-    expect(find.text('Monto fijo \$100.00 → Mercado'), findsOneWidget);
+    expect(find.text('Monto fijo → Mercado'), findsOneWidget);
+    expect(find.text('\$100.00'), findsOneWidget);
     expect(find.text('Llenar hasta el tope → Suscripciones'), findsOneWidget);
     expect(find.text('50% del restante → Mudanza'), findsOneWidget);
     expect(find.text('Resto → Ocio'), findsOneWidget);
@@ -249,6 +252,39 @@ void main() {
       expect(saveButton.onPressed, isNull);
     },
   );
+
+  testWidgets('cascade step shows derived amount as secondary line, inside a '
+      'SectionCard (#284)', (tester) async {
+    final container = await _seedEnvelopes(['Mercado', 'Ocio']);
+    addTearDown(container.dispose);
+
+    await _pumpEditor(tester, container);
+
+    await _addStep(
+      tester,
+      envelopeName: 'Mercado',
+      fundingType: 'Monto fijo',
+      amount: '100',
+    );
+    await _addStep(tester, envelopeName: 'Ocio', fundingType: 'Resto');
+
+    expect(find.byType(SectionCard), findsOneWidget);
+    expect(find.text('Repartir'), findsOneWidget);
+
+    final fixedStepTile = tester.widget<ListTile>(
+      find.byKey(const Key('cascadeStep_0')),
+    );
+    expect(
+      fixedStepTile.subtitle,
+      isA<SignedAmountText>().having((w) => w.amount, 'amount', '\$100.00'),
+    );
+
+    // A step with no concrete peso figure has no secondary line.
+    final catchAllTile = tester.widget<ListTile>(
+      find.byKey(const Key('cascadeStep_1')),
+    );
+    expect(catchAllTile.subtitle, isNull);
+  });
 
   testWidgets('a step can be removed from the list (#96)', (tester) async {
     final container = await _seedEnvelopes(['Mercado']);
