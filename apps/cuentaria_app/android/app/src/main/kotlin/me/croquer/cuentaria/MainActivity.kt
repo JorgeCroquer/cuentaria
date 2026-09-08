@@ -1,4 +1,4 @@
-package com.example.cuentaria_app
+package me.croquer.cuentaria
 
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -27,7 +27,7 @@ import java.io.InputStreamReader
 class MainActivity : FlutterActivity() {
     private val shareChannelName = "cuentaria/system_share"
     private val filePickerChannelName = "cuentaria/system_file_picker"
-    private val targetChosenAction = "com.example.cuentaria_app.SHARE_TARGET_CHOSEN"
+    private val targetChosenAction = "me.croquer.cuentaria.SHARE_TARGET_CHOSEN"
     private val pickFileRequestCode = 4201
 
     private var pendingResult: MethodChannel.Result? = null

@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +7,16 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Release signing lives outside the public repo: android/key.properties +
+// upload-keystore.jks (both gitignored). A checkout without them still
+// builds — release falls back to the debug keystore.
+val keystoreProperties = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
 android {
-    namespace = "com.example.cuentaria_app"
+    namespace = "me.croquer.cuentaria"
     // ponytail: pinned above flutter defaults — flutter_secure_storage needs compileSdk 36,
     // sqlcipher_flutter_libs/secure_storage/path_provider need NDK 27. Bump the flutter SDK floor if these ever exceed it.
     compileSdk = 36
@@ -22,8 +32,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.cuentaria_app"
+        applicationId = "me.croquer.cuentaria"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = 23  // ponytail: flutter_secure_storage requires >= 23
@@ -32,11 +41,22 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("upload") {
+            if (keystoreProperties.isNotEmpty()) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig =
+                if (keystoreProperties.isNotEmpty()) signingConfigs.getByName("upload")
+                else signingConfigs.getByName("debug")
         }
     }
 }
