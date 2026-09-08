@@ -11,8 +11,11 @@ import '../widgets/transparency_section.dart';
 
 /// Copia en tu nube (issue #223, ADR-0023): UI-first Cloud Copy screen,
 /// wired to the real Google Drive session ([CloudSessionNotifier], issue
-/// #225) and the real Cloud Copy use case behind [CloudSyncStatusNotifier]
-/// — untouched since #223, only the providers behind it changed.
+/// #225) and the real Cloud Copy use case behind [CloudSyncStatusNotifier].
+/// The merge gate itself lives in `CloudCopyUseCase.sync()` (issue #297):
+/// this screen only reacts to `waitingForMergeConsent` after calling `sync`
+/// and, on **Juntar**, persists consent before calling `sync` again — it
+/// never decides on its own whether a pull is safe.
 class CloudCopyScreen extends ConsumerWidget {
   const CloudCopyScreen({super.key});
 
@@ -30,20 +33,22 @@ class CloudCopyScreen extends ConsumerWidget {
       await ref.read(cloudSessionProvider.notifier).connect();
       if (!ref.read(cloudSessionProvider).isConnected) return;
 
-      final useCase = await ref.read(cloudCopyUseCaseProvider.future);
-      if (await useCase.hasPendingMerge()) {
-        if (!context.mounted) return;
-        final proceed = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const MergeDialog(),
-        );
-        if (proceed != true) {
-          onDisconnect();
-          return;
-        }
+      await ref.read(cloudSyncStatusProvider.notifier).sync();
+      if (!ref.read(cloudSyncStatusProvider).waitingForMergeConsent) return;
+
+      if (!context.mounted) return;
+      final proceed = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const MergeDialog(),
+      );
+      if (proceed != true) {
+        onDisconnect();
+        return;
       }
 
+      final useCase = await ref.read(cloudCopyUseCaseProvider.future);
+      await useCase.setMergeConsent(true);
       await ref.read(cloudSyncStatusProvider.notifier).sync();
     }
 

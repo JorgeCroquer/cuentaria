@@ -26,6 +26,7 @@ import 'package:contabilidad/infrastructure/database/cloud_copy_status_store.dar
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
 import 'package:contabilidad/infrastructure/database/drift_event_store.dart';
 import 'package:contabilidad/infrastructure/database/drift_unit_of_work.dart';
+import 'package:contabilidad/infrastructure/database/merge_consent_provider.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:cuentaria_app/features/backup/application/create_backup.dart';
 import 'package:cuentaria_app/features/backup/application/restore_backup.dart';
@@ -121,6 +122,7 @@ Future<_Device> _openDevice(
   );
   final rateSeries = DriftRateSeries(ratesDb);
   final statusStore = CloudCopyStatusStore(ledgerDb);
+  final mergeConsent = MergeConsentProvider(ledgerDb);
 
   final createBackup = CreateBackup(
     eventStore: store,
@@ -174,6 +176,8 @@ Future<_Device> _openDevice(
       cloudFolder: folder,
       statusStore: statusStore,
       deviceId: deviceId,
+      getMergeConsent: mergeConsent.hasConsent,
+      setMergeConsent: mergeConsent.setConsent,
       now: now,
     ),
   );

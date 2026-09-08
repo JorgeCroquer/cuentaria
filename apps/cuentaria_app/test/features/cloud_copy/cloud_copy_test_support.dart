@@ -17,6 +17,7 @@ import 'package:contabilidad/infrastructure/cascade/in_memory_cascade_repository
 import 'package:contabilidad/infrastructure/catalog/in_memory_catalog_repository.dart';
 import 'package:contabilidad/infrastructure/database/cloud_copy_status_store.dart';
 import 'package:contabilidad/infrastructure/database/cuentaria_database.dart';
+import 'package:contabilidad/infrastructure/database/merge_consent_provider.dart';
 import 'package:contabilidad/infrastructure/in_memory_event_store.dart';
 import 'package:contabilidad/infrastructure/in_memory_ledger_projections.dart';
 import 'package:contabilidad/infrastructure/in_memory_unit_of_work.dart';
@@ -96,9 +97,9 @@ TestCloudCopyDevice buildTestCloudCopyDevice({
     eventBus: SyncEventBus(),
     unitOfWork: const InMemoryUnitOfWork(),
   );
-  final statusStore = CloudCopyStatusStore(
-    CuentariaDatabase(NativeDatabase.memory()),
-  );
+  final localDb = CuentariaDatabase(NativeDatabase.memory());
+  final statusStore = CloudCopyStatusStore(localDb);
+  final mergeConsent = MergeConsentProvider(localDb);
   final recordTransaction = RecordTransaction(
     store: eventStore,
     projections: InMemoryLedgerProjections(),
@@ -113,6 +114,8 @@ TestCloudCopyDevice buildTestCloudCopyDevice({
       statusStore: statusStore,
       deviceId: deviceId,
       isConnected: isConnected ?? (() async => true),
+      getMergeConsent: mergeConsent.hasConsent,
+      setMergeConsent: mergeConsent.setConsent,
       now: now,
     ),
     catalog: catalog,
