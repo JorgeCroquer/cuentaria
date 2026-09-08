@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
+import '../../../../ui/theme/app_theme.dart';
 import '../../../accounts/application/account_providers.dart';
 import '../../../accounts/ui/account_form_validators.dart';
 import '../../../capture/ui/screens/quick_add_expense_sheet.dart';
@@ -245,61 +247,76 @@ class _PersonTile extends ConsumerWidget {
     final isZero =
         primaryLeg != null && primaryLeg.nativeMinorAmount == BigInt.zero;
 
-    return ListTile(
+    final account = _primaryAccount;
+
+    return Card(
       key: Key('debtPerson_${persona.personName}'),
-      title: Text(headline),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
-          if (_primaryAccount != null) ...[
-            const SizedBox(height: 4),
-            Wrap(
-              spacing: 4,
-              children: [
-                TextButton(
-                  key: Key('debtAction_prestar_${persona.personName}'),
-                  onPressed: () => _prestar(context),
-                  child: const Text('Prestar'),
-                ),
-                TextButton(
-                  key: Key('debtAction_cobrar_${persona.personName}'),
-                  onPressed: () => _cobrar(context),
-                  child: const Text('Cobrar'),
-                ),
-                PopupMenuButton<VoidCallback>(
-                  key: Key('debtActionsMenu_${persona.personName}'),
-                  tooltip: 'Más acciones',
-                  onSelected: (action) => action(),
-                  itemBuilder:
-                      (_) => [
-                        PopupMenuItem<VoidCallback>(
-                          key: Key(
-                            'reconcileDebtAccount_${_primaryAccount!.id.value}',
-                          ),
-                          value: () => _reconcile(context, ref),
-                          child: const Text('Conciliar'),
-                        ),
-                        PopupMenuItem<VoidCallback>(
-                          key: Key('debtAction_condonar_${persona.personName}'),
-                          value: () => _condonar(context),
-                          child: const Text('Condonar'),
-                        ),
-                        if (isZero)
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SignedAmountText(
+              amount: headline,
+              sign:
+                  persona.netoUsdCents >= 0
+                      ? AmountSign.positive
+                      : AmountSign.negative,
+            ),
+            for (final leg in persona.currencies) _CurrencyLegLine(leg: leg),
+            if (account != null) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  TextButton.icon(
+                    key: Key('debtAction_prestar_${persona.personName}'),
+                    onPressed: () => _prestar(context),
+                    icon: const Icon(Icons.call_made),
+                    label: const Text('Prestar'),
+                  ),
+                  TextButton.icon(
+                    key: Key('debtAction_cobrar_${persona.personName}'),
+                    onPressed: () => _cobrar(context),
+                    icon: const Icon(Icons.call_received),
+                    label: const Text('Cobrar'),
+                  ),
+                  const Spacer(),
+                  PopupMenuButton<VoidCallback>(
+                    key: Key('debtActionsMenu_${persona.personName}'),
+                    tooltip: 'Más acciones',
+                    onSelected: (action) => action(),
+                    itemBuilder:
+                        (_) => [
                           PopupMenuItem<VoidCallback>(
                             key: Key(
-                              'archiveDebtAccount_${_primaryAccount!.id.value}',
+                              'reconcileDebtAccount_${account.id.value}',
                             ),
-                            value: () => _archive(context, ref),
-                            child: const Text('Archivar'),
+                            value: () => _reconcile(context, ref),
+                            child: const Text('Conciliar'),
                           ),
-                      ],
-                ),
-              ],
-            ),
+                          PopupMenuItem<VoidCallback>(
+                            key: Key(
+                              'debtAction_condonar_${persona.personName}',
+                            ),
+                            value: () => _condonar(context),
+                            child: const Text('Condonar'),
+                          ),
+                          if (isZero)
+                            PopupMenuItem<VoidCallback>(
+                              key: Key(
+                                'archiveDebtAccount_${account.id.value}',
+                              ),
+                              value: () => _archive(context, ref),
+                              child: const Text('Archivar'),
+                            ),
+                        ],
+                  ),
+                ],
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
