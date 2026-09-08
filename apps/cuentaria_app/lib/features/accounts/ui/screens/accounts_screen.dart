@@ -6,6 +6,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/application/rate_resolution_service.dart';
 import 'package:tasas/domain/rate_resolver.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
 import '../../../../ui/theme/app_theme.dart';
@@ -137,16 +138,31 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
           if (accounts.isEmpty && debtAccounts.isEmpty) {
             return const _EmptyState();
           }
+          final groups = <String, List<Account>>{};
+          for (final account in accounts) {
+            groups
+                .putIfAbsent(account.nativeCurrency.value, () => [])
+                .add(account);
+          }
           return ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
             children: [
-              for (final account in accounts)
-                _AccountTile(
-                  account: account,
-                  balance: projections.accountBalance(account.id).native,
-                  onReconcile: () => _openReconciliationSheet(account),
-                  onEdit: () => _openEditDialog(account),
-                  onArchive: () => _archive(account),
+              for (final group in groups.entries) ...[
+                SectionCard(
+                  header: group.key,
+                  children: [
+                    for (final account in group.value)
+                      _AccountTile(
+                        account: account,
+                        balance: projections.accountBalance(account.id).native,
+                        onReconcile: () => _openReconciliationSheet(account),
+                        onEdit: () => _openEditDialog(account),
+                        onArchive: () => _archive(account),
+                      ),
+                  ],
                 ),
+                const SizedBox(height: AppSpacing.md),
+              ],
               if (debtAccounts.isNotEmpty)
                 ExpansionTile(
                   key: const Key('debtsSection'),
@@ -201,17 +217,10 @@ class _AccountTile extends StatelessWidget {
       onTap: onReconcile,
       leading: CircleAvatar(backgroundColor: color, radius: 12),
       title: Text(account.name),
-      subtitle: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(account.nativeCurrency.value),
-          Text(
-            _formatLastReconciled(account.lastReconciledAt),
-            key: Key('lastReconciled_${account.id.value}'),
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
+      subtitle: Text(
+        _formatLastReconciled(account.lastReconciledAt),
+        key: Key('lastReconciled_${account.id.value}'),
+        style: Theme.of(context).textTheme.bodySmall,
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -231,13 +240,10 @@ class _AccountTile extends StatelessWidget {
             ),
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              _formatBalance(balance),
-              key: Key('accountBalance_${account.id.value}'),
-              style:
-                  isNegative
-                      ? TextStyle(color: Theme.of(context).colorScheme.error)
-                      : null,
+            child: SignedAmountText(
+              amount: _formatBalance(balance),
+              textKey: Key('accountBalance_${account.id.value}'),
+              sign: isNegative ? AmountSign.negative : AmountSign.neutral,
             ),
           ),
           IconButton(

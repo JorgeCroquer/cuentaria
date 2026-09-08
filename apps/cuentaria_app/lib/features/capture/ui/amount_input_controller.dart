@@ -18,6 +18,10 @@ class AmountInputController extends ChangeNotifier {
 
   bool get isValid => amountMinorUnits > BigInt.zero;
 
+  /// True until the first digit is typed — including a typed "0", which is a
+  /// real declared amount, not "nothing typed yet" (fix directive gap 1).
+  bool get isEmpty => _digits.isEmpty;
+
   void appendDigit(String digit) {
     _digits += digit;
     notifyListeners();

@@ -34,7 +34,7 @@ class SpendingByEnvelopeSection extends ConsumerWidget {
           children: [
             Text(
               'Gasto por sobre',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.labelSmall,
             ),
             const SizedBox(height: 8),
             resultAsync.when(

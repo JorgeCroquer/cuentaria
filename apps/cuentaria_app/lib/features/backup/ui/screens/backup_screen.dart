@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../design/widgets.dart';
+import '../../../../ui/theme/app_theme.dart';
 import '../../../cloud_copy/application/cloud_sync_status_notifier.dart';
 import '../../../cloud_copy/ui/widgets/cloud_status_label.dart';
 import '../../application/backup_providers.dart';
@@ -139,73 +141,98 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Respaldo')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      body: ListView(
+        padding: const EdgeInsets.all(AppSpacing.lg),
+        children: [
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 16,
             children: [
-              Wrap(
-                alignment: WrapAlignment.center,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 16,
-                children: [
-                  lastBackupAsync.when(
-                    data:
-                        (lastBackup) => Text(
-                          _lastBackupLabel(lastBackup),
-                          key: const Key('lastBackupLabel'),
-                        ),
-                    loading: () => const CircularProgressIndicator(),
-                    error:
-                        (error, stackTrace) =>
-                            Text('No se pudo cargar: $error'),
-                  ),
-                  CloudStatusLabel(status: ref.watch(cloudSyncStatusProvider)),
-                ],
-              ),
-              const SizedBox(height: 24),
-              if (_backupError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _backupError!,
-                    key: const Key('backupErrorText'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
+              lastBackupAsync.when(
+                data:
+                    (lastBackup) => Text(
+                      _lastBackupLabel(lastBackup),
+                      key: const Key('lastBackupLabel'),
                     ),
-                  ),
-                ),
-              if (_csvError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 16),
-                  child: Text(
-                    _csvError!,
-                    key: const Key('csvErrorText'),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              ElevatedButton(
-                key: _respaldarButtonKey,
-                onPressed: _isSharingBackup ? null : _onRespaldar,
-                child: const Text('Respaldar'),
+                loading: () => const CircularProgressIndicator(),
+                error: (error, stackTrace) => Text('No se pudo cargar: $error'),
               ),
-              const SizedBox(height: 12),
-              ElevatedButton(
-                key: _exportarExcelButtonKey,
-                onPressed: _isSharingCsv ? null : _onExportarExcel,
-                child: const Text('Exportar a Excel'),
-              ),
-              // The two ways data leaves the phone first, then the one that
-              // brings it back — a wider gap so it does not read as a third
-              // flavour of export.
-              const SizedBox(height: 16),
-              const RestoreBackupButton(),
+              CloudStatusLabel(status: ref.watch(cloudSyncStatusProvider)),
             ],
           ),
-        ),
+          const SizedBox(height: AppSpacing.lg),
+          // "Restaurar desde un archivo" (RestoreBackupButton) is a separate
+          // SectionCard from the two export actions (fix directive F3): the
+          // owner reads these as two different questions — "back up" vs.
+          // "bring my data back" — not three flavours of the same action.
+          SectionCard(
+            header: 'Respaldo local',
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_backupError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        child: Text(
+                          _backupError!,
+                          key: const Key('backupErrorText'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    if (_csvError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.lg),
+                        child: Text(
+                          _csvError!,
+                          key: const Key('csvErrorText'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ),
+                    ElevatedButton(
+                      key: _respaldarButtonKey,
+                      onPressed: _isSharingBackup ? null : _onRespaldar,
+                      child: const Text('Respaldar'),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    ElevatedButton(
+                      key: _exportarExcelButtonKey,
+                      onPressed: _isSharingCsv ? null : _onExportarExcel,
+                      child: const Text('Exportar a Excel'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          SectionCard(
+            header: 'Restaurar respaldo',
+            children: const [
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  0,
+                  AppSpacing.lg,
+                  AppSpacing.lg,
+                ),
+                child: RestoreBackupButton(),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

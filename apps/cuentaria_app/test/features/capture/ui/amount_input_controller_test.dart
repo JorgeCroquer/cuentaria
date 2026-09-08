@@ -7,6 +7,22 @@ void main() {
       final controller = AmountInputController();
       expect(controller.displayText, '0.00');
       expect(controller.isValid, isFalse);
+      expect(controller.isEmpty, isTrue);
+    });
+
+    test('isEmpty turns false once a digit is typed, even a zero', () {
+      final controller = AmountInputController();
+      controller.appendDigit('0');
+
+      expect(controller.isEmpty, isFalse);
+    });
+
+    test('isEmpty turns true again after clearing back to nothing', () {
+      final controller = AmountInputController();
+      controller.appendDigit('5');
+      controller.backspace();
+
+      expect(controller.isEmpty, isTrue);
     });
 
     test('appending digits shifts them in as cents, right to left', () {

@@ -44,38 +44,43 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('shows realizado and no realizado in green when both are gains', (
-    tester,
-  ) async {
-    await pump(
-      tester,
-      pointsEndingAt(
-        ExchangeDifferentialPoint(
-          month: august,
-          realizadoUsdCents: 900,
-          noRealizadoUsdCents: 8000,
+  testWidgets(
+    'shows realizado and no realizado in the primary color when both are gains',
+    (tester) async {
+      await pump(
+        tester,
+        pointsEndingAt(
+          ExchangeDifferentialPoint(
+            month: august,
+            realizadoUsdCents: 900,
+            noRealizadoUsdCents: 8000,
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(find.text('Diferencial cambiario'), findsOneWidget);
-    final realizado = tester.widget<Text>(
-      find.byKey(const Key('exchangeDifferentialRealizado')),
-    );
-    expect(realizado.data, contains('+\$9.00'));
-    expect(realizado.style?.color, Colors.green);
+      expect(find.text('Diferencial cambiario'), findsOneWidget);
+      final colorScheme =
+          Theme.of(
+            tester.element(find.byType(ExchangeDifferentialSection)),
+          ).colorScheme;
+      final realizado = tester.widget<Text>(
+        find.byKey(const Key('exchangeDifferentialRealizado')),
+      );
+      expect(realizado.data, contains('+\$9.00'));
+      expect(realizado.style?.color, colorScheme.primary);
 
-    final noRealizado = tester.widget<Text>(
-      find.byKey(const Key('exchangeDifferentialNoRealizado')),
-    );
-    expect(noRealizado.data, contains('+\$80.00'));
-    expect(noRealizado.style?.color, Colors.green);
+      final noRealizado = tester.widget<Text>(
+        find.byKey(const Key('exchangeDifferentialNoRealizado')),
+      );
+      expect(noRealizado.data, contains('+\$80.00'));
+      expect(noRealizado.style?.color, colorScheme.primary);
 
-    expect(find.byType(BarChart), findsOneWidget);
-    expect(find.byType(LineChart), findsOneWidget);
-    final chart = tester.widget<BarChart>(find.byType(BarChart));
-    expect(chart.data.barGroups, hasLength(12));
-  });
+      expect(find.byType(BarChart), findsOneWidget);
+      expect(find.byType(LineChart), findsOneWidget);
+      final chart = tester.widget<BarChart>(find.byType(BarChart));
+      expect(chart.data.barGroups, hasLength(12));
+    },
+  );
 
   testWidgets('shows a loss in red for both realizado and no realizado', (
     tester,

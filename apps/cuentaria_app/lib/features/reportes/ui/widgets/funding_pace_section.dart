@@ -37,7 +37,7 @@ class FundingPaceSection extends ConsumerWidget {
           children: [
             Text(
               'Aportes a metas',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.labelSmall,
             ),
             const SizedBox(height: 8),
             resultAsync.when(

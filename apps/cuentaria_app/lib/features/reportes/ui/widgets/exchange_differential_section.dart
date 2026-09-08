@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
 
+import '../../../../design/widgets.dart';
 import '../../application/exchange_differential_providers.dart';
 import 'exchange_differential_chart.dart';
 
@@ -36,7 +37,7 @@ class ExchangeDifferentialSection extends ConsumerWidget {
           children: [
             Text(
               'Diferencial cambiario',
-              style: Theme.of(context).textTheme.titleMedium,
+              style: Theme.of(context).textTheme.labelSmall,
             ),
             const SizedBox(height: 8),
             pointsAsync.when(
@@ -108,17 +109,14 @@ Widget _amountRow(
   required String label,
   required int amountUsdCents,
 }) {
-  final color =
-      amountUsdCents < 0 ? Theme.of(context).colorScheme.error : Colors.green;
-
   return Row(
     mainAxisAlignment: MainAxisAlignment.spaceBetween,
     children: [
       Text(label),
-      Text(
-        _formatSignedUsdCents(amountUsdCents),
-        key: key,
-        style: TextStyle(color: color, fontWeight: FontWeight.bold),
+      SignedAmountText(
+        amount: _formatSignedUsdCents(amountUsdCents),
+        textKey: key,
+        sign: amountUsdCents < 0 ? AmountSign.negative : AmountSign.positive,
       ),
     ],
   );
