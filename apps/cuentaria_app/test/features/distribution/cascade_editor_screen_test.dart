@@ -327,6 +327,45 @@ void main() {
     },
   );
 
+  testWidgets(
+    'a fixedUntilCap step to an envelope with no cap renders a warning but '
+    'still allows saving (#302)',
+    (tester) async {
+      final container = await _seedEnvelopes(['Mercado', 'Ahorro']);
+      addTearDown(container.dispose);
+
+      await _pumpEditor(tester, container);
+
+      await _addStep(
+        tester,
+        envelopeName: 'Mercado',
+        fundingType: 'Fijo hasta tope',
+        amount: '50',
+      );
+      await _addStep(tester, envelopeName: 'Ahorro', fundingType: 'Resto');
+
+      expect(find.byKey(const Key('cascadeValidationErrors')), findsNothing);
+      expect(
+        find.byKey(const Key('cascadeValidationWarnings')),
+        findsOneWidget,
+      );
+      expect(find.textContaining('has no cap'), findsOneWidget);
+
+      final saveButton = tester.widget<ElevatedButton>(
+        find.byKey(const Key('saveCascadeButton')),
+      );
+      expect(saveButton.onPressed, isNotNull);
+
+      await tester.tap(find.byKey(const Key('saveCascadeButton')));
+      await tester.pumpAndSettle();
+
+      final repo = await container.read(cascadeRepositoryProvider.future);
+      final saved = await repo.load();
+      expect(saved!.steps[0], isA<FixedUntilCapStep>());
+      expect((saved.steps[0] as FixedUntilCapStep).amountUsd, 5000);
+    },
+  );
+
   testWidgets('a step can be removed from the list (#96)', (tester) async {
     final container = await _seedEnvelopes(['Mercado']);
     addTearDown(container.dispose);

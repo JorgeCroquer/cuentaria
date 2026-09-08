@@ -386,18 +386,24 @@ void main() {
     });
 
     test('sum <= amount always', () {
+      final capEnvelope = EnvelopeId('capEnvelope');
       for (final amount in [0, 1, 100, 999, 10000]) {
         final result = run(
           amount,
           [
             CascadeStep.fixed(envelopeId: e1, amountUsd: 300),
+            CascadeStep.fixedUntilCap(envelopeId: capEnvelope, amountUsd: 200),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
               percent: Decimal.parse('0.5'),
               base: PercentBase.remainder,
             ),
           ],
-          states: {e1: state(), e2: state()},
+          states: {
+            e1: state(),
+            capEnvelope: state(balance: 50, cap: 150),
+            e2: state(),
+          },
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
         expect(
@@ -409,11 +415,13 @@ void main() {
     });
 
     test('sum == amount when catch-all present', () {
+      final capEnvelope = EnvelopeId('capEnvelope');
       for (final amount in [0, 1, 100, 333, 10000]) {
         final result = run(
           amount,
           [
             CascadeStep.fixed(envelopeId: e1, amountUsd: 100),
+            CascadeStep.fixedUntilCap(envelopeId: capEnvelope, amountUsd: 200),
             CascadeStep.percentOfRemainder(
               envelopeId: e2,
               percent: Decimal.parse('0.30'),
@@ -421,7 +429,12 @@ void main() {
             ),
             CascadeStep.catchAll(envelopeId: e3),
           ],
-          states: {e1: state(), e2: state(), e3: state()},
+          states: {
+            e1: state(),
+            capEnvelope: state(balance: 50, cap: 150),
+            e2: state(),
+            e3: state(),
+          },
         );
         final total = result.fold(0, (s, l) => s + l.amountUsd);
         expect(
