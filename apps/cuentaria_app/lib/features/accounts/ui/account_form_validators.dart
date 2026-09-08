@@ -15,16 +15,32 @@ String? validateAccountName(String value) {
   return null;
 }
 
-/// Opening balance is optional (empty means "no opening balance") and, per
-/// the "money is always int minor units" rule, must be a whole number.
+/// Opening balance is optional (empty means "no opening balance"). Accepts
+/// decimals with comma or dot (25,50 / 25.50) up to 2 places — the ledger
+/// still stores int minor units; [parseOpeningBalanceMinorUnits] converts.
 String? validateOpeningBalance(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) return null;
 
-  final parsed = int.tryParse(trimmed);
-  if (parsed == null) return 'El saldo inicial debe ser un número entero.';
-  if (parsed < 0) return 'El saldo inicial no puede ser negativo.';
+  final parsed = Decimal.tryParse(trimmed.replaceAll(',', '.'));
+  if (parsed == null) return 'El saldo inicial debe ser un número.';
+  if (parsed < Decimal.zero) return 'El saldo inicial no puede ser negativo.';
+  if (parsed.scale > 2) {
+    return 'El saldo inicial acepta hasta 2 decimales.';
+  }
   return null;
+}
+
+/// The minor-unit (cents) value of a valid opening-balance text, or null
+/// when empty/invalid/zero. Single place where "25,50" becomes 2550.
+int? parseOpeningBalanceMinorUnits(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return null;
+  final parsed = Decimal.tryParse(trimmed.replaceAll(',', '.'));
+  if (parsed == null || parsed <= Decimal.zero || parsed.scale > 2) {
+    return null;
+  }
+  return (parsed * Decimal.fromInt(100)).toBigInt().toInt();
 }
 
 /// The exchange rate (native-per-USD) is required whenever the account's
