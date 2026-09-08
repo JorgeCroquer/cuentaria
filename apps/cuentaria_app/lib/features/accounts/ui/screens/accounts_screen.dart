@@ -130,65 +130,69 @@ class _AccountsScreenState extends ConsumerState<AccountsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Cuentas')),
-      body: catalogAsync.when(
-        data: (catalog) {
-          final active = catalog.accounts.where((a) => !a.isArchived);
-          final accounts = active.where((a) => !a.isDebtAccount).toList();
-          final debtAccounts = active.where((a) => a.isDebtAccount).toList();
-          if (accounts.isEmpty && debtAccounts.isEmpty) {
-            return const _EmptyState();
-          }
-          final groups = <String, List<Account>>{};
-          for (final account in accounts) {
-            groups
-                .putIfAbsent(account.nativeCurrency.value, () => [])
-                .add(account);
-          }
-          return ListView(
-            // Extra bottom room so the FAB never covers the last row
-            // (device finding 2026-09-08, Samsung S25 FE).
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.lg,
-              96,
-            ),
-            children: [
-              for (final group in groups.entries) ...[
-                SectionCard(
-                  header: group.key,
-                  children: [
-                    for (final account in group.value)
-                      _AccountTile(
-                        account: account,
-                        balance: projections.accountBalance(account.id).native,
-                        onReconcile: () => _openReconciliationSheet(account),
-                        onEdit: () => _openEditDialog(account),
-                        onArchive: () => _archive(account),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: AppSpacing.md),
+      body: SafeArea(
+        top: false,
+        child: catalogAsync.when(
+          data: (catalog) {
+            final active = catalog.accounts.where((a) => !a.isArchived);
+            final accounts = active.where((a) => !a.isDebtAccount).toList();
+            final debtAccounts = active.where((a) => a.isDebtAccount).toList();
+            if (accounts.isEmpty && debtAccounts.isEmpty) {
+              return const _EmptyState();
+            }
+            final groups = <String, List<Account>>{};
+            for (final account in accounts) {
+              groups
+                  .putIfAbsent(account.nativeCurrency.value, () => [])
+                  .add(account);
+            }
+            return ListView(
+              // Extra bottom room so the FAB never covers the last row
+              // (device finding 2026-09-08, Samsung S25 FE).
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.lg,
+                AppSpacing.lg,
+                96,
+              ),
+              children: [
+                for (final group in groups.entries) ...[
+                  SectionCard(
+                    header: group.key,
+                    children: [
+                      for (final account in group.value)
+                        _AccountTile(
+                          account: account,
+                          balance:
+                              projections.accountBalance(account.id).native,
+                          onReconcile: () => _openReconciliationSheet(account),
+                          onEdit: () => _openEditDialog(account),
+                          onArchive: () => _archive(account),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                ],
+                if (debtAccounts.isNotEmpty)
+                  ExpansionTile(
+                    key: const Key('debtsSection'),
+                    title: const Text('Deudas'),
+                    children: [
+                      for (final account in debtAccounts)
+                        ListTile(
+                          key: Key('debtAccount_${account.id.value}'),
+                          title: Text(account.counterpartyName!),
+                        ),
+                    ],
+                  ),
               ],
-              if (debtAccounts.isNotEmpty)
-                ExpansionTile(
-                  key: const Key('debtsSection'),
-                  title: const Text('Deudas'),
-                  children: [
-                    for (final account in debtAccounts)
-                      ListTile(
-                        key: Key('debtAccount_${account.id.value}'),
-                        title: Text(account.counterpartyName!),
-                      ),
-                  ],
-                ),
-            ],
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         key: const Key('addAccountFab'),

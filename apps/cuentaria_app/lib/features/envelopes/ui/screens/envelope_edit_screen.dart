@@ -145,22 +145,25 @@ class _EnvelopeEditScreenState extends ConsumerState<EnvelopeEditScreen> {
       appBar: AppBar(
         title: Text(widget.envelopeId == null ? 'Nuevo sobre' : 'Editar sobre'),
       ),
-      body: catalogAsync.when(
-        data: (catalog) {
-          if (widget.envelopeId != null && !_hydrated) {
-            final existing = catalog.getEnvelope(widget.envelopeId!);
-            if (existing != null) _hydrate(existing);
-            _hydrated = true;
-          }
-          if (_existing != null && _existing!.role != EnvelopeRole.none) {
-            return _buildSystemEnvelopeNotice();
-          }
-          return _buildForm(catalog);
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+      body: SafeArea(
+        top: false,
+        child: catalogAsync.when(
+          data: (catalog) {
+            if (widget.envelopeId != null && !_hydrated) {
+              final existing = catalog.getEnvelope(widget.envelopeId!);
+              if (existing != null) _hydrate(existing);
+              _hydrated = true;
+            }
+            if (_existing != null && _existing!.role != EnvelopeRole.none) {
+              return _buildSystemEnvelopeNotice();
+            }
+            return _buildForm(catalog);
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
     );
   }

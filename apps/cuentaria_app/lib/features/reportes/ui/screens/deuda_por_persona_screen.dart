@@ -75,32 +75,35 @@ class _DeudaPorPersonaScreenState extends ConsumerState<DeudaPorPersonaScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Deuda por persona')),
-      body: pointsAsync.when(
-        data: (points) {
-          if (points.isEmpty) {
-            return const Center(child: Text('Sin datos de deudas'));
-          }
-          final index = (_selectedIndex ?? points.length - 1).clamp(
-            0,
-            points.length - 1,
-          );
-          return _Body(
-            points: points,
-            selectedIndex: index,
-            onPrevious:
-                index > 0
-                    ? () => setState(() => _selectedIndex = index - 1)
-                    : null,
-            onNext:
-                index < points.length - 1
-                    ? () => setState(() => _selectedIndex = index + 1)
-                    : null,
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+      body: SafeArea(
+        top: false,
+        child: pointsAsync.when(
+          data: (points) {
+            if (points.isEmpty) {
+              return const Center(child: Text('Sin datos de deudas'));
+            }
+            final index = (_selectedIndex ?? points.length - 1).clamp(
+              0,
+              points.length - 1,
+            );
+            return _Body(
+              points: points,
+              selectedIndex: index,
+              onPrevious:
+                  index > 0
+                      ? () => setState(() => _selectedIndex = index - 1)
+                      : null,
+              onNext:
+                  index < points.length - 1
+                      ? () => setState(() => _selectedIndex = index + 1)
+                      : null,
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
     );
   }

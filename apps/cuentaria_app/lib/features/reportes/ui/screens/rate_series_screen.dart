@@ -26,25 +26,28 @@ class _RateSeriesScreenState extends ConsumerState<RateSeriesScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Serie de tasas')),
-      body: currenciesAsync.when(
-        data: (currencies) {
-          if (currencies.isEmpty) {
-            return const Center(child: Text('Sin observaciones de tasa'));
-          }
-          final selected =
-              _selected != null && currencies.contains(_selected)
-                  ? _selected!
-                  : currencies.first;
-          return _RateSeriesBody(
-            currencies: currencies,
-            selected: selected,
-            onSelect: (currency) => setState(() => _selected = currency),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error:
-            (error, stackTrace) =>
-                Center(child: Text('No se pudo cargar: $error')),
+      body: SafeArea(
+        top: false,
+        child: currenciesAsync.when(
+          data: (currencies) {
+            if (currencies.isEmpty) {
+              return const Center(child: Text('Sin observaciones de tasa'));
+            }
+            final selected =
+                _selected != null && currencies.contains(_selected)
+                    ? _selected!
+                    : currencies.first;
+            return _RateSeriesBody(
+              currencies: currencies,
+              selected: selected,
+              onSelect: (currency) => setState(() => _selected = currency),
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error:
+              (error, stackTrace) =>
+                  Center(child: Text('No se pudo cargar: $error')),
+        ),
       ),
     );
   }

@@ -74,60 +74,63 @@ class _ReportesScreenState extends State<ReportesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Reportes')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          MonthSelector(
-            month: _selectedMonth,
-            canGoForward: _canGoForward,
-            onPrevious: _goToPreviousMonth,
-            onNext: _goToNextMonth,
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: SpendingByEnvelopeSection(month: _selectedMonth),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: IncomeBySourceSection(month: _selectedMonth),
-          ),
-          for (final section in _sectionsBeforeAportes)
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            MonthSelector(
+              month: _selectedMonth,
+              canGoForward: _canGoForward,
+              onPrevious: _goToPreviousMonth,
+              onNext: _goToNextMonth,
+            ),
+            const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: switch (section.slug) {
-                'patrimonioEnElTiempo' => _PatrimonioEnTiempoEntry(
-                  title: section.title,
-                ),
-                'diferencialCambiario' => ExchangeDifferentialSection(
-                  month: _selectedMonth,
-                ),
-                _ => ReportSection(slug: section.slug, title: section.title),
-              },
+              child: SpendingByEnvelopeSection(month: _selectedMonth),
             ),
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: FundingPaceSection(month: _selectedMonth),
-          ),
-          for (final section in _sectionsAfterAportes)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: switch (section.slug) {
-                'deudaPorPersona' => _DeudaPorPersonaEntry(
-                  title: section.title,
-                ),
-                _ => ReportSection(slug: section.slug, title: section.title),
-              },
+              child: IncomeBySourceSection(month: _selectedMonth),
             ),
-          Card(
-            key: const Key('rateSeriesEntry'),
-            child: ListTile(
-              title: const Text('Serie de tasas'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.push('/reports/rate-series'),
+            for (final section in _sectionsBeforeAportes)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: switch (section.slug) {
+                  'patrimonioEnElTiempo' => _PatrimonioEnTiempoEntry(
+                    title: section.title,
+                  ),
+                  'diferencialCambiario' => ExchangeDifferentialSection(
+                    month: _selectedMonth,
+                  ),
+                  _ => ReportSection(slug: section.slug, title: section.title),
+                },
+              ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: FundingPaceSection(month: _selectedMonth),
             ),
-          ),
-        ],
+            for (final section in _sectionsAfterAportes)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: switch (section.slug) {
+                  'deudaPorPersona' => _DeudaPorPersonaEntry(
+                    title: section.title,
+                  ),
+                  _ => ReportSection(slug: section.slug, title: section.title),
+                },
+              ),
+            Card(
+              key: const Key('rateSeriesEntry'),
+              child: ListTile(
+                title: const Text('Serie de tasas'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => context.push('/reports/rate-series'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
