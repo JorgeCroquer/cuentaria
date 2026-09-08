@@ -1,5 +1,6 @@
 import 'package:backup/domain/ports/cloud_folder.dart';
 import 'package:contabilidad/infrastructure/database/cloud_copy_status_store.dart';
+import 'package:contabilidad/infrastructure/database/merge_consent_provider.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,6 +34,7 @@ final cloudCopyUseCaseProvider = FutureProvider<CloudCopyUseCase>((ref) async {
   final cloudFolder = ref.watch(cloudFolderProvider);
   final db = await ref.watch(databaseProvider.future);
   final deviceId = await ref.watch(deviceIdProvider.future);
+  final mergeConsent = MergeConsentProvider(db);
   return CloudCopyUseCase(
     createBackup: createBackup,
     restoreBackup: restoreBackup,
@@ -40,6 +42,8 @@ final cloudCopyUseCaseProvider = FutureProvider<CloudCopyUseCase>((ref) async {
     statusStore: CloudCopyStatusStore(db),
     deviceId: deviceId,
     isConnected: () async => ref.read(cloudSessionProvider).isConnected,
+    getMergeConsent: mergeConsent.hasConsent,
+    setMergeConsent: mergeConsent.setConsent,
   );
 });
 

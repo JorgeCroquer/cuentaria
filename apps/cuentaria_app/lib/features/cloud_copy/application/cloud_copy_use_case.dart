@@ -21,6 +21,8 @@ class CloudCopyUseCase {
   final CloudCopyStatusStore statusStore;
   final String deviceId;
   final Future<bool> Function() isConnected;
+  final Future<bool> Function() getMergeConsent;
+  final Future<void> Function(bool) setMergeConsent;
   final DateTime Function() _now;
 
   CloudCopyStatus _status = const CloudCopyStatus();
@@ -32,10 +34,14 @@ class CloudCopyUseCase {
     required this.statusStore,
     required this.deviceId,
     this.isConnected = _alwaysConnected,
+    this.getMergeConsent = _neverConsented,
+    this.setMergeConsent = _ignoreConsent,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
   static Future<bool> _alwaysConnected() async => true;
+  static Future<bool> _neverConsented() async => false;
+  static Future<void> _ignoreConsent(bool _) async {}
 
   String get _ownFileName => '$deviceId.ndjson';
 
@@ -136,10 +142,25 @@ class CloudCopyUseCase {
     return run;
   }
 
+  /// The merge gate (issue #297, ADR-0023 §6) lives here, not in the screen:
+  /// every caller of `sync` — the screen, `CloudCopyTriggers` on resume, the
+  /// debounced post-Transaction trigger — shares this one check, so none of
+  /// them can race a still-open merge dialog into pulling foreign history.
+  /// Once a run gets past the gate (whether because there was nothing to
+  /// merge, or because [getMergeConsent] said yes), it marks this device
+  /// consented for good: a device that never collided on its first sync must
+  /// not get gated later just because its own data grew into a collision
+  /// (e.g. it recorded a movement after merging in another device's file).
   Future<void> _runSync() async {
     if (!await isConnected()) return;
+    final consented = await getMergeConsent();
+    if (!consented && await hasPendingMerge()) {
+      _status = _status.copyWith(waitingForMergeConsent: true);
+      return;
+    }
     await pull();
     await push();
+    if (!consented) await setMergeConsent(true);
   }
 
   void _beginAttempt() {
