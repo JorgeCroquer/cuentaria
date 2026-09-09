@@ -767,6 +767,81 @@ void main() {
       expect(find.text('DESDE'), findsOneWidget);
       expect(find.text('HACIA'), findsOneWidget);
     });
+
+    testWidgets(
+      'typing only the received amount (hero untouched) shows a hint naming '
+      'what is missing, and toggling modes never loses the typed text '
+      '(device finding 2026-09-09)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveAccount(container, 'binance', 'USD');
+        await _saveAccount(container, 'bdv', 'VES');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverDestinationChip_bdv')));
+        await tester.pump();
+
+        // Jorge's repro: 12000 Bs received, hero amount never typed.
+        await tester.enterText(
+          find.byKey(const Key('moverRateInputField')),
+          '12000',
+        );
+        await tester.pump();
+
+        // Save stays disabled — but now it says WHY, naming the hero.
+        final saveButton = tester.widget<ElevatedButton>(
+          find.byKey(const Key('quickAddSaveButton')),
+        );
+        expect(saveButton.onPressed, isNull);
+        expect(find.byKey(const Key('moverMissingHint')), findsOneWidget);
+        expect(find.textContaining('cuánto sale'), findsOneWidget);
+        expect(find.textContaining('USD'), findsWidgets);
+
+        // Toggling to rate mode must not destroy the typed 12000: the rate
+        // field starts empty (nothing derivable), and toggling back
+        // restores the received text.
+        await tester.tap(find.byKey(const Key('moverToggleRate')));
+        await tester.pump();
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('moverRateInputField')))
+              .controller
+              ?.text,
+          isEmpty,
+        );
+        await tester.tap(find.byKey(const Key('moverToggleReceived')));
+        await tester.pump();
+        expect(
+          tester
+              .widget<TextField>(find.byKey(const Key('moverRateInputField')))
+              .controller
+              ?.text,
+          '12000',
+        );
+
+        // Typing the hero amount completes the story: hint gone, save on,
+        // derived rate visible.
+        await _enterAmount(tester, '1250'); // $12.50 given
+        await tester.pump();
+        expect(find.byKey(const Key('moverMissingHint')), findsNothing);
+        expect(
+          tester
+              .widget<ElevatedButton>(
+                find.byKey(const Key('quickAddSaveButton')),
+              )
+              .onPressed,
+          isNotNull,
+        );
+        expect(find.byKey(const Key('moverDerivedPreview')), findsOneWidget);
+      },
+    );
   });
 
   group('QuickAddExpenseSheet — Mover entre sobres (#309)', () {
