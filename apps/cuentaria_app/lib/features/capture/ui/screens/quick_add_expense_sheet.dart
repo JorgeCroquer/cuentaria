@@ -33,6 +33,9 @@ Future<void> showQuickAddExpenseSheet(
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    // Edge-to-edge (targetSdk 36): sin esto el sheet a altura completa se
+    // mete bajo la barra de estado — el SafeArea interno ve inset 0.
+    useSafeArea: true,
     builder:
         (context) => QuickAddExpenseSheet(
           preselectedGastoAccountId: preselectedGastoAccountId,
