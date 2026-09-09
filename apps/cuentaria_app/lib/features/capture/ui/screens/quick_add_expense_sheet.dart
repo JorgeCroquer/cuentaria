@@ -1,6 +1,7 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/exceptions.dart' as ledger;
+import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
 import 'package:contabilidad/domain/rate_calculator.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,14 @@ Future<void> showQuickAddExpenseSheet(
 }
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Same as [_formatUsdCents] but with an explicit sign for a negative
+/// result — used by the Distribution overdraw warning, where the whole
+/// point is showing how far under zero the source Envelope would land.
+String _formatSignedUsdCents(int cents) {
+  final sign = cents < 0 ? '-' : '';
+  return '$sign\$${(cents.abs() / 100).toStringAsFixed(2)}';
+}
 
 /// Maps domain exceptions to Spanish, user-actionable copy so the capture
 /// UI never surfaces a raw `toString()` of a domain type (#121). This is a
@@ -137,6 +146,12 @@ Widget _tonalChoiceChip(
 
 enum _CaptureMode { gasto, ingreso, mover }
 
+/// Which pair Mover moves between (#309): the default "Entre cuentas" moves
+/// money between Accounts (today's behavior, unchanged); "Entre sobres"
+/// redistributes USD between Envelopes via [RecordDistribution] — a pure
+/// re-labeling on the Envelope dimension that never touches an Account.
+enum _MoverMode { accounts, envelopes }
+
 /// Which side of the Mover two-sided form the user is currently typing —
 /// the other side is derived (U1, #98).
 enum _RateInputMode { receivedAmount, rate }
@@ -196,6 +211,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   AccountId? _moverSourceAccountId;
   AccountId? _moverDestinationAccountId;
   _RateInputMode _rateInputMode = _RateInputMode.receivedAmount;
+  _MoverMode _moverMode = _MoverMode.accounts;
+  EnvelopeId? _distributionSourceEnvelopeId;
+  EnvelopeId? _distributionDestinationEnvelopeId;
 
   @override
   void initState() {
@@ -249,6 +267,17 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     if (id == null) return null;
     for (final account in captureContext.accounts) {
       if (account.id == id) return account;
+    }
+    return null;
+  }
+
+  Envelope? _distributionEnvelopeById(
+    QuickAddCaptureContext captureContext,
+    EnvelopeId? id,
+  ) {
+    if (id == null) return null;
+    for (final envelope in captureContext.distributionEnvelopes) {
+      if (envelope.id == id) return envelope;
     }
     return null;
   }
@@ -498,6 +527,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   }
 
   bool _moverCanSave(QuickAddCaptureContext captureContext) {
+    if (_moverMode == _MoverMode.envelopes) {
+      return _distributionCanSave(captureContext);
+    }
     final source = _accountById(captureContext, _moverSourceAccountId);
     final destination = _accountById(
       captureContext,
@@ -509,6 +541,33 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     if (source.nativeCurrency == destination.nativeCurrency) return true;
     return _explicitReceivedAmount(destination) != null ||
         _explicitRate() != null;
+  }
+
+  bool _distributionCanSave(QuickAddCaptureContext captureContext) {
+    final source = _distributionEnvelopeById(
+      captureContext,
+      _distributionSourceEnvelopeId,
+    );
+    final destination = _distributionEnvelopeById(
+      captureContext,
+      _distributionDestinationEnvelopeId,
+    );
+    if (source == null || destination == null) return false;
+    if (source.id == destination.id) return false;
+    return _moverGivenAmount.isValid;
+  }
+
+  /// Non-blocking overdraw notice for the Distribution source Envelope
+  /// (ADR-0006 allows an Envelope to go negative by design) — `null` while
+  /// nothing is typed yet or the resulting balance stays non-negative.
+  String? _distributionNegativeWarning(Envelope source) {
+    if (!_moverGivenAmount.isValid) return null;
+    final balance = ref
+        .read(ledgerProjectionsProvider)
+        .envelopeUsdBalance(source.id);
+    final resulting = balance - _moverGivenAmount.amountMinorUnits.toInt();
+    if (resulting >= 0) return null;
+    return '${source.name} quedará en ${_formatSignedUsdCents(resulting)}';
   }
 
   Future<void> _saveMover(Account source, Account destination) async {
@@ -535,6 +594,38 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             sameCurrency ? null : _explicitReceivedAmount(destination),
         rate: sameCurrency ? null : _explicitRate(),
         occurredAt: DomainTimestamp(_date.toUtc()),
+      );
+
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      setState(() => _error = _userFacingErrorMessage(e));
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _saveDistribution(Envelope source, Envelope destination) async {
+    setState(() {
+      _error = null;
+      _isSaving = true;
+    });
+
+    try {
+      final recordDistribution = await ref.read(
+        recordDistributionProvider.future,
+      );
+      final deviceId = await ref.read(deviceIdProvider.future);
+      final amountUsd = _moverGivenAmount.amountMinorUnits.toInt();
+
+      await recordDistribution(
+        eventId: EventId(DateTime.now().microsecondsSinceEpoch.toString()),
+        deviceId: deviceId,
+        entries: [
+          DistributionEntry(envelopeId: source.id, amountUsd: -amountUsd),
+          DistributionEntry(envelopeId: destination.id, amountUsd: amountUsd),
+        ],
+        occurredAt: DomainTimestamp(_date.toUtc()),
+        memo: _noteController.text.trim(),
       );
 
       if (mounted) Navigator.of(context).pop();
@@ -581,6 +672,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     );
   }
 
+  bool get _showsNoteToggle =>
+      _mode == _CaptureMode.gasto ||
+      (_mode == _CaptureMode.mover && _moverMode == _MoverMode.envelopes);
+
   Widget _buildReactiveBody(QuickAddCaptureContext captureContext) {
     final selectedAccount = _accountById(captureContext, _selectedAccountId);
     final selectedIncomeAccount = _accountById(
@@ -616,7 +711,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     final heroCurrency = switch (_mode) {
       _CaptureMode.gasto => selectedAccount?.nativeCurrency,
       _CaptureMode.ingreso => selectedIncomeAccount?.nativeCurrency,
-      _CaptureMode.mover => moverSourceAccount?.nativeCurrency,
+      _CaptureMode.mover =>
+        _moverMode == _MoverMode.envelopes
+            ? CurrencyCode('USD')
+            : moverSourceAccount?.nativeCurrency,
     };
     final saveLabel = switch (_mode) {
       _CaptureMode.gasto => 'Guardar gasto',
@@ -718,7 +816,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   ),
                 ),
               ),
-              if (_mode == _CaptureMode.gasto && !_noteExpanded) ...[
+              if (_showsNoteToggle && !_noteExpanded) ...[
                 const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton(
@@ -730,7 +828,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               ],
             ],
           ),
-          if (_mode == _CaptureMode.gasto && _noteExpanded) ...[
+          if (_showsNoteToggle && _noteExpanded) ...[
             const SizedBox(height: 8),
             TextField(
               key: const Key('quickAddNoteField'),
@@ -760,10 +858,23 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                         case _CaptureMode.ingreso:
                           _saveIncome(selectedIncomeAccount!);
                         case _CaptureMode.mover:
-                          _saveMover(
-                            moverSourceAccount!,
-                            moverDestinationAccount!,
-                          );
+                          if (_moverMode == _MoverMode.envelopes) {
+                            _saveDistribution(
+                              _distributionEnvelopeById(
+                                captureContext,
+                                _distributionSourceEnvelopeId,
+                              )!,
+                              _distributionEnvelopeById(
+                                captureContext,
+                                _distributionDestinationEnvelopeId,
+                              )!,
+                            );
+                          } else {
+                            _saveMover(
+                              moverSourceAccount!,
+                              moverDestinationAccount!,
+                            );
+                          }
                       }
                     },
             child: Text(saveLabel),
@@ -944,7 +1055,57 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     );
   }
 
+  /// Mover's own submode selector (#309): "Entre cuentas" (default, today's
+  /// behavior) vs "Entre sobres" (Distribution between user Envelopes). Kept
+  /// as a thin wrapper so [_buildMoverAccountsBody]'s Keys and structure —
+  /// including the #208 Debt preselection flow — stay untouched.
   Widget _buildMoverBody(
+    QuickAddCaptureContext captureContext,
+    Account? sourceAccount,
+    Account? destinationAccount,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _tonalChoiceChip(
+                context,
+                key: const Key('moverModeAccounts'),
+                label: 'Entre cuentas',
+                selected: _moverMode == _MoverMode.accounts,
+                onSelected:
+                    (_) => setState(() => _moverMode = _MoverMode.accounts),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _tonalChoiceChip(
+                context,
+                key: const Key('moverModeEnvelopes'),
+                label: 'Entre sobres',
+                selected: _moverMode == _MoverMode.envelopes,
+                onSelected:
+                    (_) => setState(() => _moverMode = _MoverMode.envelopes),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_moverMode == _MoverMode.accounts)
+          _buildMoverAccountsBody(
+            captureContext,
+            sourceAccount,
+            destinationAccount,
+          )
+        else
+          _buildDistributionBody(captureContext),
+      ],
+    );
+  }
+
+  Widget _buildMoverAccountsBody(
     QuickAddCaptureContext captureContext,
     Account? sourceAccount,
     Account? destinationAccount,
@@ -1198,6 +1359,116 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                       },
                     ),
                   ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// Mover's "Entre sobres" submode (#309): moves USD between two user
+  /// Envelopes via [RecordDistribution] — Diferencial/Ajustes/Apertura never
+  /// appear here ([QuickAddCaptureContext.distributionEnvelopes] already
+  /// excludes them), but Stage does, since pulling from reserves or
+  /// reinvesting into Stage are both valid Distributions.
+  Widget _buildDistributionBody(QuickAddCaptureContext captureContext) {
+    final envelopes = captureContext.distributionEnvelopes;
+    final sourceEnvelope = _distributionEnvelopeById(
+      captureContext,
+      _distributionSourceEnvelopeId,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SectionCard(
+          header: '¿DE QUÉ SOBRE SALE?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child:
+                  envelopes.isEmpty
+                      ? const Text('Sin sobres aún.')
+                      : Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final envelope in envelopes)
+                            _tonalChoiceChip(
+                              context,
+                              key: Key(
+                                'distributionSourceChip_${envelope.id.value}',
+                              ),
+                              label: envelope.name,
+                              selected:
+                                  envelope.id == _distributionSourceEnvelopeId,
+                              onSelected:
+                                  (_) => setState(() {
+                                    _distributionSourceEnvelopeId = envelope.id;
+                                    if (_distributionDestinationEnvelopeId ==
+                                        envelope.id) {
+                                      _distributionDestinationEnvelopeId = null;
+                                    }
+                                  }),
+                            ),
+                        ],
+                      ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SectionCard(
+          header: '¿A QUÉ SOBRE ENTRA?',
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (envelopes.isEmpty)
+                    const Text('Sin sobres aún.')
+                  else
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final envelope in envelopes)
+                          _tonalChoiceChip(
+                            context,
+                            key: Key(
+                              'distributionDestinationChip_${envelope.id.value}',
+                            ),
+                            label: envelope.name,
+                            selected:
+                                envelope.id ==
+                                _distributionDestinationEnvelopeId,
+                            onSelected:
+                                envelope.id == _distributionSourceEnvelopeId
+                                    ? null
+                                    : (_) => setState(
+                                      () =>
+                                          _distributionDestinationEnvelopeId =
+                                              envelope.id,
+                                    ),
+                          ),
+                      ],
+                    ),
+                  if (sourceEnvelope != null)
+                    Builder(
+                      builder: (context) {
+                        final warning = _distributionNegativeWarning(
+                          sourceEnvelope,
+                        );
+                        if (warning == null) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            warning,
+                            key: const Key('distributionNegativeWarning'),
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),

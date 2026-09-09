@@ -167,5 +167,49 @@ void main() {
         }
       },
     );
+
+    test('stores an optional memo, trimmed empty to null', () async {
+      final envId1 = EnvelopeId('env-1');
+      final envId2 = EnvelopeId('env-2');
+
+      for (var id in [envId1, envId2]) {
+        catalog.saveEnvelope(
+          Envelope(
+            id: id,
+            name: 'Envelope ${id.value}',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+
+      await recordDistribution(
+        eventId: EventId('evt-memo'),
+        deviceId: 'dev-1',
+        entries: [
+          DistributionEntry(envelopeId: envId1, amountUsd: -100),
+          DistributionEntry(envelopeId: envId2, amountUsd: 100),
+        ],
+        memo: 'Compra de un activo',
+      );
+
+      expect(store.events.first.metadata.memo, equals('Compra de un activo'));
+
+      await recordDistribution(
+        eventId: EventId('evt-memo-empty'),
+        deviceId: 'dev-1',
+        entries: [
+          DistributionEntry(envelopeId: envId1, amountUsd: 100),
+          DistributionEntry(envelopeId: envId2, amountUsd: -100),
+        ],
+        memo: '',
+      );
+
+      final emptyMemoTx = store.events.firstWhere(
+        (tx) => tx.metadata.eventId == EventId('evt-memo-empty'),
+      );
+      expect(emptyMemoTx.metadata.memo, isNull);
+    });
   });
 }

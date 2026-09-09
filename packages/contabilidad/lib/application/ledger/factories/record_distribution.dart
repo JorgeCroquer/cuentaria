@@ -28,6 +28,7 @@ class RecordDistribution {
     required String deviceId,
     required List<DistributionEntry> entries,
     DomainTimestamp? occurredAt,
+    String? memo,
   }) async {
     int sum = entries.fold(0, (acc, e) => acc + e.amountUsd);
     if (sum != 0) {
@@ -61,6 +62,7 @@ class RecordDistribution {
       recordedAt: DomainTimestamp(now),
       deviceId: deviceId,
       schemaVersion: 1,
+      memo: memo == null || memo.isEmpty ? null : memo,
     );
 
     await _record(postings: postings, metadata: metadata);

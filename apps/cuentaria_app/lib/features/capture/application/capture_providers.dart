@@ -1,6 +1,7 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
+import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
 import 'package:contabilidad/application/ledger/factories/record_income.dart';
 import 'package:contabilidad/application/ledger/factories/record_realization.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
@@ -120,12 +121,18 @@ final quickAddMoverUseCaseProvider = FutureProvider<QuickAddMoverUseCase>((
 /// [AsyncValue]. [accounts] is every non-archived account, used to resolve a
 /// selection by id regardless of mode; [regularAccounts]/[debtAccounts]
 /// split it for the pickers (#208): Gasto/Ingreso only offer
-/// [regularAccounts], Mover offers both.
+/// [regularAccounts], Mover offers both. [distributionEnvelopes] is the
+/// picker for Mover's "Entre sobres" submode (#309): user Envelopes plus the
+/// Stage system Envelope (a valid Distribution origin/destination — pulling
+/// from reserves or reinvesting from Stage), excluding the other system
+/// Envelopes (Differential/Adjustments/Opening), which never take a manual
+/// Distribution.
 class QuickAddCaptureContext {
   final List<Account> accounts;
   final List<Account> regularAccounts;
   final List<Account> debtAccounts;
   final List<Envelope> envelopes;
+  final List<Envelope> distributionEnvelopes;
   final AccountId? lastUsedAccountId;
   final List<String> previousIncomeSources;
   final MoverPair? lastUsedMoverPair;
@@ -135,6 +142,7 @@ class QuickAddCaptureContext {
     required this.regularAccounts,
     required this.debtAccounts,
     required this.envelopes,
+    required this.distributionEnvelopes,
     required this.lastUsedAccountId,
     required this.previousIncomeSources,
     required this.lastUsedMoverPair,
@@ -164,13 +172,42 @@ final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
       if (!frequencyOrder.contains(e.id)) e,
   ];
 
+  final distributionEnvelopes =
+      catalog.envelopes
+          .where(
+            (e) =>
+                !e.isArchived &&
+                (e.role == EnvelopeRole.none || e.role == EnvelopeRole.stage),
+          )
+          .toList()
+        ..sort((a, b) => a.name.compareTo(b.name));
+
   return QuickAddCaptureContext(
     accounts: accounts,
     regularAccounts: regularAccounts,
     debtAccounts: debtAccounts,
     envelopes: envelopes,
+    distributionEnvelopes: distributionEnvelopes,
     lastUsedAccountId: await defaults.lastUsedAccount(),
     previousIncomeSources: await defaults.previousIncomeSources(),
     lastUsedMoverPair: await defaults.lastUsedMoverPair(),
   );
+});
+
+final recordDistributionProvider = FutureProvider<RecordDistribution>((
+  ref,
+) async {
+  final store = await ref.watch(eventStoreProvider.future);
+  final catalog = await ref.watch(catalogRepositoryProvider.future);
+  final projections = ref.watch(ledgerProjectionsProvider);
+  final eventBus = ref.watch(eventBusProvider);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+
+  return RecordDistribution(record: recordTransaction, catalog: catalog);
 });
