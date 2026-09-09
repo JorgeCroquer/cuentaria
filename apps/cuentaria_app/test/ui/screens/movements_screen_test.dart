@@ -3,6 +3,7 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/application/catalog/models/envelope_appearance.dart';
 import 'package:contabilidad/application/ledger/factories/record_acquisition_conversion.dart';
 import 'package:contabilidad/application/ledger/factories/record_adjustment.dart';
+import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
 import 'package:contabilidad/application/ledger/factories/record_income.dart';
 import 'package:contabilidad/application/ledger/factories/record_reversal.dart';
 import 'package:contabilidad/application/ledger/factories/record_transfer.dart';
@@ -230,6 +231,61 @@ Future<void> _recordAcquisitionConversion(
       currency: CurrencyCode('VES'),
     ),
     rateRef: '50.00 VES/USD',
+  );
+}
+
+Future<void> _recordDistribution(
+  ProviderContainer container, {
+  required String eventId,
+}) async {
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  await catalog.saveEnvelope(
+    Envelope(
+      id: EnvelopeId('env-inversion'),
+      name: 'Inversión',
+      role: EnvelopeRole.none,
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  await catalog.saveEnvelope(
+    Envelope(
+      id: EnvelopeId('env-portafolio'),
+      name: 'Portafolio',
+      role: EnvelopeRole.none,
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+  final store = await container.read(eventStoreProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final eventBus = container.read(eventBusProvider);
+  final deviceId = await container.read(deviceIdProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  final recordDistribution = RecordDistribution(
+    record: recordTransaction,
+    catalog: catalog,
+  );
+
+  await recordDistribution(
+    eventId: EventId(eventId),
+    deviceId: deviceId,
+    entries: [
+      DistributionEntry(
+        envelopeId: EnvelopeId('env-inversion'),
+        amountUsd: -20000,
+      ),
+      DistributionEntry(
+        envelopeId: EnvelopeId('env-portafolio'),
+        amountUsd: 20000,
+      ),
+    ],
   );
 }
 
@@ -670,6 +726,34 @@ void main() {
           ),
           findsOneWidget,
         );
+      },
+    );
+
+    testWidgets(
+      'a Distribution row titles itself "Mover · <sobre A> → <sobre B>" with '
+      'a neutral amount (#309)',
+      (tester) async {
+        final container = await _seededContainer();
+        addTearDown(container.dispose);
+        await _recordDistribution(container, eventId: 'evt-distribution');
+
+        await _pumpWithRouter(tester, container);
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('movement_evt-distribution')),
+            matching: find.text('Mover · Inversión → Portafolio'),
+          ),
+          findsOneWidget,
+        );
+
+        final signedAmount = tester.widget<SignedAmountText>(
+          find.descendant(
+            of: find.byKey(const Key('movement_evt-distribution')),
+            matching: find.byType(SignedAmountText),
+          ),
+        );
+        expect(signedAmount.sign, AmountSign.neutral);
       },
     );
 
