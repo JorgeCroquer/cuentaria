@@ -1,5 +1,8 @@
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
+import 'package:contabilidad/application/ledger/factories/record_distribution.dart';
+import 'package:contabilidad/application/ledger/referential_integrity_validator.dart';
+import 'package:contabilidad/application/record_transaction.dart';
 import 'package:contabilidad/domain/posting.dart';
 import 'package:contabilidad/domain/posting_target.dart';
 import 'package:contabilidad/domain/transaction.dart';
@@ -169,6 +172,65 @@ Future<void> _fund(
     ),
   );
   projections.apply((await store.get(eventId))!);
+}
+
+Future<void> _saveEnvelope(
+  ProviderContainer container,
+  String id,
+  String name,
+) async {
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  await catalog.saveEnvelope(
+    Envelope(
+      id: EnvelopeId(id),
+      name: name,
+      role: EnvelopeRole.none,
+      isArchived: false,
+      updatedAt: DateTime.now(),
+    ),
+  );
+}
+
+/// Seeds [envelopeId]'s USD balance to [usdAmount] via a bare Distribution
+/// from a throwaway envelope, so a Mover-entre-sobres test can assert on a
+/// known starting balance without depending on this ticket's own Save path.
+Future<void> _seedEnvelopeBalance(
+  ProviderContainer container, {
+  required String envelopeId,
+  required int usdAmount,
+}) async {
+  await _saveEnvelope(container, 'env-seed-source', 'Seed source');
+  final store = await container.read(eventStoreProvider.future);
+  final catalog = await container.read(catalogRepositoryProvider.future);
+  final projections = container.read(ledgerProjectionsProvider);
+  final eventBus = container.read(eventBusProvider);
+  final deviceId = await container.read(deviceIdProvider.future);
+
+  final recordTransaction = RecordTransaction(
+    store: store,
+    projections: projections,
+    eventBus: eventBus,
+    validator: ReferentialIntegrityValidator(catalog),
+  );
+  final recordDistribution = RecordDistribution(
+    record: recordTransaction,
+    catalog: catalog,
+  );
+
+  await recordDistribution(
+    eventId: EventId('evt-seed-$envelopeId'),
+    deviceId: deviceId,
+    entries: [
+      DistributionEntry(
+        envelopeId: EnvelopeId('env-seed-source'),
+        amountUsd: -usdAmount,
+      ),
+      DistributionEntry(
+        envelopeId: EnvelopeId(envelopeId),
+        amountUsd: usdAmount,
+      ),
+    ],
+  );
 }
 
 void main() {
@@ -705,5 +767,177 @@ void main() {
       expect(find.text('DESDE'), findsOneWidget);
       expect(find.text('HACIA'), findsOneWidget);
     });
+  });
+
+  group('QuickAddExpenseSheet — Mover entre sobres (#309)', () {
+    testWidgets(
+      'Mover defaults to "Entre cuentas"; switching to "Entre sobres" swaps '
+      'the account pickers for envelope pickers',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveEnvelope(container, 'env-inversion', 'Inversión');
+        await _saveEnvelope(container, 'env-portafolio', 'Portafolio');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+
+        expect(find.byKey(const Key('moverStep1')), findsOneWidget);
+        expect(
+          find.byKey(const Key('distributionSourceChip_env-inversion')),
+          findsNothing,
+        );
+
+        await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+        await tester.pump();
+
+        expect(find.byKey(const Key('moverStep1')), findsNothing);
+        expect(
+          find.byKey(const Key('distributionSourceChip_env-inversion')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('distributionDestinationChip_env-portafolio')),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'moving \$200 from Inversión to Portafolio posts a Distribution: no '
+      'Account changes, both Envelope balances move and net to zero',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveEnvelope(container, 'env-inversion', 'Inversión');
+        await _saveEnvelope(container, 'env-portafolio', 'Portafolio');
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+        await tester.pump();
+
+        await tester.tap(
+          find.byKey(const Key('distributionSourceChip_env-inversion')),
+        );
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const Key('distributionDestinationChip_env-portafolio')),
+        );
+        await tester.pump();
+
+        await _enterAmount(tester, '20000'); // $200.00
+
+        await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+        await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+        await tester.pumpAndSettle();
+
+        final store = await container.read(eventStoreProvider.future);
+        final log = await store.queryLog();
+        expect(log.single.metadata.type, 'Distribution');
+
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(
+          projections.envelopeUsdBalance(EnvelopeId('env-inversion')),
+          -20000,
+        );
+        expect(
+          projections.envelopeUsdBalance(EnvelopeId('env-portafolio')),
+          20000,
+        );
+      },
+    );
+
+    testWidgets(
+      'moving \$500 out of Comida (\$300 balance) shows a soft warning and '
+      'still lets Save proceed (Envelopes may overdraw by design)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await _saveEnvelope(container, 'env-comida', 'Comida');
+        await _saveEnvelope(container, 'env-ahorros', 'Ahorros');
+        await _seedEnvelopeBalance(
+          container,
+          envelopeId: 'env-comida',
+          usdAmount: 30000,
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+        await tester.pump();
+
+        await tester.tap(
+          find.byKey(const Key('distributionSourceChip_env-comida')),
+        );
+        await tester.pump();
+        await tester.tap(
+          find.byKey(const Key('distributionDestinationChip_env-ahorros')),
+        );
+        await tester.pump();
+
+        await _enterAmount(tester, '50000'); // $500.00
+
+        expect(find.text('Comida quedará en -\$200.00'), findsOneWidget);
+
+        await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
+        final saveButton = tester.widget<ElevatedButton>(
+          find.byKey(const Key('quickAddSaveButton')),
+        );
+        expect(saveButton.onPressed, isNotNull);
+
+        await tester.tap(find.byKey(const Key('quickAddSaveButton')));
+        await tester.pumpAndSettle();
+
+        final projections = container.read(ledgerProjectionsProvider);
+        expect(
+          projections.envelopeUsdBalance(EnvelopeId('env-comida')),
+          -20000,
+        );
+      },
+    );
+
+    testWidgets(
+      'Differential/Adjustments/Opening never appear in the sobre pickers; '
+      'Stage does',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+        await tester.pump();
+
+        expect(
+          find.byKey(const Key('distributionSourceChip_sys-stage')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('distributionSourceChip_sys-differential')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('distributionSourceChip_sys-adjustments')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('distributionSourceChip_sys-opening')),
+          findsNothing,
+        );
+      },
+    );
   });
 }

@@ -102,6 +102,11 @@ bool _isInterAccountMove(Transaction transaction) =>
 /// list ("Mover — $0.00" for a real $100 transfer). So for this family we
 /// show the moved amount (the receiving leg) instead; net wealth is
 /// unaffected, this only changes what the row displays.
+///
+/// A Distribution (#309) has no Account posting at all, so this always nets
+/// to $0.00 for it — the same "relabeling, not new wealth" story as an
+/// inter-account move, already rendered with a neutral sign below since
+/// [_signFor] treats 0 as neutral.
 int _netUsd(Transaction transaction) {
   final accountPostings = transaction.postings.where(
     (p) => p.dimension == Dimension.account,
@@ -351,9 +356,38 @@ String? _accountRouteFor(Transaction transaction, CatalogRepository catalog) {
   return '$sourceName → $destinationName';
 }
 
+/// `<source envelope> → <destination envelope>` for a manual, one-to-one
+/// Distribution (#309, Mover's "Entre sobres" submode) — same
+/// negative-leg/positive-leg convention as [_accountRouteFor]. Deliberately
+/// exact-two, not `>= 2`: a cascade Distribution (Apertura/Stage split into
+/// several Envelopes) isn't a route between two things and keeps the
+/// generic "Distribución" label instead.
+String? _envelopeRouteFor(Transaction transaction, CatalogRepository catalog) {
+  final envelopePostings =
+      transaction.postings.where((p) => p.target is EnvelopeTarget).toList();
+  if (envelopePostings.length != 2) return null;
+
+  final source = envelopePostings.firstWhere(
+    (p) => p.amountUsd < 0,
+    orElse: () => envelopePostings.first,
+  );
+  final destination = envelopePostings.firstWhere(
+    (p) => p.amountUsd > 0,
+    orElse: () => envelopePostings.last,
+  );
+  final sourceName =
+      catalog.getEnvelope((source.target as EnvelopeTarget).envelopeId)?.name;
+  final destinationName =
+      catalog
+          .getEnvelope((destination.target as EnvelopeTarget).envelopeId)
+          ?.name;
+  return '$sourceName → $destinationName';
+}
+
 /// Row title (#282): distinguishes movements of the same type/amount at a
 /// glance — the envelope an Expense hit, the source of an Income, or the two
-/// Accounts a move ran between — instead of the generic family label.
+/// Accounts/Envelopes a move ran between — instead of the generic family
+/// label.
 String _titleFor(Transaction transaction, CatalogRepository catalog) {
   final metadata = transaction.metadata;
   switch (metadata.type) {
@@ -369,6 +403,11 @@ String _titleFor(Transaction transaction, CatalogRepository catalog) {
     case 'DisposalConversion':
     case 'CryptoSale':
       final route = _accountRouteFor(transaction, catalog);
+      return route == null
+          ? humanMovementLabel(metadata.type)
+          : 'Mover · $route';
+    case 'Distribution':
+      final route = _envelopeRouteFor(transaction, catalog);
       return route == null
           ? humanMovementLabel(metadata.type)
           : 'Mover · $route';
