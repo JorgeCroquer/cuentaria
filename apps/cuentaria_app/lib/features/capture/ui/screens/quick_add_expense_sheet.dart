@@ -479,6 +479,14 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return _formatCentsAsAmount(usdCents);
   }
 
+  /// What each mode last held, so toggling never destroys typed input when
+  /// nothing is derivable yet (device finding 2026-09-09: with the hero
+  /// amount still empty, the derived pre-fill was null and wiped the field).
+  final Map<_RateInputMode, String> _rateModeMemory = {
+    _RateInputMode.receivedAmount: '',
+    _RateInputMode.rate: '',
+  };
+
   void _toggleRateInputMode(
     _RateInputMode newMode,
     Account sourceAccount,
@@ -487,9 +495,32 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     if (newMode == _rateInputMode) return;
     final derived = _deriveOtherFieldText(sourceAccount, destinationAccount);
     setState(() {
+      _rateModeMemory[_rateInputMode] = _rateFieldController.text;
       _rateInputMode = newMode;
-      _rateFieldController.text = derived ?? '';
+      _rateFieldController.text = derived ?? _rateModeMemory[newMode]!;
     });
+  }
+
+  /// Why Save is still off in Mover-between-accounts, in the user's words —
+  /// the hero amount is "what leaves the source", which nothing on screen
+  /// said (device finding 2026-09-09: 12.000 Bs received typed, hero empty,
+  /// dead button with no explanation).
+  String? _moverMissingHint(
+    Account? sourceAccount,
+    Account? destinationAccount,
+  ) {
+    if (sourceAccount == null || destinationAccount == null) return null;
+    if (!_moverGivenAmount.isValid) {
+      return 'Teclea arriba cuánto sale de ${sourceAccount.name} '
+          '(${sourceAccount.nativeCurrency.value}).';
+    }
+    if (sourceAccount.nativeCurrency != destinationAccount.nativeCurrency &&
+        _explicitReceivedAmount(destinationAccount) == null &&
+        _explicitRate() == null) {
+      return 'Indica el monto recibido en '
+          '${destinationAccount.nativeCurrency.value} o la tasa aplicada.';
+    }
+    return null;
   }
 
   /// Whether [candidate] can be picked as the Mover destination given the
@@ -1363,6 +1394,22 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               ),
             ),
           ],
+        ),
+        Builder(
+          builder: (context) {
+            final hint = _moverMissingHint(sourceAccount, destinationAccount);
+            if (hint == null) return const SizedBox.shrink();
+            return Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                hint,
+                key: const Key('moverMissingHint'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            );
+          },
         ),
       ],
     );
