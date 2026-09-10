@@ -1253,6 +1253,58 @@ void main() {
           expect(lastChipCenterAfter.dx, lessThan(firstChipCenterAfter.dx));
         },
       );
+
+      testWidgets(
+        'the envelope picker behaves the same: 8 envelopes stay a single '
+        'row and selecting the last one reorders it first',
+        (tester) async {
+          final container = ProviderContainer(
+            overrides: [isWebProvider.overrideWithValue(true)],
+          );
+          addTearDown(container.dispose);
+          final catalog = await container.read(
+            catalogRepositoryProvider.future,
+          );
+          await saveAccounts(catalog, 1);
+          for (var i = 0; i < 8; i++) {
+            await catalog.saveEnvelope(
+              Envelope(
+                id: EnvelopeId('env-$i'),
+                name: 'Sobre $i',
+                role: EnvelopeRole.none,
+                isArchived: false,
+                updatedAt: DateTime.now(),
+              ),
+            );
+          }
+
+          await _openSheet(tester, existing: container);
+
+          final firstChipCenter = tester.getCenter(
+            find.byKey(const Key('envelopeChip_env-0')),
+          );
+          final lastChipCenter = tester.getCenter(
+            find.byKey(const Key('envelopeChip_env-7')),
+          );
+          // Single row: no wrapping, chips flow to the right.
+          expect(lastChipCenter.dy, firstChipCenter.dy);
+          expect(firstChipCenter.dx, lessThan(lastChipCenter.dx));
+
+          await tester.ensureVisible(
+            find.byKey(const Key('envelopeChip_env-7')),
+          );
+          await tester.pump();
+          await tester.tap(find.byKey(const Key('envelopeChip_env-7')));
+          await tester.pump();
+
+          expect(
+            tester.getCenter(find.byKey(const Key('envelopeChip_env-7'))).dx,
+            lessThan(
+              tester.getCenter(find.byKey(const Key('envelopeChip_env-0'))).dx,
+            ),
+          );
+        },
+      );
     },
   );
 }
