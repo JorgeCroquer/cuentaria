@@ -1,7 +1,7 @@
 name: cuentaria_app
 description: "Cuentaria MVP Application Shell"
 publish_to: 'none'
-version: 1.2.1+5
+version: 1.3.0+6
 
 environment:
   sdk: ^3.7.0
