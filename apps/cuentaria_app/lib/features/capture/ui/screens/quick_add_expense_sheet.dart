@@ -144,6 +144,33 @@ Widget _tonalChoiceChip(
   );
 }
 
+/// A single, horizontally-scrolling row for catalog pickers that grow with
+/// user data (Accounts, Envelopes) — a `Wrap` letting these spill onto
+/// extra rows pushed the amount hero off-screen once the keypad opened
+/// (device finding, Samsung S25 FE, 2026-09-10, #313). The selected chip
+/// always sorts first so it stays visible without any scrolling or
+/// `ensureVisible` animation.
+Widget _chipRow(List<({bool selected, Widget chip})> chips) {
+  final ordered = [
+    for (final entry in chips)
+      if (entry.selected) entry.chip,
+    for (final entry in chips)
+      if (!entry.selected) entry.chip,
+  ];
+  return SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < ordered.length; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          ordered[i],
+        ],
+      ],
+    ),
+  );
+}
+
 enum _CaptureMode { gasto, ingreso, mover }
 
 /// Which pair Mover moves between (#309): the default "Entre cuentas" moves
@@ -945,11 +972,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child:
                   gastoAccounts.isEmpty
                       ? const Text('Sin cuentas aún.')
-                      : Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final account in gastoAccounts)
-                            _tonalChoiceChip(
+                      : _chipRow([
+                        for (final account in gastoAccounts)
+                          (
+                            selected: account.id == _selectedAccountId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key('accountChip_${account.id.value}'),
                               label: _accountChipLabel(account),
@@ -959,8 +986,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                     () => _selectedAccountId = account.id,
                                   ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
             ),
           ],
         ),
@@ -973,11 +1000,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child:
                   captureContext.envelopes.isEmpty
                       ? const Text('Sin sobres aún.')
-                      : Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final envelope in captureContext.envelopes)
-                            _tonalChoiceChip(
+                      : _chipRow([
+                        for (final envelope in captureContext.envelopes)
+                          (
+                            selected: envelope.id == _selectedEnvelopeId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key('envelopeChip_${envelope.id.value}'),
                               label: envelope.name,
@@ -987,8 +1014,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                     () => _selectedEnvelopeId = envelope.id,
                                   ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
             ),
           ],
         ),
@@ -1063,11 +1090,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child:
                   captureContext.regularAccounts.isEmpty
                       ? const Text('Sin cuentas aún.')
-                      : Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final account in captureContext.regularAccounts)
-                            _tonalChoiceChip(
+                      : _chipRow([
+                        for (final account in captureContext.regularAccounts)
+                          (
+                            selected: account.id == _selectedIncomeAccountId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key('incomeAccountChip_${account.id.value}'),
                               label: _accountChipLabel(account),
@@ -1077,8 +1104,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                     () => _selectedIncomeAccountId = account.id,
                                   ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
             ),
           ],
         ),
@@ -1161,11 +1188,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   if (captureContext.accounts.isEmpty)
                     const Text('Sin cuentas aún.')
                   else ...[
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final account in captureContext.regularAccounts)
-                          _tonalChoiceChip(
+                    _chipRow([
+                      for (final account in captureContext.regularAccounts)
+                        (
+                          selected: account.id == _moverSourceAccountId,
+                          chip: _tonalChoiceChip(
                             context,
                             key: Key('moverSourceChip_${account.id.value}'),
                             label: _accountChipLabel(account),
@@ -1186,16 +1213,16 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                   }
                                 }),
                           ),
-                      ],
-                    ),
+                        ),
+                    ]),
                     if (captureContext.debtAccounts.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       const Text('Deudas'),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final account in captureContext.debtAccounts)
-                            _tonalChoiceChip(
+                      _chipRow([
+                        for (final account in captureContext.debtAccounts)
+                          (
+                            selected: account.id == _moverSourceAccountId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key('moverSourceChip_${account.id.value}'),
                               label: _accountChipLabel(account),
@@ -1216,8 +1243,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                     }
                                   }),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
                     ],
                   ],
                 ],
@@ -1237,11 +1264,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   if (captureContext.accounts.isEmpty)
                     const Text('Sin cuentas aún.')
                   else ...[
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final account in captureContext.regularAccounts)
-                          _tonalChoiceChip(
+                    _chipRow([
+                      for (final account in captureContext.regularAccounts)
+                        (
+                          selected: account.id == _moverDestinationAccountId,
+                          chip: _tonalChoiceChip(
                             context,
                             key: Key(
                               'moverDestinationChip_${account.id.value}',
@@ -1260,16 +1287,16 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                               account.id,
                                     ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ]),
                     if (captureContext.debtAccounts.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       const Text('Deudas'),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final account in captureContext.debtAccounts)
-                            _tonalChoiceChip(
+                      _chipRow([
+                        for (final account in captureContext.debtAccounts)
+                          (
+                            selected: account.id == _moverDestinationAccountId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key(
                                 'moverDestinationChip_${account.id.value}',
@@ -1289,8 +1316,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                                 account.id,
                                       ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
                     ],
                   ],
                   if (!differentCurrency)
@@ -1438,11 +1465,12 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child:
                   envelopes.isEmpty
                       ? const Text('Sin sobres aún.')
-                      : Wrap(
-                        spacing: 8,
-                        children: [
-                          for (final envelope in envelopes)
-                            _tonalChoiceChip(
+                      : _chipRow([
+                        for (final envelope in envelopes)
+                          (
+                            selected:
+                                envelope.id == _distributionSourceEnvelopeId,
+                            chip: _tonalChoiceChip(
                               context,
                               key: Key(
                                 'distributionSourceChip_${envelope.id.value}',
@@ -1459,8 +1487,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                     }
                                   }),
                             ),
-                        ],
-                      ),
+                          ),
+                      ]),
             ),
           ],
         ),
@@ -1476,11 +1504,12 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   if (envelopes.isEmpty)
                     const Text('Sin sobres aún.')
                   else
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final envelope in envelopes)
-                          _tonalChoiceChip(
+                    _chipRow([
+                      for (final envelope in envelopes)
+                        (
+                          selected:
+                              envelope.id == _distributionDestinationEnvelopeId,
+                          chip: _tonalChoiceChip(
                             context,
                             key: Key(
                               'distributionDestinationChip_${envelope.id.value}',
@@ -1498,8 +1527,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                                               envelope.id,
                                     ),
                           ),
-                      ],
-                    ),
+                        ),
+                    ]),
                   if (sourceEnvelope != null)
                     Builder(
                       builder: (context) {

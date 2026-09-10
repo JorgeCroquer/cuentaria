@@ -1,3 +1,4 @@
+import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/domain/posting.dart';
@@ -1165,4 +1166,145 @@ void main() {
       },
     );
   });
+
+  group(
+    'catalog chip pickers scroll horizontally instead of wrapping (#313)',
+    () {
+      Future<void> saveAccounts(CatalogRepository catalog, int count) async {
+        for (var i = 0; i < count; i++) {
+          await catalog.saveAccount(
+            Account(
+              id: AccountId('acc-$i'),
+              name: 'Cuenta $i',
+              nativeCurrency: CurrencyCode('USD'),
+              isArchived: false,
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+      }
+
+      testWidgets(
+        'with 8 accounts the picker stays a single row (chips share one '
+        'vertical center) instead of wrapping and pushing the amount hero '
+        'down',
+        (tester) async {
+          final container = ProviderContainer(
+            overrides: [isWebProvider.overrideWithValue(true)],
+          );
+          addTearDown(container.dispose);
+          final catalog = await container.read(
+            catalogRepositoryProvider.future,
+          );
+          await saveAccounts(catalog, 8);
+
+          await _openSheet(tester, existing: container);
+
+          final heroDy =
+              tester.getTopLeft(find.byKey(const Key('amountDisplay'))).dy;
+          final firstChipDy =
+              tester.getCenter(find.byKey(const Key('accountChip_acc-0'))).dy;
+          final lastChipDy =
+              tester.getCenter(find.byKey(const Key('accountChip_acc-7'))).dy;
+
+          // All 8 chips sit on the same row (no wrapping)...
+          expect(lastChipDy, firstChipDy);
+          // ...and that row renders below the hero, not pushed off past it.
+          expect(firstChipDy, greaterThan(heroDy));
+        },
+      );
+
+      testWidgets(
+        'selecting a chip further down the row reorders it first, so it '
+        'stays visible without scrolling',
+        (tester) async {
+          final container = ProviderContainer(
+            overrides: [isWebProvider.overrideWithValue(true)],
+          );
+          addTearDown(container.dispose);
+          final catalog = await container.read(
+            catalogRepositoryProvider.future,
+          );
+          await saveAccounts(catalog, 8);
+
+          await _openSheet(tester, existing: container);
+
+          final firstChipCenterBefore = tester.getCenter(
+            find.byKey(const Key('accountChip_acc-0')),
+          );
+          final lastChipCenterBefore = tester.getCenter(
+            find.byKey(const Key('accountChip_acc-7')),
+          );
+          expect(firstChipCenterBefore.dx, lessThan(lastChipCenterBefore.dx));
+
+          await tester.ensureVisible(
+            find.byKey(const Key('accountChip_acc-7')),
+          );
+          await tester.pump();
+          await tester.tap(find.byKey(const Key('accountChip_acc-7')));
+          await tester.pump();
+
+          final lastChipCenterAfter = tester.getCenter(
+            find.byKey(const Key('accountChip_acc-7')),
+          );
+          final firstChipCenterAfter = tester.getCenter(
+            find.byKey(const Key('accountChip_acc-0')),
+          );
+          expect(lastChipCenterAfter.dx, lessThan(firstChipCenterAfter.dx));
+        },
+      );
+
+      testWidgets(
+        'the envelope picker behaves the same: 8 envelopes stay a single '
+        'row and selecting the last one reorders it first',
+        (tester) async {
+          final container = ProviderContainer(
+            overrides: [isWebProvider.overrideWithValue(true)],
+          );
+          addTearDown(container.dispose);
+          final catalog = await container.read(
+            catalogRepositoryProvider.future,
+          );
+          await saveAccounts(catalog, 1);
+          for (var i = 0; i < 8; i++) {
+            await catalog.saveEnvelope(
+              Envelope(
+                id: EnvelopeId('env-$i'),
+                name: 'Sobre $i',
+                role: EnvelopeRole.none,
+                isArchived: false,
+                updatedAt: DateTime.now(),
+              ),
+            );
+          }
+
+          await _openSheet(tester, existing: container);
+
+          final firstChipCenter = tester.getCenter(
+            find.byKey(const Key('envelopeChip_env-0')),
+          );
+          final lastChipCenter = tester.getCenter(
+            find.byKey(const Key('envelopeChip_env-7')),
+          );
+          // Single row: no wrapping, chips flow to the right.
+          expect(lastChipCenter.dy, firstChipCenter.dy);
+          expect(firstChipCenter.dx, lessThan(lastChipCenter.dx));
+
+          await tester.ensureVisible(
+            find.byKey(const Key('envelopeChip_env-7')),
+          );
+          await tester.pump();
+          await tester.tap(find.byKey(const Key('envelopeChip_env-7')));
+          await tester.pump();
+
+          expect(
+            tester.getCenter(find.byKey(const Key('envelopeChip_env-7'))).dx,
+            lessThan(
+              tester.getCenter(find.byKey(const Key('envelopeChip_env-0'))).dx,
+            ),
+          );
+        },
+      );
+    },
+  );
 }
