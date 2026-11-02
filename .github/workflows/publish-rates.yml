@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write # keepalive step below
 
 jobs:
   publish:
@@ -58,3 +59,12 @@ jobs:
             gh release upload rates rates.ndjson --repo "${{ github.repository }}" \
               --clobber
           fi
+
+      - name: Keep schedule alive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # GitHub disables scheduled workflows after 60 days without commits;
+        # re-enabling via the API resets that clock with no commit noise.
+        run: |
+          gh api -X PUT \
+            "repos/${{ github.repository }}/actions/workflows/publish-rates.yml/enable"
