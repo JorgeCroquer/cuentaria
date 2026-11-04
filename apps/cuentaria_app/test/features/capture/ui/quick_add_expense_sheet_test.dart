@@ -1,4 +1,3 @@
-import 'package:contabilidad/application/catalog/catalog_repository.dart';
 import 'package:contabilidad/application/catalog/models/account.dart';
 import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:contabilidad/domain/posting.dart';
@@ -18,9 +17,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 import 'package:tasas/domain/rate_observation.dart';
 
+import 'catalog_picker_test_helpers.dart';
+
 Future<ProviderContainer> _openSheet(
   WidgetTester tester, {
   ProviderContainer? existing,
+  Size surfaceSize = const Size(800, 1600),
 }) async {
   final container =
       existing ??
@@ -31,7 +33,7 @@ Future<ProviderContainer> _openSheet(
   // date/note row and the keypad (#281) — taller than the default test
   // surface, which would otherwise leave the keypad unscrolled-into-view
   // and its taps landing outside the render tree.
-  await tester.binding.setSurfaceSize(const Size(800, 1600));
+  await tester.binding.setSurfaceSize(surfaceSize);
   addTearDown(() => tester.binding.setSurfaceSize(null));
 
   await tester.pumpWidget(
@@ -185,24 +187,39 @@ void main() {
 
       await _openSheet(tester, existing: container);
 
-      final selectedAccountChip = tester.widget<ChoiceChip>(
-        find.byKey(const Key('accountChip_acc-recent')),
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('accountField')),
+          matching: find.textContaining('Recent wallet'),
+        ),
+        findsOneWidget,
       );
-      expect(selectedAccountChip.selected, isTrue);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('envelopeField')),
+          matching: find.text('Frequent'),
+        ),
+        findsOneWidget,
+      );
+
+      // Opening the envelope picker shows both in "Frecuentes" (both have
+      // history) ordered by descending frequency: frequent (2x) above rare
+      // (1x).
+      await tester.tap(find.byKey(const Key('envelopeField')));
+      await tester.pumpAndSettle();
 
       final selectedEnvelopeChip = tester.widget<ChoiceChip>(
         find.byKey(const Key('envelopeChip_env-frequent')),
       );
       expect(selectedEnvelopeChip.selected, isTrue);
 
-      // Frequency order: frequent (2x) before rare (1x).
       final frequentChipCenter = tester.getCenter(
         find.byKey(const Key('envelopeChip_env-frequent')),
       );
       final rareChipCenter = tester.getCenter(
         find.byKey(const Key('envelopeChip_env-rare')),
       );
-      expect(frequentChipCenter.dx, lessThan(rareChipCenter.dx));
+      expect(frequentChipCenter.dy, lessThan(rareChipCenter.dy));
     });
 
     testWidgets(
@@ -235,9 +252,26 @@ void main() {
         );
 
         await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('accountField')));
+        await tester.pumpAndSettle();
 
-        expect(find.text('Bancamiga · USD'), findsOneWidget);
-        expect(find.text('Bancamiga · VES'), findsOneWidget);
+        // One of the two is the default selection, so its label also shows
+        // on the (now covered, but still in the tree) field behind the
+        // sheet — scope the check to each chip row so that doesn't matter.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('accountChip_acc-usd')),
+            matching: find.text('Bancamiga · USD'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('accountChip_acc-ves')),
+            matching: find.text('Bancamiga · VES'),
+          ),
+          findsOneWidget,
+        );
       },
     );
 
@@ -271,15 +305,13 @@ void main() {
 
         await _openSheet(tester, existing: container);
 
-        await tester.tap(find.byKey(const Key('accountChip_acc-usd')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'accountChip_acc-usd');
         expect(
           tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
           'USD',
         );
 
-        await tester.tap(find.byKey(const Key('accountChip_acc-ves')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'accountChip_acc-ves');
         expect(
           tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
           'VES',
@@ -522,8 +554,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('captureModeIngreso')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'incomeAccountChip_acc-ves');
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
@@ -798,8 +829,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('captureModeIngreso')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'incomeAccountChip_acc-ves');
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
@@ -842,8 +872,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('captureModeIngreso')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('incomeAccountChip_acc-ves')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'incomeAccountChip_acc-ves');
       await tester.tap(find.byKey(const Key('keypadDigit_5')));
       await tester.pumpAndSettle();
 
@@ -1144,9 +1173,24 @@ void main() {
           ),
         );
 
-        await _openSheet(tester, existing: container);
-        await tester.tap(find.byKey(const Key('accountChip_acc-usd')));
-        await tester.pump();
+        // Preselect "USD wallet" explicitly (#316: tapping a chip inside
+        // the picker sheet now closes it immediately, so there's no way to
+        // tap-then-inspect within the same open sheet as before).
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: Scaffold(
+                body: QuickAddExpenseSheet(
+                  preselectedGastoAccountId: AccountId('acc-usd'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('accountField')));
+        await tester.pumpAndSettle();
 
         final selectedChip = tester.widget<ChoiceChip>(
           find.byKey(const Key('accountChip_acc-usd')),
@@ -1167,144 +1211,586 @@ void main() {
     );
   });
 
-  group(
-    'catalog chip pickers scroll horizontally instead of wrapping (#313)',
-    () {
-      Future<void> saveAccounts(CatalogRepository catalog, int count) async {
-        for (var i = 0; i < count; i++) {
-          await catalog.saveAccount(
-            Account(
-              id: AccountId('acc-$i'),
-              name: 'Cuenta $i',
-              nativeCurrency: CurrencyCode('USD'),
-              isArchived: false,
-              updatedAt: DateTime.now(),
-            ),
+  group('catalog pickers open a searchable sheet instead of a chip row '
+      '(#316, follows #313)', () {
+    Future<void> saveAccounts(dynamic catalog, int count) async {
+      for (var i = 0; i < count; i++) {
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-$i'),
+            name: 'Cuenta $i',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+    }
+
+    Future<void> saveEnvelopes(dynamic catalog, int count) async {
+      for (var i = 0; i < count; i++) {
+        await catalog.saveEnvelope(
+          Envelope(
+            id: EnvelopeId('env-$i'),
+            name: 'Sobre $i',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+      }
+    }
+
+    testWidgets(
+      'with 23 accounts and 40 envelopes, the amount hero sits at the same '
+      'dy as with 2 accounts/2 envelopes, and stays within 24px of the '
+      "keypad's first row",
+      (tester) async {
+        Future<double> heroDyWith(
+          WidgetTester tester,
+          int accountCount,
+          int envelopeCount,
+        ) async {
+          final container = ProviderContainer(
+            overrides: [isWebProvider.overrideWithValue(true)],
+          );
+          addTearDown(container.dispose);
+          final catalog = await container.read(
+            catalogRepositoryProvider.future,
+          );
+          await saveAccounts(catalog, accountCount);
+          await saveEnvelopes(catalog, envelopeCount);
+
+          await _openSheet(tester, existing: container);
+          return tester.getTopLeft(find.byKey(const Key('amountHero'))).dy;
+        }
+
+        final heroDySmall = await heroDyWith(tester, 2, 2);
+        // Tear down the first sheet's tree (including its still-open modal
+        // route) before mounting a second one in the same test.
+        await tester.pumpWidget(const SizedBox.shrink());
+        final heroDyLarge = await heroDyWith(tester, 23, 40);
+
+        expect(heroDyLarge, heroDySmall);
+
+        final heroBottom =
+            tester.getBottomLeft(find.byKey(const Key('amountHero'))).dy;
+        final keypadTop =
+            tester.getTopLeft(find.byKey(const Key('numericKeypad'))).dy;
+        expect(keypadTop - heroBottom, lessThanOrEqualTo(24));
+      },
+    );
+
+    testWidgets(
+      'with 23 accounts and 40 envelopes, the hero, the full keypad and '
+      'Save are all visible in a 360x640 viewport without scrolling',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await saveAccounts(catalog, 23);
+        await saveEnvelopes(catalog, 40);
+
+        await _openSheet(
+          tester,
+          existing: container,
+          surfaceSize: const Size(360, 640),
+        );
+
+        for (final key in const [
+          'amountHero',
+          'numericKeypad',
+          'keypadDigit_9',
+          'quickAddSaveButton',
+        ]) {
+          expect(
+            tester.getRect(find.byKey(Key(key))).bottom,
+            lessThanOrEqualTo(640),
+            reason: '$key must be visible without scrolling',
           );
         }
-      }
+      },
+    );
 
-      testWidgets(
-        'with 8 accounts the picker stays a single row (chips share one '
-        'vertical center) instead of wrapping and pushing the amount hero '
-        'down',
-        (tester) async {
-          final container = ProviderContainer(
-            overrides: [isWebProvider.overrideWithValue(true)],
-          );
-          addTearDown(container.dispose);
-          final catalog = await container.read(
-            catalogRepositoryProvider.future,
-          );
-          await saveAccounts(catalog, 8);
+    testWidgets(
+      'tapping the account field opens a search sheet: Frecuentes above '
+      'Todas, "bin" filters to matching accounts, tapping one selects it',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-efectivo'),
+            name: 'Efectivo',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-binance'),
+            name: 'Binance',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        final envelope = Envelope(
+          id: EnvelopeId('env-comida'),
+          name: 'Comida',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveEnvelope(envelope);
 
-          await _openSheet(tester, existing: container);
+        // A prior expense from Efectivo makes it the last-used Account
+        // (and Comida the most-frequent Envelope) — both become
+        // "Frecuentes" (#316).
+        final useCase = await container.read(
+          quickAddExpenseUseCaseProvider.future,
+        );
+        final deviceId = await container.read(deviceIdProvider.future);
+        await useCase(
+          eventId: EventId('evt-1'),
+          deviceId: deviceId,
+          accountId: AccountId('acc-efectivo'),
+          envelopeId: envelope.id,
+          amount: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        );
 
-          final heroDy =
-              tester.getTopLeft(find.byKey(const Key('amountDisplay'))).dy;
-          final firstChipDy =
-              tester.getCenter(find.byKey(const Key('accountChip_acc-0'))).dy;
-          final lastChipDy =
-              tester.getCenter(find.byKey(const Key('accountChip_acc-7'))).dy;
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('accountField')));
+        await tester.pumpAndSettle();
 
-          // All 8 chips sit on the same row (no wrapping)...
-          expect(lastChipDy, firstChipDy);
-          // ...and that row renders below the hero, not pushed off past it.
-          expect(firstChipDy, greaterThan(heroDy));
-        },
-      );
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+        final frequentDy =
+            tester
+                .getCenter(find.byKey(const Key('accountChip_acc-efectivo')))
+                .dy;
+        final allDy =
+            tester
+                .getCenter(find.byKey(const Key('accountChip_acc-binance')))
+                .dy;
+        expect(frequentDy, lessThan(allDy));
 
-      testWidgets(
-        'selecting a chip further down the row reorders it first, so it '
-        'stays visible without scrolling',
-        (tester) async {
-          final container = ProviderContainer(
-            overrides: [isWebProvider.overrideWithValue(true)],
-          );
-          addTearDown(container.dispose);
-          final catalog = await container.read(
-            catalogRepositoryProvider.future,
-          );
-          await saveAccounts(catalog, 8);
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'bin',
+        );
+        await tester.pumpAndSettle();
 
-          await _openSheet(tester, existing: container);
+        expect(
+          find.byKey(const Key('accountChip_acc-binance')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('accountChip_acc-efectivo')), findsNothing);
 
-          final firstChipCenterBefore = tester.getCenter(
-            find.byKey(const Key('accountChip_acc-0')),
-          );
-          final lastChipCenterBefore = tester.getCenter(
-            find.byKey(const Key('accountChip_acc-7')),
-          );
-          expect(firstChipCenterBefore.dx, lessThan(lastChipCenterBefore.dx));
+        await tester.tap(find.byKey(const Key('accountChip_acc-binance')));
+        await tester.pumpAndSettle();
 
-          await tester.ensureVisible(
-            find.byKey(const Key('accountChip_acc-7')),
-          );
-          await tester.pump();
-          await tester.tap(find.byKey(const Key('accountChip_acc-7')));
-          await tester.pump();
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('accountField')),
+            matching: find.text('Binance · USD'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
-          final lastChipCenterAfter = tester.getCenter(
-            find.byKey(const Key('accountChip_acc-7')),
-          );
-          final firstChipCenterAfter = tester.getCenter(
-            find.byKey(const Key('accountChip_acc-0')),
-          );
-          expect(lastChipCenterAfter.dx, lessThan(firstChipCenterAfter.dx));
-        },
-      );
+    testWidgets(
+      'the Gasto envelope field behaves the same: Frecuentes above Todas, '
+      'search filters by substring, tapping selects',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-efectivo'),
+          name: 'Efectivo',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+        final comida = Envelope(
+          id: EnvelopeId('env-comida'),
+          name: 'Comida',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        final inversion = Envelope(
+          id: EnvelopeId('env-inversion'),
+          name: 'Inversión',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveEnvelope(comida);
+        await catalog.saveEnvelope(inversion);
 
-      testWidgets(
-        'the envelope picker behaves the same: 8 envelopes stay a single '
-        'row and selecting the last one reorders it first',
-        (tester) async {
-          final container = ProviderContainer(
-            overrides: [isWebProvider.overrideWithValue(true)],
-          );
-          addTearDown(container.dispose);
-          final catalog = await container.read(
-            catalogRepositoryProvider.future,
-          );
-          await saveAccounts(catalog, 1);
-          for (var i = 0; i < 8; i++) {
-            await catalog.saveEnvelope(
-              Envelope(
-                id: EnvelopeId('env-$i'),
-                name: 'Sobre $i',
-                role: EnvelopeRole.none,
-                isArchived: false,
-                updatedAt: DateTime.now(),
-              ),
-            );
-          }
+        final useCase = await container.read(
+          quickAddExpenseUseCaseProvider.future,
+        );
+        final deviceId = await container.read(deviceIdProvider.future);
+        await useCase(
+          eventId: EventId('evt-1'),
+          deviceId: deviceId,
+          accountId: account.id,
+          envelopeId: comida.id,
+          amount: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        );
 
-          await _openSheet(tester, existing: container);
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('envelopeField')));
+        await tester.pumpAndSettle();
 
-          final firstChipCenter = tester.getCenter(
-            find.byKey(const Key('envelopeChip_env-0')),
-          );
-          final lastChipCenter = tester.getCenter(
-            find.byKey(const Key('envelopeChip_env-7')),
-          );
-          // Single row: no wrapping, chips flow to the right.
-          expect(lastChipCenter.dy, firstChipCenter.dy);
-          expect(firstChipCenter.dx, lessThan(lastChipCenter.dx));
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+        final frequentDy =
+            tester
+                .getCenter(find.byKey(const Key('envelopeChip_env-comida')))
+                .dy;
+        final allDy =
+            tester
+                .getCenter(find.byKey(const Key('envelopeChip_env-inversion')))
+                .dy;
+        expect(frequentDy, lessThan(allDy));
 
-          await tester.ensureVisible(
-            find.byKey(const Key('envelopeChip_env-7')),
-          );
-          await tester.pump();
-          await tester.tap(find.byKey(const Key('envelopeChip_env-7')));
-          await tester.pump();
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'inver',
+        );
+        await tester.pumpAndSettle();
 
-          expect(
-            tester.getCenter(find.byKey(const Key('envelopeChip_env-7'))).dx,
-            lessThan(
-              tester.getCenter(find.byKey(const Key('envelopeChip_env-0'))).dx,
-            ),
-          );
-        },
-      );
-    },
-  );
+        expect(
+          find.byKey(const Key('envelopeChip_env-inversion')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('envelopeChip_env-comida')), findsNothing);
+
+        await tester.tap(find.byKey(const Key('envelopeChip_env-inversion')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('envelopeField')),
+            matching: find.text('Inversión'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'Mover Desde and Hacia behave the same: Frecuentes above Todas, '
+      'search filters, tapping selects',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final zelle = Account(
+          id: AccountId('acc-zelle'),
+          name: 'Zelle',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        final binance = Account(
+          id: AccountId('acc-binance'),
+          name: 'Binance',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        final efectivo = Account(
+          id: AccountId('acc-efectivo'),
+          name: 'Efectivo',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(zelle);
+        await catalog.saveAccount(binance);
+        await catalog.saveAccount(efectivo);
+
+        // A prior Mover from Zelle to Binance makes that pair "Frecuentes"
+        // on both sides (#316).
+        final moverUseCase = await container.read(
+          quickAddMoverUseCaseProvider.future,
+        );
+        final deviceId = await container.read(deviceIdProvider.future);
+        await moverUseCase(
+          eventId: EventId('evt-mover-1'),
+          deviceId: deviceId,
+          sourceAccountId: zelle.id,
+          destinationAccountId: binance.id,
+          givenAmount: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          receivedAmount: null,
+          rate: null,
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('moverSourceField')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+        expect(
+          tester
+              .getCenter(find.byKey(const Key('moverSourceChip_acc-zelle')))
+              .dy,
+          lessThan(
+            tester
+                .getCenter(
+                  find.byKey(const Key('moverSourceChip_acc-efectivo')),
+                )
+                .dy,
+          ),
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'efect',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('moverSourceChip_acc-efectivo')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('moverSourceChip_acc-zelle')),
+          findsNothing,
+        );
+        await tester.tap(find.byKey(const Key('moverSourceChip_acc-efectivo')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('moverSourceField')),
+            matching: find.text('Efectivo · USD'),
+          ),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('moverDestinationField')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+        expect(
+          tester
+              .getCenter(
+                find.byKey(const Key('moverDestinationChip_acc-binance')),
+              )
+              .dy,
+          lessThan(
+            tester
+                .getCenter(
+                  find.byKey(const Key('moverDestinationChip_acc-zelle')),
+                )
+                .dy,
+          ),
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'zell',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('moverDestinationChip_acc-zelle')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('moverDestinationChip_acc-binance')),
+          findsNothing,
+        );
+        await tester.tap(
+          find.byKey(const Key('moverDestinationChip_acc-zelle')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('moverDestinationField')),
+            matching: find.text('Zelle · USD'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
+      'both Distribution sobre fields behave the same: Frecuentes above '
+      'Todas, search filters, tapping selects',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-efectivo'),
+          name: 'Efectivo',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+        final comida = Envelope(
+          id: EnvelopeId('env-comida'),
+          name: 'Comida',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        final ahorros = Envelope(
+          id: EnvelopeId('env-ahorros'),
+          name: 'Ahorros',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        final mercado = Envelope(
+          id: EnvelopeId('env-mercado'),
+          name: 'Mercado',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveEnvelope(comida);
+        await catalog.saveEnvelope(ahorros);
+        await catalog.saveEnvelope(mercado);
+
+        final useCase = await container.read(
+          quickAddExpenseUseCaseProvider.future,
+        );
+        final deviceId = await container.read(deviceIdProvider.future);
+        await useCase(
+          eventId: EventId('evt-1'),
+          deviceId: deviceId,
+          accountId: account.id,
+          envelopeId: comida.id,
+          amount: Money(
+            amount: BigInt.from(100),
+            currency: CurrencyCode('USD'),
+          ),
+          occurredAt: DomainTimestamp(DateTime.now().toUtc()),
+        );
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('captureModeMover')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('distributionSourceField')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+        expect(
+          tester
+              .getCenter(
+                find.byKey(const Key('distributionSourceChip_env-comida')),
+              )
+              .dy,
+          lessThan(
+            tester
+                .getCenter(
+                  find.byKey(const Key('distributionSourceChip_env-mercado')),
+                )
+                .dy,
+          ),
+        );
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'merc',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('distributionSourceChip_env-mercado')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('distributionSourceChip_env-comida')),
+          findsNothing,
+        );
+        await tester.tap(
+          find.byKey(const Key('distributionSourceChip_env-mercado')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('distributionSourceField')),
+            matching: find.text('Mercado'),
+          ),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('distributionDestinationField')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('FRECUENTES'), findsOneWidget);
+        expect(find.text('TODAS'), findsOneWidget);
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'ahor',
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byKey(const Key('distributionDestinationChip_env-ahorros')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('distributionDestinationChip_env-comida')),
+          findsNothing,
+        );
+        await tester.tap(
+          find.byKey(const Key('distributionDestinationChip_env-ahorros')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('distributionDestinationField')),
+            matching: find.text('Ahorros'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+  });
 }

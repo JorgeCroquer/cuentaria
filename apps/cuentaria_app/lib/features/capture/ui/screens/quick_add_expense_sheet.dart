@@ -144,31 +144,239 @@ Widget _tonalChoiceChip(
   );
 }
 
-/// A single, horizontally-scrolling row for catalog pickers that grow with
-/// user data (Accounts, Envelopes) — a `Wrap` letting these spill onto
-/// extra rows pushed the amount hero off-screen once the keypad opened
-/// (device finding, Samsung S25 FE, 2026-09-10, #313). The selected chip
-/// always sorts first so it stays visible without any scrolling or
-/// `ensureVisible` animation.
-Widget _chipRow(List<({bool selected, Widget chip})> chips) {
-  final ordered = [
-    for (final entry in chips)
-      if (entry.selected) entry.chip,
-    for (final entry in chips)
-      if (!entry.selected) entry.chip,
-  ];
-  return SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < ordered.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
-          ordered[i],
-        ],
-      ],
-    ),
+/// One selectable row inside [_CatalogPickerSheet] — a tiny value type so a
+/// single sheet implementation serves both Accounts and Envelopes without
+/// either domain type leaking into the sheet itself. [groupLabel] renders a
+/// caption above the first item of a new group (e.g. "Deudas", #208) once
+/// the list reaches it; `null` means ungrouped.
+class _CatalogPickerItem<T> {
+  const _CatalogPickerItem({
+    required this.value,
+    required this.itemKey,
+    required this.label,
+    this.enabled = true,
+    this.groupLabel,
+  });
+
+  final T value;
+  final Key itemKey;
+  final String label;
+  final bool enabled;
+  final String? groupLabel;
+}
+
+/// A field-style row for catalog pickers (Account/Envelope) that opens
+/// [_CatalogPickerSheet] instead of a horizontal chip row — a real catalog
+/// (23+ accounts, 40+ envelopes) turned that row into a long scroll that was
+/// easy to get lost in, and once wrapped onto extra lines it pushed the
+/// amount hero off-screen when the keypad opened (device finding, Samsung
+/// S25 FE, 2026-09-10, #313; superseded by #316).
+class _CatalogPickerField extends StatelessWidget {
+  const _CatalogPickerField({
+    required this.fieldKey,
+    required this.selectedLabel,
+    required this.onTap,
+  });
+
+  final Key fieldKey;
+  final String? selectedLabel;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      key: fieldKey,
+      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      title: Text(selectedLabel ?? 'Toca para elegir'),
+      trailing: const Icon(Icons.unfold_more),
+      onTap: onTap,
+    );
+  }
+}
+
+/// Opens [_CatalogPickerSheet] and applies [onSelected] to whatever the user
+/// tapped, if anything — dismissing without a selection (back gesture, tap
+/// outside) resolves with `null` and leaves the field untouched.
+Future<void> _openCatalogPicker<T>(
+  BuildContext context, {
+  required String title,
+  required List<_CatalogPickerItem<T>> items,
+  required Set<T> frequentValues,
+  required T? selectedValue,
+  required ValueChanged<T> onSelected,
+}) async {
+  final selected = await showModalBottomSheet<T>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder:
+        (context) => _CatalogPickerSheet<T>(
+          title: title,
+          items: items,
+          frequentValues: frequentValues,
+          selectedValue: selectedValue,
+        ),
   );
+  if (selected != null) onSelected(selected);
+}
+
+/// The shared search sheet behind every catalog picker (#316): a search
+/// field filters [items] by substring (case-insensitive) the moment it has
+/// text; with no text it instead splits the list into "FRECUENTES" —
+/// derived from the same ledger history that already feeds the quick-add
+/// preselections — and "TODAS". Rows reuse [_tonalChoiceChip] so the
+/// selected/unselected tonal language (U2) and the existing `*Chip_*` test
+/// Keys both carry over unchanged from the old chip row.
+class _CatalogPickerSheet<T> extends StatefulWidget {
+  const _CatalogPickerSheet({
+    required this.title,
+    required this.items,
+    required this.frequentValues,
+    required this.selectedValue,
+  });
+
+  final String title;
+  final List<_CatalogPickerItem<T>> items;
+  final Set<T> frequentValues;
+  final T? selectedValue;
+
+  @override
+  State<_CatalogPickerSheet<T>> createState() => _CatalogPickerSheetState<T>();
+}
+
+class _CatalogPickerSheetState<T> extends State<_CatalogPickerSheet<T>> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildRow(_CatalogPickerItem<T> item) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: _tonalChoiceChip(
+          context,
+          key: item.itemKey,
+          label: item.label,
+          selected: item.value == widget.selectedValue,
+          onSelected:
+              !item.enabled
+                  ? null
+                  : (_) => Navigator.of(context).pop(item.value),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildGroup(String header, List<_CatalogPickerItem<T>> items) {
+    final rows = <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Text(header, style: Theme.of(context).textTheme.labelSmall),
+      ),
+    ];
+    String? currentGroup;
+    for (final item in items) {
+      if (item.groupLabel != null && item.groupLabel != currentGroup) {
+        currentGroup = item.groupLabel;
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(currentGroup!),
+          ),
+        );
+      }
+      rows.add(_buildRow(item));
+    }
+    return rows;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final matches =
+        query.isEmpty
+            ? widget.items
+            : widget.items
+                .where((item) => item.label.toLowerCase().contains(query))
+                .toList();
+    final frequent = <_CatalogPickerItem<T>>[
+      if (query.isEmpty)
+        for (final item in matches)
+          if (widget.frequentValues.contains(item.value)) item,
+    ];
+    final frequentValueSet = frequent.map((item) => item.value).toSet();
+    final rest = [
+      for (final item in matches)
+        if (!frequentValueSet.contains(item.value)) item,
+    ];
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('catalogPickerClose'),
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: TextField(
+                key: const Key('catalogPickerSearchField'),
+                controller: _searchController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  prefixIcon: Icon(Icons.search),
+                  hintText: 'Buscar',
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                padding: const EdgeInsets.only(top: 8, bottom: 16),
+                children: [
+                  if (frequent.isNotEmpty)
+                    ..._buildGroup('FRECUENTES', frequent),
+                  if (rest.isNotEmpty)
+                    ..._buildGroup('TODAS', rest)
+                  else if (frequent.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('Sin resultados.'),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 enum _CaptureMode { gasto, ingreso, mover }
@@ -298,16 +506,18 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return null;
   }
 
-  Envelope? _distributionEnvelopeById(
-    QuickAddCaptureContext captureContext,
-    EnvelopeId? id,
-  ) {
+  Envelope? _envelopeById(List<Envelope> envelopes, EnvelopeId? id) {
     if (id == null) return null;
-    for (final envelope in captureContext.distributionEnvelopes) {
+    for (final envelope in envelopes) {
       if (envelope.id == id) return envelope;
     }
     return null;
   }
+
+  Envelope? _distributionEnvelopeById(
+    QuickAddCaptureContext captureContext,
+    EnvelopeId? id,
+  ) => _envelopeById(captureContext.distributionEnvelopes, id);
 
   /// Same-named accounts in different currencies (e.g. two "Bancamiga"
   /// wallets) render as identical chips without this — the currency is the
@@ -698,26 +908,35 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   Widget build(BuildContext context) {
     final captureContextAsync = ref.watch(quickAddCaptureContextProvider);
 
+    // A fixed-bottom Column (Expanded top + pinned hero/keypad/Save) needs
+    // a bounded height to lay out against. `isScrollControlled: true` gives
+    // the sheet route's own constraint a finite maxHeight for this — reading
+    // it via `SizedBox.expand` (not `MediaQuery.size`, which the bottom
+    // sheet route doesn't update) so the amount hero always lands in the
+    // same place regardless of how tall the scrollable top ends up (#316,
+    // follows #313).
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: captureContextAsync.when(
-          data: (captureContext) {
-            _applyDefaults(captureContext);
-            return _buildBody(captureContext);
-          },
-          loading:
-              () => const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-          error:
-              (error, stackTrace) => Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('No se pudo cargar: $error'),
-              ),
+        child: SizedBox.expand(
+          child: captureContextAsync.when(
+            data: (captureContext) {
+              _applyDefaults(captureContext);
+              return _buildBody(captureContext);
+            },
+            loading:
+                () => const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+            error:
+                (error, stackTrace) => Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('No se pudo cargar: $error'),
+                ),
+          ),
         ),
       ),
     );
@@ -780,165 +999,190 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       _CaptureMode.mover => 'Guardar movimiento',
     };
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (widget.contextTitle != null) ...[
-            Text(
-              widget.contextTitle!,
-              key: const Key('quickAddContextTitle'),
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 16),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: _tonalChoiceChip(
-                  context,
-                  key: const Key('captureModeGasto'),
-                  label: 'Gasto',
-                  selected: _mode == _CaptureMode.gasto,
-                  onSelected: (_) => setState(() => _mode = _CaptureMode.gasto),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _tonalChoiceChip(
-                  context,
-                  key: const Key('captureModeIngreso'),
-                  label: 'Ingreso',
-                  selected: _mode == _CaptureMode.ingreso,
-                  onSelected:
-                      (_) => setState(() => _mode = _CaptureMode.ingreso),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _tonalChoiceChip(
-                  context,
-                  key: const Key('captureModeMover'),
-                  label: 'Mover',
-                  selected: _mode == _CaptureMode.mover,
-                  onSelected: (_) => setState(() => _mode = _CaptureMode.mover),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: _AmountHero(
-              text: heroController.displayText,
-              currency: heroCurrency,
-              date: _date,
-              onTapDate: _pickDate,
-            ),
-          ),
-          if (_mode == _CaptureMode.gasto &&
-              selectedAccount != null &&
-              selectedAccount.nativeCurrency != CurrencyCode('USD'))
-            _RateValuationAnnouncement(
-              currency: selectedAccount.nativeCurrency,
-              onRegisterRate: _openRecordRatesDialog,
-            ),
-          if (_mode == _CaptureMode.ingreso &&
-              selectedIncomeAccount != null &&
-              selectedIncomeAccount.nativeCurrency != CurrencyCode('USD'))
-            _RateValuationAnnouncement(
-              currency: selectedIncomeAccount.nativeCurrency,
-              onRegisterRate: _openRecordRatesDialog,
-            ),
-          const SizedBox(height: 16),
-          switch (_mode) {
-            _CaptureMode.gasto => _buildGastoBody(captureContext),
-            _CaptureMode.ingreso => _buildIngresoBody(captureContext),
-            _CaptureMode.mover => _buildMoverBody(
-              captureContext,
-              moverSourceAccount,
-              moverDestinationAccount,
-            ),
-          },
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  key: const Key('quickAddDateField'),
-                  onPressed: _pickDate,
-                  child: Text(
-                    _isToday(_date) ? 'Hoy' : _formatShortDate(_date),
+    // Only the top (mode, pickers, date/note, avisos) scrolls; the amount
+    // hero, keypad and Save stay pinned at the bottom so they're always
+    // visible once the keypad is up, however tall the catalog pickers or
+    // their warnings get (#316, follows #313).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.contextTitle != null) ...[
+                  Text(
+                    widget.contextTitle!,
+                    key: const Key('quickAddContextTitle'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: _tonalChoiceChip(
+                        context,
+                        key: const Key('captureModeGasto'),
+                        label: 'Gasto',
+                        selected: _mode == _CaptureMode.gasto,
+                        onSelected:
+                            (_) => setState(() => _mode = _CaptureMode.gasto),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _tonalChoiceChip(
+                        context,
+                        key: const Key('captureModeIngreso'),
+                        label: 'Ingreso',
+                        selected: _mode == _CaptureMode.ingreso,
+                        onSelected:
+                            (_) => setState(() => _mode = _CaptureMode.ingreso),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _tonalChoiceChip(
+                        context,
+                        key: const Key('captureModeMover'),
+                        label: 'Mover',
+                        selected: _mode == _CaptureMode.mover,
+                        onSelected:
+                            (_) => setState(() => _mode = _CaptureMode.mover),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_mode == _CaptureMode.gasto &&
+                    selectedAccount != null &&
+                    selectedAccount.nativeCurrency != CurrencyCode('USD'))
+                  _RateValuationAnnouncement(
+                    currency: selectedAccount.nativeCurrency,
+                    onRegisterRate: _openRecordRatesDialog,
+                  ),
+                if (_mode == _CaptureMode.ingreso &&
+                    selectedIncomeAccount != null &&
+                    selectedIncomeAccount.nativeCurrency != CurrencyCode('USD'))
+                  _RateValuationAnnouncement(
+                    currency: selectedIncomeAccount.nativeCurrency,
+                    onRegisterRate: _openRecordRatesDialog,
+                  ),
+                const SizedBox(height: 16),
+                switch (_mode) {
+                  _CaptureMode.gasto => _buildGastoBody(captureContext),
+                  _CaptureMode.ingreso => _buildIngresoBody(captureContext),
+                  _CaptureMode.mover => _buildMoverBody(
+                    captureContext,
+                    moverSourceAccount,
+                    moverDestinationAccount,
+                  ),
+                },
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        key: const Key('quickAddDateField'),
+                        onPressed: _pickDate,
+                        child: Text(
+                          _isToday(_date) ? 'Hoy' : _formatShortDate(_date),
+                        ),
+                      ),
+                    ),
+                    if (_showsNoteToggle && !_noteExpanded) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton(
+                          key: const Key('quickAddNoteToggle'),
+                          onPressed: () => setState(() => _noteExpanded = true),
+                          child: const Text('Agregar nota'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (_showsNoteToggle && _noteExpanded) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    key: const Key('quickAddNoteField'),
+                    controller: _noteController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nota (opcional)',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                key: const Key('amountHero'),
+                child: _AmountHero(
+                  text: heroController.displayText,
+                  currency: heroCurrency,
+                  date: _date,
+                  onTapDate: _pickDate,
                 ),
               ),
-              if (_showsNoteToggle && !_noteExpanded) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton(
-                    key: const Key('quickAddNoteToggle'),
-                    onPressed: () => setState(() => _noteExpanded = true),
-                    child: const Text('Agregar nota'),
-                  ),
+              const SizedBox(height: 16),
+              Center(child: NumericKeypad(controller: heroController)),
+              if (_error != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ],
+              const SizedBox(height: 16),
+              ElevatedButton(
+                key: const Key('quickAddSaveButton'),
+                onPressed:
+                    !canSave
+                        ? null
+                        : () {
+                          switch (_mode) {
+                            case _CaptureMode.gasto:
+                              _saveGasto(selectedAccount!);
+                            case _CaptureMode.ingreso:
+                              _saveIncome(selectedIncomeAccount!);
+                            case _CaptureMode.mover:
+                              if (_moverMode == _MoverMode.envelopes) {
+                                _saveDistribution(
+                                  _distributionEnvelopeById(
+                                    captureContext,
+                                    _distributionSourceEnvelopeId,
+                                  )!,
+                                  _distributionEnvelopeById(
+                                    captureContext,
+                                    _distributionDestinationEnvelopeId,
+                                  )!,
+                                );
+                              } else {
+                                _saveMover(
+                                  moverSourceAccount!,
+                                  moverDestinationAccount!,
+                                );
+                              }
+                          }
+                        },
+                child: Text(saveLabel),
+              ),
             ],
           ),
-          if (_showsNoteToggle && _noteExpanded) ...[
-            const SizedBox(height: 8),
-            TextField(
-              key: const Key('quickAddNoteField'),
-              controller: _noteController,
-              decoration: const InputDecoration(labelText: 'Nota (opcional)'),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Center(child: NumericKeypad(controller: heroController)),
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          ],
-          const SizedBox(height: 16),
-          ElevatedButton(
-            key: const Key('quickAddSaveButton'),
-            onPressed:
-                !canSave
-                    ? null
-                    : () {
-                      switch (_mode) {
-                        case _CaptureMode.gasto:
-                          _saveGasto(selectedAccount!);
-                        case _CaptureMode.ingreso:
-                          _saveIncome(selectedIncomeAccount!);
-                        case _CaptureMode.mover:
-                          if (_moverMode == _MoverMode.envelopes) {
-                            _saveDistribution(
-                              _distributionEnvelopeById(
-                                captureContext,
-                                _distributionSourceEnvelopeId,
-                              )!,
-                              _distributionEnvelopeById(
-                                captureContext,
-                                _distributionDestinationEnvelopeId,
-                              )!,
-                            );
-                          } else {
-                            _saveMover(
-                              moverSourceAccount!,
-                              moverDestinationAccount!,
-                            );
-                          }
-                      }
-                    },
-            child: Text(saveLabel),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -959,64 +1203,97 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     return [preselected, ...accounts];
   }
 
+  /// Accounts count as "Frecuente" (#316) if they're the last-used Account
+  /// or the Debt preselection behind a Condonar flow — the same ledger
+  /// history that already drives [_applyDefaults].
+  Set<AccountId> _gastoFrequentAccountIds(
+    QuickAddCaptureContext captureContext,
+  ) {
+    return {
+      if (captureContext.lastUsedAccountId != null)
+        captureContext.lastUsedAccountId!,
+      if (widget.preselectedGastoAccountId != null)
+        widget.preselectedGastoAccountId!,
+    };
+  }
+
   Widget _buildGastoBody(QuickAddCaptureContext captureContext) {
     final gastoAccounts = _gastoAccounts(captureContext);
+    final selectedAccount = _accountById(captureContext, _selectedAccountId);
+    final selectedEnvelope = _envelopeById(
+      captureContext.envelopes,
+      _selectedEnvelopeId,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SectionCard(
           header: '¿DE QUÉ CUENTA?',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child:
-                  gastoAccounts.isEmpty
-                      ? const Text('Sin cuentas aún.')
-                      : _chipRow([
-                        for (final account in gastoAccounts)
-                          (
-                            selected: account.id == _selectedAccountId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key('accountChip_${account.id.value}'),
+            gastoAccounts.isEmpty
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text('Sin cuentas aún.'),
+                )
+                : _CatalogPickerField(
+                  fieldKey: const Key('accountField'),
+                  selectedLabel:
+                      selectedAccount == null
+                          ? null
+                          : _accountChipLabel(selectedAccount),
+                  onTap:
+                      () => _openCatalogPicker<AccountId>(
+                        context,
+                        title: '¿De qué cuenta?',
+                        selectedValue: _selectedAccountId,
+                        frequentValues: _gastoFrequentAccountIds(
+                          captureContext,
+                        ),
+                        items: [
+                          for (final account in gastoAccounts)
+                            _CatalogPickerItem(
+                              value: account.id,
+                              itemKey: Key('accountChip_${account.id.value}'),
                               label: _accountChipLabel(account),
-                              selected: account.id == _selectedAccountId,
-                              onSelected:
-                                  (_) => setState(
-                                    () => _selectedAccountId = account.id,
-                                  ),
                             ),
-                          ),
-                      ]),
-            ),
+                        ],
+                        onSelected:
+                            (id) => setState(() => _selectedAccountId = id),
+                      ),
+                ),
           ],
         ),
         const SizedBox(height: 16),
         SectionCard(
           header: '¿DE QUÉ SOBRE SALE?',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child:
-                  captureContext.envelopes.isEmpty
-                      ? const Text('Sin sobres aún.')
-                      : _chipRow([
-                        for (final envelope in captureContext.envelopes)
-                          (
-                            selected: envelope.id == _selectedEnvelopeId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key('envelopeChip_${envelope.id.value}'),
+            captureContext.envelopes.isEmpty
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text('Sin sobres aún.'),
+                )
+                : _CatalogPickerField(
+                  fieldKey: const Key('envelopeField'),
+                  selectedLabel: selectedEnvelope?.name,
+                  onTap:
+                      () => _openCatalogPicker<EnvelopeId>(
+                        context,
+                        title: '¿De qué sobre sale?',
+                        selectedValue: _selectedEnvelopeId,
+                        frequentValues:
+                            captureContext.frequentEnvelopeIds.toSet(),
+                        items: [
+                          for (final envelope in captureContext.envelopes)
+                            _CatalogPickerItem(
+                              value: envelope.id,
+                              itemKey: Key('envelopeChip_${envelope.id.value}'),
                               label: envelope.name,
-                              selected: envelope.id == _selectedEnvelopeId,
-                              onSelected:
-                                  (_) => setState(
-                                    () => _selectedEnvelopeId = envelope.id,
-                                  ),
                             ),
-                          ),
-                      ]),
-            ),
+                        ],
+                        onSelected:
+                            (id) => setState(() => _selectedEnvelopeId = id),
+                      ),
+                ),
           ],
         ),
       ],
@@ -1024,6 +1301,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   }
 
   Widget _buildIngresoBody(QuickAddCaptureContext captureContext) {
+    final selectedIncomeAccount = _accountById(
+      captureContext,
+      _selectedIncomeAccountId,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1085,28 +1366,41 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         SectionCard(
           header: '¿A QUÉ CUENTA?',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child:
-                  captureContext.regularAccounts.isEmpty
-                      ? const Text('Sin cuentas aún.')
-                      : _chipRow([
-                        for (final account in captureContext.regularAccounts)
-                          (
-                            selected: account.id == _selectedIncomeAccountId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key('incomeAccountChip_${account.id.value}'),
+            captureContext.regularAccounts.isEmpty
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text('Sin cuentas aún.'),
+                )
+                : _CatalogPickerField(
+                  fieldKey: const Key('incomeAccountField'),
+                  selectedLabel:
+                      selectedIncomeAccount == null
+                          ? null
+                          : _accountChipLabel(selectedIncomeAccount),
+                  onTap:
+                      () => _openCatalogPicker<AccountId>(
+                        context,
+                        title: '¿A qué cuenta?',
+                        selectedValue: _selectedIncomeAccountId,
+                        frequentValues: {
+                          if (captureContext.lastUsedAccountId != null)
+                            captureContext.lastUsedAccountId!,
+                        },
+                        items: [
+                          for (final account in captureContext.regularAccounts)
+                            _CatalogPickerItem(
+                              value: account.id,
+                              itemKey: Key(
+                                'incomeAccountChip_${account.id.value}',
+                              ),
                               label: _accountChipLabel(account),
-                              selected: account.id == _selectedIncomeAccountId,
-                              onSelected:
-                                  (_) => setState(
-                                    () => _selectedIncomeAccountId = account.id,
-                                  ),
                             ),
-                          ),
-                      ]),
-            ),
+                        ],
+                        onSelected:
+                            (id) =>
+                                setState(() => _selectedIncomeAccountId = id),
+                      ),
+                ),
           ],
         ),
       ],
@@ -1173,6 +1467,27 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         destinationAccount != null &&
         sourceAccount.nativeCurrency != destinationAccount.nativeCurrency;
 
+    List<_CatalogPickerItem<AccountId>> moverAccountItems({
+      required bool Function(Account) enabled,
+      required String keyPrefix,
+    }) => [
+      for (final account in captureContext.regularAccounts)
+        _CatalogPickerItem(
+          value: account.id,
+          itemKey: Key('${keyPrefix}Chip_${account.id.value}'),
+          label: _accountChipLabel(account),
+          enabled: enabled(account),
+        ),
+      for (final account in captureContext.debtAccounts)
+        _CatalogPickerItem(
+          value: account.id,
+          itemKey: Key('${keyPrefix}Chip_${account.id.value}'),
+          label: _accountChipLabel(account),
+          enabled: enabled(account),
+          groupLabel: 'Deudas',
+        ),
+    ];
+
     return Column(
       key: const Key('moverStep1'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1180,76 +1495,51 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         SectionCard(
           header: 'DESDE',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (captureContext.accounts.isEmpty)
-                    const Text('Sin cuentas aún.')
-                  else ...[
-                    _chipRow([
-                      for (final account in captureContext.regularAccounts)
-                        (
-                          selected: account.id == _moverSourceAccountId,
-                          chip: _tonalChoiceChip(
-                            context,
-                            key: Key('moverSourceChip_${account.id.value}'),
-                            label: _accountChipLabel(account),
-                            selected: account.id == _moverSourceAccountId,
-                            onSelected:
-                                (_) => setState(() {
-                                  _moverSourceAccountId = account.id;
-                                  final currentDestination = _accountById(
-                                    captureContext,
-                                    _moverDestinationAccountId,
-                                  );
-                                  if (currentDestination != null &&
-                                      !_moverDestinationSelectable(
-                                        account,
-                                        currentDestination,
-                                      )) {
-                                    _moverDestinationAccountId = null;
-                                  }
-                                }),
-                          ),
+            captureContext.accounts.isEmpty
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text('Sin cuentas aún.'),
+                )
+                : _CatalogPickerField(
+                  fieldKey: const Key('moverSourceField'),
+                  selectedLabel:
+                      sourceAccount == null
+                          ? null
+                          : _accountChipLabel(sourceAccount),
+                  onTap:
+                      () => _openCatalogPicker<AccountId>(
+                        context,
+                        title: '¿Desde qué cuenta?',
+                        selectedValue: _moverSourceAccountId,
+                        frequentValues: {
+                          if (captureContext.lastUsedMoverPair != null)
+                            captureContext.lastUsedMoverPair!.sourceAccountId,
+                          if (widget.preselectedMoverSourceAccountId != null)
+                            widget.preselectedMoverSourceAccountId!,
+                        },
+                        items: moverAccountItems(
+                          enabled: (_) => true,
+                          keyPrefix: 'moverSource',
                         ),
-                    ]),
-                    if (captureContext.debtAccounts.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      const Text('Deudas'),
-                      _chipRow([
-                        for (final account in captureContext.debtAccounts)
-                          (
-                            selected: account.id == _moverSourceAccountId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key('moverSourceChip_${account.id.value}'),
-                              label: _accountChipLabel(account),
-                              selected: account.id == _moverSourceAccountId,
-                              onSelected:
-                                  (_) => setState(() {
-                                    _moverSourceAccountId = account.id;
-                                    final currentDestination = _accountById(
-                                      captureContext,
-                                      _moverDestinationAccountId,
-                                    );
-                                    if (currentDestination != null &&
-                                        !_moverDestinationSelectable(
-                                          account,
-                                          currentDestination,
-                                        )) {
-                                      _moverDestinationAccountId = null;
-                                    }
-                                  }),
-                            ),
-                          ),
-                      ]),
-                    ],
-                  ],
-                ],
-              ),
-            ),
+                        onSelected:
+                            (id) => setState(() {
+                              _moverSourceAccountId = id;
+                              final account = _accountById(captureContext, id);
+                              final currentDestination = _accountById(
+                                captureContext,
+                                _moverDestinationAccountId,
+                              );
+                              if (account != null &&
+                                  currentDestination != null &&
+                                  !_moverDestinationSelectable(
+                                    account,
+                                    currentDestination,
+                                  )) {
+                                _moverDestinationAccountId = null;
+                              }
+                            }),
+                      ),
+                ),
           ],
         ),
         const SizedBox(height: 16),
@@ -1263,63 +1553,41 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 children: [
                   if (captureContext.accounts.isEmpty)
                     const Text('Sin cuentas aún.')
-                  else ...[
-                    _chipRow([
-                      for (final account in captureContext.regularAccounts)
-                        (
-                          selected: account.id == _moverDestinationAccountId,
-                          chip: _tonalChoiceChip(
+                  else
+                    _CatalogPickerField(
+                      fieldKey: const Key('moverDestinationField'),
+                      selectedLabel:
+                          destinationAccount == null
+                              ? null
+                              : _accountChipLabel(destinationAccount),
+                      onTap:
+                          () => _openCatalogPicker<AccountId>(
                             context,
-                            key: Key(
-                              'moverDestinationChip_${account.id.value}',
+                            title: '¿Hacia qué cuenta?',
+                            selectedValue: _moverDestinationAccountId,
+                            frequentValues: {
+                              if (captureContext.lastUsedMoverPair != null)
+                                captureContext
+                                    .lastUsedMoverPair!
+                                    .destinationAccountId,
+                              if (widget.preselectedMoverDestinationAccountId !=
+                                  null)
+                                widget.preselectedMoverDestinationAccountId!,
+                            },
+                            items: moverAccountItems(
+                              enabled:
+                                  (account) => _moverDestinationSelectable(
+                                    sourceAccount,
+                                    account,
+                                  ),
+                              keyPrefix: 'moverDestination',
                             ),
-                            label: _accountChipLabel(account),
-                            selected: account.id == _moverDestinationAccountId,
                             onSelected:
-                                !_moverDestinationSelectable(
-                                      sourceAccount,
-                                      account,
-                                    )
-                                    ? null
-                                    : (_) => setState(
-                                      () =>
-                                          _moverDestinationAccountId =
-                                              account.id,
-                                    ),
+                                (id) => setState(
+                                  () => _moverDestinationAccountId = id,
+                                ),
                           ),
-                        ),
-                    ]),
-                    if (captureContext.debtAccounts.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      const Text('Deudas'),
-                      _chipRow([
-                        for (final account in captureContext.debtAccounts)
-                          (
-                            selected: account.id == _moverDestinationAccountId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key(
-                                'moverDestinationChip_${account.id.value}',
-                              ),
-                              label: _accountChipLabel(account),
-                              selected:
-                                  account.id == _moverDestinationAccountId,
-                              onSelected:
-                                  !_moverDestinationSelectable(
-                                        sourceAccount,
-                                        account,
-                                      )
-                                      ? null
-                                      : (_) => setState(
-                                        () =>
-                                            _moverDestinationAccountId =
-                                                account.id,
-                                      ),
-                            ),
-                          ),
-                      ]),
-                    ],
-                  ],
+                    ),
                   if (!differentCurrency)
                     Builder(
                       builder: (context) {
@@ -1453,6 +1721,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       captureContext,
       _distributionSourceEnvelopeId,
     );
+    final destinationEnvelope = _distributionEnvelopeById(
+      captureContext,
+      _distributionDestinationEnvelopeId,
+    );
+    final frequentEnvelopeValues = captureContext.frequentEnvelopeIds.toSet();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1460,36 +1733,39 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         SectionCard(
           header: '¿DE QUÉ SOBRE SALE?',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child:
-                  envelopes.isEmpty
-                      ? const Text('Sin sobres aún.')
-                      : _chipRow([
-                        for (final envelope in envelopes)
-                          (
-                            selected:
-                                envelope.id == _distributionSourceEnvelopeId,
-                            chip: _tonalChoiceChip(
-                              context,
-                              key: Key(
+            envelopes.isEmpty
+                ? const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Text('Sin sobres aún.'),
+                )
+                : _CatalogPickerField(
+                  fieldKey: const Key('distributionSourceField'),
+                  selectedLabel: sourceEnvelope?.name,
+                  onTap:
+                      () => _openCatalogPicker<EnvelopeId>(
+                        context,
+                        title: '¿De qué sobre sale?',
+                        selectedValue: _distributionSourceEnvelopeId,
+                        frequentValues: frequentEnvelopeValues,
+                        items: [
+                          for (final envelope in envelopes)
+                            _CatalogPickerItem(
+                              value: envelope.id,
+                              itemKey: Key(
                                 'distributionSourceChip_${envelope.id.value}',
                               ),
                               label: envelope.name,
-                              selected:
-                                  envelope.id == _distributionSourceEnvelopeId,
-                              onSelected:
-                                  (_) => setState(() {
-                                    _distributionSourceEnvelopeId = envelope.id;
-                                    if (_distributionDestinationEnvelopeId ==
-                                        envelope.id) {
-                                      _distributionDestinationEnvelopeId = null;
-                                    }
-                                  }),
                             ),
-                          ),
-                      ]),
-            ),
+                        ],
+                        onSelected:
+                            (id) => setState(() {
+                              _distributionSourceEnvelopeId = id;
+                              if (_distributionDestinationEnvelopeId == id) {
+                                _distributionDestinationEnvelopeId = null;
+                              }
+                            }),
+                      ),
+                ),
           ],
         ),
         const SizedBox(height: 16),
@@ -1504,31 +1780,35 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                   if (envelopes.isEmpty)
                     const Text('Sin sobres aún.')
                   else
-                    _chipRow([
-                      for (final envelope in envelopes)
-                        (
-                          selected:
-                              envelope.id == _distributionDestinationEnvelopeId,
-                          chip: _tonalChoiceChip(
+                    _CatalogPickerField(
+                      fieldKey: const Key('distributionDestinationField'),
+                      selectedLabel: destinationEnvelope?.name,
+                      onTap:
+                          () => _openCatalogPicker<EnvelopeId>(
                             context,
-                            key: Key(
-                              'distributionDestinationChip_${envelope.id.value}',
-                            ),
-                            label: envelope.name,
-                            selected:
-                                envelope.id ==
-                                _distributionDestinationEnvelopeId,
+                            title: '¿A qué sobre entra?',
+                            selectedValue: _distributionDestinationEnvelopeId,
+                            frequentValues: frequentEnvelopeValues,
+                            items: [
+                              for (final envelope in envelopes)
+                                _CatalogPickerItem(
+                                  value: envelope.id,
+                                  itemKey: Key(
+                                    'distributionDestinationChip_'
+                                    '${envelope.id.value}',
+                                  ),
+                                  label: envelope.name,
+                                  enabled:
+                                      envelope.id !=
+                                      _distributionSourceEnvelopeId,
+                                ),
+                            ],
                             onSelected:
-                                envelope.id == _distributionSourceEnvelopeId
-                                    ? null
-                                    : (_) => setState(
-                                      () =>
-                                          _distributionDestinationEnvelopeId =
-                                              envelope.id,
-                                    ),
+                                (id) => setState(
+                                  () => _distributionDestinationEnvelopeId = id,
+                                ),
                           ),
-                        ),
-                    ]),
+                    ),
                   if (sourceEnvelope != null)
                     Builder(
                       builder: (context) {

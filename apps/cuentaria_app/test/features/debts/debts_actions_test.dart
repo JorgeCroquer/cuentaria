@@ -12,6 +12,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../capture/ui/catalog_picker_test_helpers.dart';
+
 /// #208: Prestar/Cobrar/Condonar from a person's row in Deudas, driving the
 /// existing Mover/Gasto capture flows with the Debt Account preselected —
 /// per the PRD's verification script.
@@ -127,13 +129,15 @@ void main() {
       await tester.tap(find.byKey(const Key('debtAction_prestar_Pedro')));
       await tester.pumpAndSettle();
 
-      final destinationChip = tester.widget<ChoiceChip>(
-        find.byKey(const Key('moverDestinationChip_pedro')),
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverDestinationField')),
+          matching: find.text('Pedro · USD'),
+        ),
+        findsOneWidget,
       );
-      expect(destinationChip.selected, isTrue);
 
-      await tester.tap(find.byKey(const Key('moverSourceChip_efectivo')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverSourceChip_efectivo');
       await _enterAmount(tester, '20000');
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
@@ -167,8 +171,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('debtAction_prestar_Pedro')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('moverSourceChip_efectivo')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverSourceChip_efectivo');
       await _enterAmount(tester, '20000');
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
@@ -177,13 +180,15 @@ void main() {
       await tester.tap(find.byKey(const Key('debtAction_cobrar_Pedro')));
       await tester.pumpAndSettle();
 
-      final sourceChip = tester.widget<ChoiceChip>(
-        find.byKey(const Key('moverSourceChip_pedro')),
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceField')),
+          matching: find.text('Pedro · USD'),
+        ),
+        findsOneWidget,
       );
-      expect(sourceChip.selected, isTrue);
 
-      await tester.tap(find.byKey(const Key('moverDestinationChip_efectivo')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverDestinationChip_efectivo');
       await _enterAmount(tester, '5000');
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
@@ -201,8 +206,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('debtAction_prestar_Pedro')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('moverSourceChip_efectivo')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverSourceChip_efectivo');
       await _enterAmount(tester, '15000');
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
@@ -221,8 +225,7 @@ void main() {
       expect(gastoChip.selected, isTrue);
 
       await _enterAmount(tester, '15000');
-      await tester.tap(find.byKey(const Key('envelopeChip_comida')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'envelopeChip_comida');
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
       await tester.tap(find.byKey(const Key('quickAddSaveButton')));
       await tester.pumpAndSettle();
