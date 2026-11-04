@@ -53,6 +53,9 @@ void main() {
   ) async {
     await _pumpSheet(tester);
 
+    await tester.tap(find.byKey(const Key('accountField')));
+    await tester.pumpAndSettle();
+
     expect(find.byKey(const Key('accountChip_efectivo')), findsOneWidget);
     expect(find.byKey(const Key('accountChip_pedro')), findsNothing);
   });
@@ -63,6 +66,9 @@ void main() {
     await _pumpSheet(tester);
 
     await tester.tap(find.byKey(const Key('captureModeIngreso')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('incomeAccountField')));
+    await tester.tap(find.byKey(const Key('incomeAccountField')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('incomeAccountChip_efectivo')), findsOneWidget);
@@ -78,17 +84,13 @@ void main() {
       await tester.tap(find.byKey(const Key('captureModeMover')));
       await tester.pumpAndSettle();
 
+      await tester.ensureVisible(find.byKey(const Key('moverSourceField')));
+      await tester.tap(find.byKey(const Key('moverSourceField')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const Key('moverSourceChip_efectivo')), findsOneWidget);
       expect(find.byKey(const Key('moverSourceChip_pedro')), findsOneWidget);
-      expect(
-        find.byKey(const Key('moverDestinationChip_efectivo')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('moverDestinationChip_pedro')),
-        findsOneWidget,
-      );
-      expect(find.text('Deudas'), findsNWidgets(2));
+      expect(find.text('Deudas'), findsOneWidget);
 
       final efectivoCenter = tester.getCenter(
         find.byKey(const Key('moverSourceChip_efectivo')),
@@ -97,6 +99,25 @@ void main() {
         find.byKey(const Key('moverSourceChip_pedro')),
       );
       expect(pedroCenter.dy, greaterThan(efectivoCenter.dy));
+
+      await tester.tap(find.byKey(const Key('catalogPickerClose')));
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(
+        find.byKey(const Key('moverDestinationField')),
+      );
+      await tester.tap(find.byKey(const Key('moverDestinationField')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('moverDestinationChip_efectivo')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('moverDestinationChip_pedro')),
+        findsOneWidget,
+      );
+      expect(find.text('Deudas'), findsOneWidget);
     },
   );
 }

@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../features/capture/ui/catalog_picker_test_helpers.dart';
+
 /// Every action in Patrimonio's AppBar besides Reportes lives behind the ⋮
 /// overflow menu (#279) — open it before tapping one of its items.
 Future<void> _openOverflowMenu(WidgetTester tester) async {
@@ -237,9 +239,7 @@ void main() {
       await tester.tap(find.byKey(const Key('captureModeIngreso')));
       await tester.pump();
 
-      await tester.tap(
-        find.byKey(Key('incomeAccountChip_${bancamigaId.value}')),
-      );
+      await pickCatalogItem(tester, 'incomeAccountChip_${bancamigaId.value}');
       await tester.enterText(
         find.byKey(const Key('incomeSourceField')),
         'Cliente X',
@@ -279,10 +279,8 @@ void main() {
       await tester.tap(find.byKey(const Key('captureModeMover')));
       await tester.pump();
 
-      await tester.tap(find.byKey(Key('moverSourceChip_${binanceId.value}')));
-      await tester.pump();
-      await tester.tap(find.byKey(Key('moverDestinationChip_${bdvId.value}')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverSourceChip_${binanceId.value}');
+      await pickCatalogItem(tester, 'moverDestinationChip_${bdvId.value}');
 
       await _tapDigits(tester, '10000'); // $100.00 given
 
@@ -307,8 +305,8 @@ void main() {
       await tester.tap(find.byKey(const Key('quickAddExpenseFab')));
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(Key('accountChip_${bdvId.value}')));
-      await tester.tap(find.byKey(Key('envelopeChip_${mercadoId.value}')));
+      await pickCatalogItem(tester, 'accountChip_${bdvId.value}');
+      await pickCatalogItem(tester, 'envelopeChip_${mercadoId.value}');
       await _tapDigits(tester, '200000'); // 2000.00 Bs
 
       await tester.ensureVisible(find.byKey(const Key('quickAddSaveButton')));
@@ -512,7 +510,7 @@ void main() {
       await tester.tap(find.byKey(const Key('captureModeIngreso')));
       await tester.pump();
 
-      await tester.tap(find.byKey(Key('incomeAccountChip_${bdvId.value}')));
+      await pickCatalogItem(tester, 'incomeAccountChip_${bdvId.value}');
       await tester.enterText(
         find.byKey(const Key('incomeSourceField')),
         'Cliente Bs',

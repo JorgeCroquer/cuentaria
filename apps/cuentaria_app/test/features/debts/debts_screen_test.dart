@@ -721,10 +721,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Condonar deuda de Pedro'), findsOneWidget);
-    final pedroChip = tester.widget<ChoiceChip>(
-      find.byKey(const Key('accountChip_pedro')),
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('accountField')),
+        matching: find.text('Pedro · USD'),
+      ),
+      findsOneWidget,
     );
-    expect(pedroChip.selected, isTrue);
   });
 
   testWidgets(
