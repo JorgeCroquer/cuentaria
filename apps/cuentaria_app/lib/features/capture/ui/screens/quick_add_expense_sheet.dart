@@ -135,6 +135,7 @@ Widget _tonalChoiceChip(
   required ValueChanged<bool>? onSelected,
   Widget? avatar,
   String? subtitle,
+  MaterialTapTargetSize? tapTargetSize,
 }) {
   final colorScheme = Theme.of(context).colorScheme;
   return ChoiceChip(
@@ -154,6 +155,7 @@ Widget _tonalChoiceChip(
     selected: selected,
     onSelected: onSelected,
     showCheckmark: true,
+    materialTapTargetSize: tapTargetSize,
     selectedColor: colorScheme.secondaryContainer,
     side: BorderSide(
       color: selected ? Colors.transparent : colorScheme.outlineVariant,
@@ -1251,30 +1253,24 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                     moverDestinationAccount,
                   ),
                 },
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        key: const Key('quickAddDateField'),
-                        onPressed: _pickDate,
-                        child: Text(
-                          _isToday(_date) ? 'Hoy' : _formatShortDate(_date),
-                        ),
+                // The date is picked from the line under the amount hero
+                // ("hoy · 22 nov"); a second "Hoy" button here cost the
+                // row that pushed the form past a 3-button-nav phone's
+                // ~750dp (#316 round 3, device finding).
+                if (_showsNoteToggle && !_noteExpanded)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      key: const Key('quickAddNoteToggle'),
+                      onPressed: _expandNote,
+                      style: TextButton.styleFrom(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
                       ),
+                      icon: const Icon(Icons.notes, size: 18),
+                      label: const Text('Agregar nota'),
                     ),
-                    if (_showsNoteToggle && !_noteExpanded) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton(
-                          key: const Key('quickAddNoteToggle'),
-                          onPressed: _expandNote,
-                          child: const Text('Agregar nota'),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
                 if (_showsNoteToggle && _noteExpanded) ...[
                   const SizedBox(height: 8),
                   KeyedSubtree(
@@ -1601,6 +1597,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child: _tonalChoiceChip(
                 context,
                 key: const Key('moverModeAccounts'),
+                // Secondary toggle: visual height only, so Entre sobres fits a
+                // 3-button-nav phone (#316 round 3).
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 label: 'Entre cuentas',
                 selected: _moverMode == _MoverMode.accounts,
                 onSelected:
@@ -1612,6 +1611,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
               child: _tonalChoiceChip(
                 context,
                 key: const Key('moverModeEnvelopes'),
+                // Secondary toggle: visual height only, so Entre sobres fits a
+                // 3-button-nav phone (#316 round 3).
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 label: 'Entre sobres',
                 selected: _moverMode == _MoverMode.envelopes,
                 onSelected:
@@ -1620,7 +1622,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 4),
         if (_moverMode == _MoverMode.accounts)
           _buildMoverAccountsBody(
             captureContext,
@@ -1952,61 +1954,61 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         SectionCard(
           header: '¿A QUÉ SOBRE ENTRA?',
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (envelopes.isEmpty)
-                    const Text('Sin sobres aún.')
-                  else
-                    _CatalogPickerField(
-                      fieldKey: const Key('distributionDestinationField'),
-                      selectedLabel: destinationEnvelope?.name,
-                      onTap:
-                          () => _openCatalogPicker<EnvelopeId>(
-                            context,
-                            title: '¿A qué sobre entra?',
-                            selectedValue: _distributionDestinationEnvelopeId,
-                            frequentValues: frequentEnvelopeValues,
-                            items: [
-                              for (final envelope in envelopes)
-                                _CatalogPickerItem(
-                                  value: envelope.id,
-                                  itemKey: Key(
-                                    'distributionDestinationChip_'
-                                    '${envelope.id.value}',
-                                  ),
-                                  label: envelope.name,
-                                  enabled:
-                                      envelope.id !=
-                                      _distributionSourceEnvelopeId,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (envelopes.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Text('Sin sobres aún.'),
+                  )
+                else
+                  _CatalogPickerField(
+                    fieldKey: const Key('distributionDestinationField'),
+                    selectedLabel: destinationEnvelope?.name,
+                    onTap:
+                        () => _openCatalogPicker<EnvelopeId>(
+                          context,
+                          title: '¿A qué sobre entra?',
+                          selectedValue: _distributionDestinationEnvelopeId,
+                          frequentValues: frequentEnvelopeValues,
+                          items: [
+                            for (final envelope in envelopes)
+                              _CatalogPickerItem(
+                                value: envelope.id,
+                                itemKey: Key(
+                                  'distributionDestinationChip_'
+                                  '${envelope.id.value}',
                                 ),
-                            ],
-                            onSelected:
-                                (id) => setState(
-                                  () => _distributionDestinationEnvelopeId = id,
-                                ),
-                          ),
-                    ),
-                  if (sourceEnvelope != null)
-                    Builder(
-                      builder: (context) {
-                        final warning = _distributionNegativeWarning(
-                          sourceEnvelope,
-                        );
-                        if (warning == null) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            warning,
-                            key: const Key('distributionNegativeWarning'),
-                          ),
-                        );
-                      },
-                    ),
-                ],
-              ),
+                                label: envelope.name,
+                                enabled:
+                                    envelope.id !=
+                                    _distributionSourceEnvelopeId,
+                              ),
+                          ],
+                          onSelected:
+                              (id) => setState(
+                                () => _distributionDestinationEnvelopeId = id,
+                              ),
+                        ),
+                  ),
+                if (sourceEnvelope != null)
+                  Builder(
+                    builder: (context) {
+                      final warning = _distributionNegativeWarning(
+                        sourceEnvelope,
+                      );
+                      if (warning == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                        child: Text(
+                          warning,
+                          key: const Key('distributionNegativeWarning'),
+                        ),
+                      );
+                    },
+                  ),
+              ],
             ),
           ],
         ),

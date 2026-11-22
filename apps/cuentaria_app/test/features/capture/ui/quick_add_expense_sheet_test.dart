@@ -340,7 +340,9 @@ void main() {
       // The hero's secondary line reads "hoy · <short date>" when the
       // capture date is today (U2 redesign, #281).
       expect(find.textContaining('hoy ·'), findsOneWidget);
-      expect(find.text('Hoy'), findsOneWidget);
+      // The duplicate "Hoy" button was dropped (#316 round 3): the hero
+      // line is the only date control.
+      expect(find.text('Hoy'), findsNothing);
     });
 
     testWidgets('saving a USD expense posts a plain expense, closes the '
@@ -1941,7 +1943,7 @@ void main() {
     );
   });
 
-  group('top section fits without scrolling at 384x832dp '
+  group('top section fits without scrolling in 384x749dp '
       '(#316 round 3, device finding)', () {
     Future<ProviderContainer> openSheetAt384x832(WidgetTester tester) async {
       final container = ProviderContainer(
@@ -1970,7 +1972,9 @@ void main() {
       await _openSheet(
         tester,
         existing: container,
-        surfaceSize: const Size(384, 832),
+        // 1080x2340 @ 450dpi = 384x832dp, minus the status bar (~35dp) and
+        // a 3-button navigation bar (48dp) that `useSafeArea` carves out.
+        surfaceSize: const Size(384, 749),
       );
       return container;
     }
@@ -1989,10 +1993,6 @@ void main() {
             .first,
       );
       expect(scrollableState.position.maxScrollExtent, 0);
-      expect(
-        tester.getRect(find.byKey(const Key('quickAddDateField'))).bottom,
-        lessThanOrEqualTo(832),
-      );
     }
 
     testWidgets('Gasto, recién abierto, sin nota', (tester) async {
