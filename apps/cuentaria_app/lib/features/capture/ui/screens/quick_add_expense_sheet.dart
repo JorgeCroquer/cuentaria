@@ -129,11 +129,24 @@ Widget _tonalChoiceChip(
   required String label,
   required bool selected,
   required ValueChanged<bool>? onSelected,
+  Widget? avatar,
+  String? subtitle,
 }) {
   final colorScheme = Theme.of(context).colorScheme;
   return ChoiceChip(
     key: key,
-    label: Text(label),
+    avatar: avatar,
+    label:
+        subtitle == null
+            ? Text(label)
+            : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label),
+                Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
     selected: selected,
     onSelected: onSelected,
     showCheckmark: true,
@@ -156,6 +169,8 @@ class _CatalogPickerItem<T> {
     required this.label,
     this.enabled = true,
     this.groupLabel,
+    this.subtitle,
+    this.icon,
   });
 
   final T value;
@@ -163,6 +178,14 @@ class _CatalogPickerItem<T> {
   final String label;
   final bool enabled;
   final String? groupLabel;
+
+  /// "Deuda · {counterpartyName}" for a Debt Account row (#316 round 2) —
+  /// `null` for every other row.
+  final String? subtitle;
+
+  /// Paired with [subtitle]: `Icons.person_outline` for a Debt Account row,
+  /// `null` otherwise.
+  final IconData? icon;
 }
 
 /// A field-style row for catalog pickers (Account/Envelope) that opens
@@ -176,10 +199,12 @@ class _CatalogPickerField extends StatelessWidget {
     required this.fieldKey,
     required this.selectedLabel,
     required this.onTap,
+    this.selectedSubtitle,
   });
 
   final Key fieldKey;
   final String? selectedLabel;
+  final String? selectedSubtitle;
   final VoidCallback onTap;
 
   @override
@@ -188,6 +213,7 @@ class _CatalogPickerField extends StatelessWidget {
       key: fieldKey,
       contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       title: Text(selectedLabel ?? 'Toca para elegir'),
+      subtitle: selectedSubtitle == null ? null : Text(selectedSubtitle!),
       trailing: const Icon(Icons.unfold_more),
       onTap: onTap,
     );
@@ -263,6 +289,8 @@ class _CatalogPickerSheetState<T> extends State<_CatalogPickerSheet<T>> {
           key: item.itemKey,
           label: item.label,
           selected: item.value == widget.selectedValue,
+          avatar: item.icon == null ? null : Icon(item.icon),
+          subtitle: item.subtitle,
           onSelected:
               !item.enabled
                   ? null
@@ -320,59 +348,65 @@ class _CatalogPickerSheetState<T> extends State<_CatalogPickerSheet<T>> {
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: Theme.of(context).textTheme.titleMedium,
+        // Fixed height (#316 round 2): with `mainAxisSize: min` the sheet
+        // shrank to fit whatever the filter matched, so it visibly resized
+        // as the user typed and jumped again on "Sin resultados" — a fixed
+        // 85% of the screen keeps it steady regardless of result count.
+        child: FractionallySizedBox(
+          key: const Key('catalogPickerSheetBody'),
+          heightFactor: 0.85,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    key: const Key('catalogPickerClose'),
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
-                key: const Key('catalogPickerSearchField'),
-                controller: _searchController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  prefixIcon: Icon(Icons.search),
-                  hintText: 'Buscar',
+                    IconButton(
+                      key: const Key('catalogPickerClose'),
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(context).pop(),
+                    ),
+                  ],
                 ),
-                onChanged: (_) => setState(() {}),
               ),
-            ),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                padding: const EdgeInsets.only(top: 8, bottom: 16),
-                children: [
-                  if (frequent.isNotEmpty)
-                    ..._buildGroup('FRECUENTES', frequent),
-                  if (rest.isNotEmpty)
-                    ..._buildGroup('TODAS', rest)
-                  else if (frequent.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text('Sin resultados.'),
-                    ),
-                ],
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: TextField(
+                  key: const Key('catalogPickerSearchField'),
+                  controller: _searchController,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search),
+                    hintText: 'Buscar',
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
               ),
-            ),
-          ],
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.only(top: 8, bottom: 16),
+                  children: [
+                    if (frequent.isNotEmpty)
+                      ..._buildGroup('FRECUENTES', frequent),
+                    if (rest.isNotEmpty)
+                      ..._buildGroup('TODAS', rest)
+                    else if (frequent.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('Sin resultados.'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -524,6 +558,28 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   /// only thing that disambiguates them on screen (#118).
   String _accountChipLabel(Account account) =>
       '${account.name} · ${account.nativeCurrency.value}';
+
+  /// A Debt Account reads identically to a regular one wherever a picker
+  /// mixes them — this subtitle is what told them apart before the
+  /// Condonar flow's preselection silently became a plain expense (device
+  /// finding, #316 round 2).
+  String? _debtAccountSubtitle(Account account) =>
+      account.isDebtAccount ? 'Deuda · ${account.counterpartyName}' : null;
+
+  _CatalogPickerItem<AccountId> _accountPickerItem(
+    Account account, {
+    required Key itemKey,
+    bool enabled = true,
+    String? groupLabel,
+  }) => _CatalogPickerItem(
+    value: account.id,
+    itemKey: itemKey,
+    label: _accountChipLabel(account),
+    enabled: enabled,
+    groupLabel: groupLabel,
+    subtitle: _debtAccountSubtitle(account),
+    icon: account.isDebtAccount ? Icons.person_outline : null,
+  );
 
   /// Whether Save must stay disabled because [currency] is foreign and no
   /// parallel Rate Observation exists yet for it (ADR-0018 §7) — applies to
@@ -1241,6 +1297,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                       selectedAccount == null
                           ? null
                           : _accountChipLabel(selectedAccount),
+                  selectedSubtitle:
+                      selectedAccount == null
+                          ? null
+                          : _debtAccountSubtitle(selectedAccount),
                   onTap:
                       () => _openCatalogPicker<AccountId>(
                         context,
@@ -1251,10 +1311,9 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                         ),
                         items: [
                           for (final account in gastoAccounts)
-                            _CatalogPickerItem(
-                              value: account.id,
+                            _accountPickerItem(
+                              account,
                               itemKey: Key('accountChip_${account.id.value}'),
-                              label: _accountChipLabel(account),
                             ),
                         ],
                         onSelected:
@@ -1377,6 +1436,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                       selectedIncomeAccount == null
                           ? null
                           : _accountChipLabel(selectedIncomeAccount),
+                  selectedSubtitle:
+                      selectedIncomeAccount == null
+                          ? null
+                          : _debtAccountSubtitle(selectedIncomeAccount),
                   onTap:
                       () => _openCatalogPicker<AccountId>(
                         context,
@@ -1388,12 +1451,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                         },
                         items: [
                           for (final account in captureContext.regularAccounts)
-                            _CatalogPickerItem(
-                              value: account.id,
+                            _accountPickerItem(
+                              account,
                               itemKey: Key(
                                 'incomeAccountChip_${account.id.value}',
                               ),
-                              label: _accountChipLabel(account),
                             ),
                         ],
                         onSelected:
@@ -1472,17 +1534,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       required String keyPrefix,
     }) => [
       for (final account in captureContext.regularAccounts)
-        _CatalogPickerItem(
-          value: account.id,
+        _accountPickerItem(
+          account,
           itemKey: Key('${keyPrefix}Chip_${account.id.value}'),
-          label: _accountChipLabel(account),
           enabled: enabled(account),
         ),
       for (final account in captureContext.debtAccounts)
-        _CatalogPickerItem(
-          value: account.id,
+        _accountPickerItem(
+          account,
           itemKey: Key('${keyPrefix}Chip_${account.id.value}'),
-          label: _accountChipLabel(account),
           enabled: enabled(account),
           groupLabel: 'Deudas',
         ),
@@ -1506,6 +1566,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                       sourceAccount == null
                           ? null
                           : _accountChipLabel(sourceAccount),
+                  selectedSubtitle:
+                      sourceAccount == null
+                          ? null
+                          : _debtAccountSubtitle(sourceAccount),
                   onTap:
                       () => _openCatalogPicker<AccountId>(
                         context,
@@ -1560,6 +1624,10 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                           destinationAccount == null
                               ? null
                               : _accountChipLabel(destinationAccount),
+                      selectedSubtitle:
+                          destinationAccount == null
+                              ? null
+                              : _debtAccountSubtitle(destinationAccount),
                       onTap:
                           () => _openCatalogPicker<AccountId>(
                             context,

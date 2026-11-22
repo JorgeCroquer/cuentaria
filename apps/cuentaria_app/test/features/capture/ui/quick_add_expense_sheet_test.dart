@@ -1792,5 +1792,152 @@ void main() {
         );
       },
     );
+
+    testWidgets('a Debt Account among the Mover Desde Frecuentes shows a '
+        '"Deuda · <counterparty>" subtitle and a person icon, same in search '
+        "results and in the chosen field; a regular account shows neither "
+        '(#316 round 2)', (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-efectivo'),
+          name: 'Efectivo',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-pedro'),
+          name: 'Pedro',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+          meta: {'counterpartyName': 'Pedro'},
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: QuickAddExpenseSheet(
+                // Preselecting Pedro both puts it in Frecuentes (the
+                // field's own frequentValues set) and selects it, so one
+                // seeded account covers Frecuentes, search and the field
+                // without a prior transaction.
+                preselectedMoverSourceAccountId: AccountId('acc-pedro'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.ensureVisible(find.byKey(const Key('moverSourceField')));
+      await tester.tap(find.byKey(const Key('moverSourceField')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('FRECUENTES'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceChip_acc-pedro')),
+          matching: find.text('Deuda · Pedro'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceChip_acc-pedro')),
+          matching: find.byIcon(Icons.person_outline),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceChip_acc-efectivo')),
+          matching: find.byIcon(Icons.person_outline),
+        ),
+        findsNothing,
+      );
+
+      await tester.enterText(
+        find.byKey(const Key('catalogPickerSearchField')),
+        'pedro',
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceChip_acc-pedro')),
+          matching: find.text('Deuda · Pedro'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('moverSourceChip_acc-pedro')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('moverSourceField')),
+          matching: find.text('Deuda · Pedro'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'the picker sheet height is the same whether the search matches many '
+      'results, one result or none (#316 round 2)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await saveAccounts(catalog, 40);
+
+        await _openSheet(tester, existing: container);
+        await tester.tap(find.byKey(const Key('accountField')));
+        await tester.pumpAndSettle();
+
+        final heightWithManyResults =
+            tester
+                .getSize(find.byKey(const Key('catalogPickerSheetBody')))
+                .height;
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'Cuenta 7',
+        );
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('accountChip_acc-7')), findsOneWidget);
+        final heightWithOneResult =
+            tester
+                .getSize(find.byKey(const Key('catalogPickerSheetBody')))
+                .height;
+
+        await tester.enterText(
+          find.byKey(const Key('catalogPickerSearchField')),
+          'no tal cuenta',
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Sin resultados.'), findsOneWidget);
+        final heightWithNoResults =
+            tester
+                .getSize(find.byKey(const Key('catalogPickerSheetBody')))
+                .height;
+
+        expect(heightWithOneResult, heightWithManyResults);
+        expect(heightWithNoResults, heightWithManyResults);
+      },
+    );
   });
 }
