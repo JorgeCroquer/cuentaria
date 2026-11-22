@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../ui/theme/app_theme.dart';
+import 'amount_text.dart';
 
 /// The protagonist figure of a dashboard: a top label, a big number, and an
 /// optional secondary line (typically a signed amount).
@@ -33,7 +34,7 @@ class HeroAmount extends StatelessWidget {
           ),
         ),
         const SizedBox(height: AppSpacing.xs),
-        Text(amount, key: amountKey, style: textTheme.displaySmall),
+        AmountText(amount, amountKey: amountKey, style: textTheme.displaySmall),
         if (secondaryLine != null) ...[
           const SizedBox(height: AppSpacing.sm),
           secondaryLine!,

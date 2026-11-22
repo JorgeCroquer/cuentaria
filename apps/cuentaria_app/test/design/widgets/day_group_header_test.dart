@@ -1,17 +1,26 @@
 import 'package:cuentaria_app/design/widgets.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets('renders the label and a signed amount', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(balancesHiddenProvider.notifier).show();
+
     await tester.pumpWidget(
-      const MaterialApp(
-        home: Scaffold(
-          body: DayGroupHeader(
-            label: '7 SEP',
-            amount: '-\$12.00',
-            sign: AmountSign.negative,
-            amountKey: Key('dayAmount'),
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(
+          home: Scaffold(
+            body: DayGroupHeader(
+              label: '7 SEP',
+              amount: '-\$12.00',
+              sign: AmountSign.negative,
+              amountKey: Key('dayAmount'),
+            ),
           ),
         ),
       ),

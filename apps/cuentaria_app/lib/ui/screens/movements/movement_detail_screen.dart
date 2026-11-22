@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import '../../../design/widgets.dart';
 import '../../../features/movements/application/movements_providers.dart';
 import '../../../providers/composition_root.dart';
 import 'movement_labels.dart';
@@ -148,7 +149,9 @@ class _MovementDetailScreenState extends ConsumerState<MovementDetailScreen> {
           ListTile(
             key: Key('posting_$i'),
             title: Text(_targetLabel(transaction.postings[i].target, catalog)),
-            trailing: Text(_formatSignedUsd(transaction.postings[i].amountUsd)),
+            trailing: AmountText(
+              _formatSignedUsd(transaction.postings[i].amountUsd),
+            ),
           ),
         const SizedBox(height: 24),
         if (isReversal)

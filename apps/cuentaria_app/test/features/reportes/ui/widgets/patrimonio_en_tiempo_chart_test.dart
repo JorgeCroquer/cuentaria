@@ -66,4 +66,30 @@ void main() {
     expect(find.byType(LineChart), findsNothing);
     expect(find.text('Sin datos de patrimonio'), findsOneWidget);
   });
+
+  testWidgets(
+    'hides the left axis value labels while balancesHidden is true (#333) '
+    '— the lines still render',
+    (tester) async {
+      final points = [
+        PatrimonioPoint(
+          month: ReportMonth(2026, 1),
+          realCostUsdCents: 10000,
+          marketValueUsdCents: 9000,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PatrimonioEnTiempoChart(points: points, balancesHidden: true),
+          ),
+        ),
+      );
+
+      final chart = tester.widget<LineChart>(find.byType(LineChart));
+      expect(chart.data.titlesData.leftTitles.sideTitles.showTitles, isFalse);
+      expect(chart.data.lineBarsData, hasLength(2));
+    },
+  );
 }

@@ -12,6 +12,7 @@ import 'package:cuentaria_app/features/distribution/ui/screens/cascade_editor_sc
 import 'package:cuentaria_app/features/distribution/ui/screens/distribute_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -27,6 +28,7 @@ void main() {
         overrides: [isWebProvider.overrideWithValue(true)],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       final catalog = await container.read(catalogRepositoryProvider.future);
       final projections = container.read(ledgerProjectionsProvider);
@@ -101,6 +103,7 @@ void main() {
         overrides: [isWebProvider.overrideWithValue(true)],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       final catalog = await container.read(catalogRepositoryProvider.future);
       final store = await container.read(eventStoreProvider.future);
@@ -180,6 +183,7 @@ void main() {
       overrides: [isWebProvider.overrideWithValue(true)],
     );
     addTearDown(container.dispose);
+    container.read(balancesHiddenProvider.notifier).show();
 
     final catalog = await container.read(catalogRepositoryProvider.future);
 
@@ -285,6 +289,7 @@ void main() {
         overrides: [isWebProvider.overrideWithValue(true)],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       final catalog = await container.read(catalogRepositoryProvider.future);
       final projections = container.read(ledgerProjectionsProvider);

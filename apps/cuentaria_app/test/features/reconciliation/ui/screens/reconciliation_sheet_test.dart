@@ -7,6 +7,7 @@ import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/reconciliation/ui/screens/reconciliation_sheet.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +24,10 @@ Future<ProviderContainer> _openSheet(
       existing ??
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
+  // These tests exercise Conciliación concerns of their own, not the #333
+  // hide-balances toggle — keep balances visible so their pre-existing
+  // literal-amount assertions aren't masked.
+  container.read(balancesHiddenProvider.notifier).show();
 
   // The taller card keypad (#281) overflows the default 800x600 test
   // viewport inside the bottom sheet — same scaffolding as the capture

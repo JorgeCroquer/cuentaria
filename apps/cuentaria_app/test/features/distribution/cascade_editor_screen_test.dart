@@ -3,6 +3,7 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:cuentaria_app/design/widgets.dart';
 import 'package:cuentaria_app/features/distribution/ui/screens/cascade_editor_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,6 +46,11 @@ Future<GoRouter> _pumpEditor(
       ),
     ],
   );
+  // These tests exercise cascade-editor concerns of their own, not the
+  // #333 hide-balances toggle — keep balances visible so their
+  // pre-existing literal-amount assertions aren't masked.
+  container.read(balancesHiddenProvider.notifier).show();
+
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,

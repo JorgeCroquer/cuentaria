@@ -1,9 +1,17 @@
 import 'package:cuentaria_app/features/reportes/application/deudas_en_tiempo_providers.dart';
 import 'package:cuentaria_app/features/reportes/ui/screens/deuda_por_persona_screen.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reportes/reportes.dart';
+
+/// This screen's tests assert on pre-#333 literal amount text, not on the
+/// hide-balances toggle — start visible so they aren't masked.
+class _VisibleBalances extends BalancesHiddenNotifier {
+  @override
+  bool build() => false;
+}
 
 final _points = [
   DebtPoint(
@@ -30,6 +38,7 @@ Future<void> _pumpScreen(WidgetTester tester, List<DebtPoint> points) async {
     ProviderScope(
       overrides: [
         debtsEnTiempoPointsProvider.overrideWith((ref) async => points),
+        balancesHiddenProvider.overrideWith(_VisibleBalances.new),
       ],
       child: const MaterialApp(home: DeudaPorPersonaScreen()),
     ),

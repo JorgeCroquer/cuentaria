@@ -1,6 +1,7 @@
 import 'package:cuentaria_app/features/patrimonio/application/patrimonio_providers.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,10 @@ void main() {
         patrimonioSnapshotProvider.overrideWith((ref) async => snapshot),
       ],
     );
+    // These tests exercise figure/color/navigation concerns of their own,
+    // not the #333 hide-balances toggle — keep balances visible so their
+    // pre-existing literal-amount assertions aren't masked.
+    container.read(balancesHiddenProvider.notifier).show();
     return container;
   }
 
@@ -287,8 +292,9 @@ void main() {
   });
 
   testWidgets(
-    'the AppBar shows exactly Reportes and the overflow menu as visible '
-    'actions — every other action moves inside the ⋮ (#279)',
+    'the AppBar shows exactly the hide-balances toggle, Reportes and the '
+    'overflow menu as visible actions — every other action moves inside '
+    'the ⋮ (#279, #333)',
     (tester) async {
       final container = containerWith(
         PatrimonioSnapshot(
@@ -321,7 +327,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.actions, hasLength(2));
+      expect(appBar.actions, hasLength(3));
+      expect(find.byKey(const Key('hideBalancesAction')), findsOneWidget);
       expect(find.byKey(const Key('reportsAction')), findsOneWidget);
       expect(find.byKey(const Key('patrimonioOverflowMenu')), findsOneWidget);
       expect(find.byKey(const Key('manageAccountsAction')), findsNothing);

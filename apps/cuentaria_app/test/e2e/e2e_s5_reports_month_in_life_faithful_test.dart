@@ -44,6 +44,7 @@ import 'package:cuentaria_app/features/reportes/ui/widgets/month_selector.dart'
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -99,6 +100,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       // -- Real repositories/use-cases, wired exactly like the composition
       // root wires them for the UI ---------------------------------------

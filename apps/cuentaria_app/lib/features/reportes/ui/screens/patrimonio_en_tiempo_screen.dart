@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
 
+import '../../../../design/widgets.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../application/patrimonio_en_tiempo_providers.dart';
 import '../widgets/patrimonio_en_tiempo_chart.dart';
 
@@ -100,7 +102,7 @@ class _PatrimonioEnTiempoScreenState
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({
     required this.points,
     required this.selectedIndex,
@@ -114,13 +116,19 @@ class _Body extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
+    String amount(int cents) {
+      final formatted = _formatUsdCents(cents);
+      return hidden ? maskAmount(formatted) : formatted;
+    }
+
     final selected = points[selectedIndex];
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        PatrimonioEnTiempoChart(points: points),
+        PatrimonioEnTiempoChart(points: points, balancesHidden: hidden),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -146,13 +154,13 @@ class _Body extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Costo real: ${_formatUsdCents(selected.realCostUsdCents)}',
+          'Costo real: ${amount(selected.realCostUsdCents)}',
           key: const Key('patrimonioEnTiempoRealCost'),
         ),
         const SizedBox(height: 8),
         if (selected.marketValueUsdCents case final marketValue?)
           Text(
-            'Valor de mercado: ${_formatUsdCents(marketValue)}',
+            'Valor de mercado: ${amount(marketValue)}',
             key: const Key('patrimonioEnTiempoMarketValue'),
           )
         else

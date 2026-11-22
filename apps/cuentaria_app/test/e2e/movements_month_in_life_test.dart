@@ -2,6 +2,7 @@ import 'package:contabilidad/application/catalog/models/envelope.dart';
 import 'package:cuentaria_app/features/cloud_copy/application/cloud_copy_providers.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:cuentaria_app/ui/screens/movements/movement_detail_screen.dart';
 import 'package:cuentaria_app/ui/screens/movements/movements_screen.dart';
 import 'package:flutter/material.dart';
@@ -121,6 +122,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       // The U2 capture sheet (#281) is taller than the default test
       // surface — without this, the keypad renders unscrolled-into-view
@@ -471,6 +473,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       // The U2 capture sheet (#281) is taller than the default test
       // surface — without this, the keypad renders unscrolled-into-view

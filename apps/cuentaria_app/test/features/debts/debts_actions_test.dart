@@ -7,6 +7,7 @@ import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/debts/ui/screens/debts_screen.dart';
 import 'package:cuentaria_app/features/patrimonio/application/patrimonio_providers.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,6 +87,11 @@ Future<ProviderContainer> _pumpDebtsScreen(WidgetTester tester) async {
       ),
     ),
   );
+
+  // These tests exercise Deudas action concerns of their own, not the
+  // #333 hide-balances toggle — keep balances visible so their
+  // pre-existing literal-amount assertions aren't masked.
+  container.read(balancesHiddenProvider.notifier).show();
 
   await tester.pumpWidget(
     UncontrolledProviderScope(

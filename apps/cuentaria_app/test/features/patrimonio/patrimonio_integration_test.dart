@@ -12,6 +12,7 @@ import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/ledger_providers.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:cuentaria_app/ui/screens/movements/movements_screen.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
@@ -48,6 +49,20 @@ final _seededCatalogOverride = catalogRepositoryProvider.overrideWith((
   return repository;
 });
 
+/// These e2e flows assert on pre-#333 literal amount text, not on the
+/// hide-balances toggle — start visible so they aren't masked. (Overriding
+/// the provider keeps the implicit `ProviderScope`-owned container, instead
+/// of a manually disposed one, which otherwise races `CloudCopyTriggers`'
+/// debounce timer at test teardown.)
+class _VisibleBalances extends BalancesHiddenNotifier {
+  @override
+  bool build() => false;
+}
+
+final _balancesVisibleOverride = balancesHiddenProvider.overrideWith(
+  _VisibleBalances.new,
+);
+
 void main() {
   testWidgets(
     'boots into the Patrimonio tab and Movements stays reachable via the '
@@ -79,6 +94,7 @@ void main() {
           overrides: [
             isWebProvider.overrideWithValue(true),
             _seededCatalogOverride,
+            _balancesVisibleOverride,
           ],
           child: const MyApp(),
         ),
@@ -153,6 +169,7 @@ void main() {
           overrides: [
             isWebProvider.overrideWithValue(true),
             _seededCatalogOverride,
+            _balancesVisibleOverride,
           ],
           child: const MyApp(),
         ),
@@ -223,6 +240,7 @@ void main() {
           overrides: [
             isWebProvider.overrideWithValue(true),
             _seededCatalogOverride,
+            _balancesVisibleOverride,
           ],
           child: const MyApp(),
         ),

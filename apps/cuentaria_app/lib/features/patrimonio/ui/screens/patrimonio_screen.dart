@@ -9,6 +9,7 @@ import 'package:tasas/domain/rate_resolver.dart';
 
 import '../../../../design/widgets.dart';
 import '../../../../providers/tasas_providers.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../backup/ui/widgets/restore_backup_button.dart';
@@ -18,6 +19,13 @@ import '../../application/patrimonio_providers.dart';
 final _usd = CurrencyCode('USD');
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Masks a formatted amount that's embedded inside a larger composed
+/// string (#333) — e.g. "Sin asignar · $X" — where [AmountText] can't be
+/// dropped in because the surrounding design-system widget takes a plain
+/// `String`, not a `Widget`.
+String _maybeHide(bool hidden, String formatted) =>
+    hidden ? maskAmount(formatted) : formatted;
 
 /// Human-readable provenance for a resolved Rate suggestion (#175), same
 /// convention as the account-creation and quick-add forms (ADR-0018 "la app
@@ -149,7 +157,11 @@ class PatrimonioScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Patrimonio'),
-        actions: const [_ReportsAction(), _OverflowMenu()],
+        actions: const [
+          _HideBalancesAction(),
+          _ReportsAction(),
+          _OverflowMenu(),
+        ],
       ),
       body: snapshotAsync.when(
         data: (snapshot) {
@@ -272,9 +284,9 @@ class _Hero extends StatelessWidget {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               const Text('Costo real '),
-              Text(
+              AmountText(
                 _formatUsdCents(snapshot.realCostUsdCents),
-                key: const Key('realCostAmount'),
+                amountKey: const Key('realCostAmount'),
               ),
               const Text(' · '),
               SignedAmountText(
@@ -335,26 +347,29 @@ class _RateChipsRow extends StatelessWidget {
 /// [FilledButton] into the distribute flow (C2). Apertura folds in as a
 /// pending-distribution subline instead of its own row once it carries a
 /// balance (S2).
-class _UnassignedCard extends StatelessWidget {
+class _UnassignedCard extends ConsumerWidget {
   const _UnassignedCard({this.stage, this.opening});
 
   final PatrimonioEnvelope? stage;
   final PatrimonioEnvelope? opening;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final stage = this.stage;
     final opening = this.opening;
+    final hidden = ref.watch(balancesHiddenProvider);
 
     return ActionCard(
       title:
           stage == null
               ? null
-              : 'Sin asignar · ${_formatUsdCents(stage.balanceUsd)}',
+              : 'Sin asignar · '
+                  '${_maybeHide(hidden, _formatUsdCents(stage.balanceUsd))}',
       subline:
           opening == null
               ? null
-              : '+ ${_formatUsdCents(opening.balanceUsd)} de apertura por repartir',
+              : '+ ${_maybeHide(hidden, _formatUsdCents(opening.balanceUsd))} '
+                  'de apertura por repartir',
       sublineKey: opening == null ? null : const Key('openingBalanceNotice'),
       onSublineTap:
           opening == null
@@ -387,13 +402,13 @@ class _EnvelopesCard extends StatelessWidget {
   }
 }
 
-class _EnvelopeRow extends StatelessWidget {
+class _EnvelopeRow extends ConsumerWidget {
   const _EnvelopeRow({required this.envelope});
 
   final PatrimonioEnvelope envelope;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final isNegative = envelope.balanceUsd < 0;
     final amountStyle = TextStyle(
@@ -401,6 +416,7 @@ class _EnvelopeRow extends StatelessWidget {
       fontWeight: isNegative ? FontWeight.w500 : null,
     );
     final metadata = envelope.metadata;
+    final hidden = ref.watch(balancesHiddenProvider);
 
     return ListTile(
       key: Key('envelope_${envelope.id.value}'),
@@ -416,7 +432,9 @@ class _EnvelopeRow extends StatelessWidget {
               metadata.isOverdue
                   ? 'vencida'
                   : metadata.quotaPerMonthUsd > 0
-                  ? 'Cuota sugerida: ${_formatUsdCents(metadata.quotaPerMonthUsd)}/mes'
+                  ? 'Cuota sugerida: '
+                      '${_maybeHide(hidden, _formatUsdCents(metadata.quotaPerMonthUsd))}'
+                      '/mes'
                   : '${metadata.progressPercent}%',
             ),
           ],
@@ -431,7 +449,10 @@ class _EnvelopeRow extends StatelessWidget {
         ),
         NoMetadata() => null,
       },
-      trailing: Text(_formatUsdCents(envelope.balanceUsd), style: amountStyle),
+      trailing: AmountText(
+        _formatUsdCents(envelope.balanceUsd),
+        style: amountStyle,
+      ),
     );
   }
 }
@@ -453,24 +474,25 @@ class _AccountsCard extends StatelessWidget {
   }
 }
 
-class _AccountGroupRow extends StatelessWidget {
+class _AccountGroupRow extends ConsumerWidget {
   const _AccountGroupRow({required this.group});
 
   final PatrimonioAccountGroup group;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final isNegative = group.nativeMinorAmount < BigInt.zero;
     final showValueLine =
         group.todayValueUsdCents != group.realCostUsdCents || !group.hasRate;
+    final hidden = ref.watch(balancesHiddenProvider);
 
     return ListTile(
       key: Key('accountGroup_${group.currency.value}'),
       leading: CircleAvatar(child: Text(_currencySymbol(group.currency))),
-      title: Text(
+      title: AmountText(
         _formatNativeAmount(group.nativeMinorAmount, group.currency),
-        key: Key('accountGroupNativeAmount_${group.currency.value}'),
+        amountKey: Key('accountGroupNativeAmount_${group.currency.value}'),
         style: isNegative ? TextStyle(color: colorScheme.error) : null,
       ),
       subtitle:
@@ -481,8 +503,10 @@ class _AccountGroupRow extends StatelessWidget {
                 children: [
                   if (showValueLine)
                     Text(
-                      'hoy ${_formatUsdCents(group.todayValueUsdCents)} · '
-                      'costo ${_formatUsdCents(group.realCostUsdCents)}'
+                      'hoy '
+                      '${_maybeHide(hidden, _formatUsdCents(group.todayValueUsdCents))}'
+                      ' · costo '
+                      '${_maybeHide(hidden, _formatUsdCents(group.realCostUsdCents))}'
                       '${group.hasRate ? '' : ' (sin tasa)'}',
                     ),
                   if (isNegative)
@@ -505,17 +529,20 @@ class _AccountGroupRow extends StatelessWidget {
 /// so they never surface as their own currency group — this card stands in
 /// for all of them, linking to the Debts screen for the per-person
 /// breakdown.
-class _DebtsCard extends StatelessWidget {
+class _DebtsCard extends ConsumerWidget {
   const _DebtsCard({required this.globalNetoUsdCents});
 
   final int globalNetoUsdCents;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
     return Card(
       child: ListTile(
         key: const Key('debtsLine'),
-        title: Text('Deudas · ${_formatUsdCents(globalNetoUsdCents)}'),
+        title: Text(
+          'Deudas · ${_maybeHide(hidden, _formatUsdCents(globalNetoUsdCents))}',
+        ),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => context.push('/debts'),
       ),
@@ -576,6 +603,24 @@ class _CloudCopyEmptyStateLink extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// The global eye toggle (#333): hides or reveals every money figure in the
+/// app for the rest of this session — opening Patrimonio in public never
+/// shows a balance.
+class _HideBalancesAction extends ConsumerWidget {
+  const _HideBalancesAction();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
+    return IconButton(
+      key: const Key('hideBalancesAction'),
+      icon: Icon(hidden ? Icons.visibility_off : Icons.visibility),
+      tooltip: hidden ? 'Mostrar saldos' : 'Ocultar saldos',
+      onPressed: () => ref.read(balancesHiddenProvider.notifier).toggle(),
     );
   }
 }

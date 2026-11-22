@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/cloud_copy/application/cloud_copy_providers.dart';
+import 'providers/balances_auto_hide_providers.dart';
 import 'providers/rate_sync_providers.dart';
 import 'router/app_router.dart';
 import 'ui/theme/app_theme.dart';
@@ -17,6 +18,7 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(rateSyncTriggerProvider);
     ref.watch(cloudCopyTriggersProvider);
+    ref.watch(balancesAutoHideTriggerProvider);
     final goRouter = ref.watch(goRouterProvider);
     return MaterialApp.router(
       title: 'Cuentaria MVP',
