@@ -1940,4 +1940,259 @@ void main() {
       },
     );
   });
+
+  group('top section fits without scrolling at 384x832dp '
+      '(#316 round 3, device finding)', () {
+    Future<ProviderContainer> openSheetAt384x832(WidgetTester tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-1'),
+          name: 'Cuenta',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-1'),
+          name: 'Sobre',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      await _openSheet(
+        tester,
+        existing: container,
+        surfaceSize: const Size(384, 832),
+      );
+      return container;
+    }
+
+    void expectNoScrollNeeded(WidgetTester tester) {
+      // The top section's own Scrollable is the outermost one — a nested
+      // TextField (e.g. the Ingreso source field) brings its own internal
+      // Scrollable for text scrolling, so `.first` picks the ancestor, not
+      // whichever descendant Scrollable the matcher happens to hit.
+      final scrollableState = tester.state<ScrollableState>(
+        find
+            .descendant(
+              of: find.byType(SingleChildScrollView),
+              matching: find.byType(Scrollable),
+            )
+            .first,
+      );
+      expect(scrollableState.position.maxScrollExtent, 0);
+      expect(
+        tester.getRect(find.byKey(const Key('quickAddDateField'))).bottom,
+        lessThanOrEqualTo(832),
+      );
+    }
+
+    testWidgets('Gasto, recién abierto, sin nota', (tester) async {
+      await openSheetAt384x832(tester);
+      expectNoScrollNeeded(tester);
+    });
+
+    testWidgets('Ingreso, recién abierto', (tester) async {
+      await openSheetAt384x832(tester);
+      await tester.tap(find.byKey(const Key('captureModeIngreso')));
+      await tester.pumpAndSettle();
+      expectNoScrollNeeded(tester);
+    });
+
+    testWidgets('Mover "Entre cuentas", recién abierto', (tester) async {
+      await openSheetAt384x832(tester);
+      await tester.tap(find.byKey(const Key('captureModeMover')));
+      await tester.pumpAndSettle();
+      expectNoScrollNeeded(tester);
+    });
+
+    testWidgets('Mover "Entre sobres", recién abierto', (tester) async {
+      await openSheetAt384x832(tester);
+      await tester.tap(find.byKey(const Key('captureModeMover')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
+      await tester.pumpAndSettle();
+      expectNoScrollNeeded(tester);
+    });
+  });
+
+  group('note field visibility and focus (#316 round 3, device finding)', () {
+    testWidgets(
+      'tapping "Agregar nota" scrolls the note field into view and focuses '
+      'it',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        await catalog.saveAccount(
+          Account(
+            id: AccountId('acc-1'),
+            name: 'Cuenta',
+            nativeCurrency: CurrencyCode('USD'),
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+        await catalog.saveEnvelope(
+          Envelope(
+            id: EnvelopeId('env-1'),
+            name: 'Sobre',
+            role: EnvelopeRole.none,
+            isArchived: false,
+            updatedAt: DateTime.now(),
+          ),
+        );
+
+        await _openSheet(
+          tester,
+          existing: container,
+          surfaceSize: const Size(384, 832),
+        );
+
+        await tester.tap(find.byKey(const Key('quickAddNoteToggle')));
+        await tester.pumpAndSettle();
+
+        final noteFieldRect = tester.getRect(
+          find.byKey(const Key('quickAddNoteField')),
+        );
+        expect(noteFieldRect.top, greaterThanOrEqualTo(0));
+        expect(noteFieldRect.bottom, lessThanOrEqualTo(832));
+
+        final noteField = tester.widget<TextField>(
+          find.byKey(const Key('quickAddNoteField')),
+        );
+        expect(noteField.focusNode!.hasFocus, isTrue);
+      },
+    );
+  });
+
+  group('dismissal guards against losing captured input '
+      '(#316 round 3, device finding)', () {
+    // Unlike `_openSheet`, this opens through the real entry point so
+    // `enableDrag: false` and the discard-dialog wiring are both exercised,
+    // not just the sheet's own widget tree.
+    Future<ProviderContainer> openProductionSheet(WidgetTester tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      final catalog = await container.read(catalogRepositoryProvider.future);
+      await catalog.saveAccount(
+        Account(
+          id: AccountId('acc-1'),
+          name: 'Cuenta',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+      await catalog.saveEnvelope(
+        Envelope(
+          id: EnvelopeId('env-1'),
+          name: 'Sobre',
+          role: EnvelopeRole.none,
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        ),
+      );
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Builder(
+              builder:
+                  (context) => Scaffold(
+                    floatingActionButton: FloatingActionButton(
+                      key: const Key('openSheetButton'),
+                      onPressed: () => showQuickAddExpenseSheet(context),
+                      child: const Icon(Icons.add),
+                    ),
+                  ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('openSheetButton')));
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    Future<void> pressBack(WidgetTester tester) async {
+      final sheetContext = tester.element(
+        find.byKey(const Key('quickAddSaveButton')),
+      );
+      await Navigator.of(sheetContext).maybePop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('dragging the sheet down 400px does not close it', (
+      tester,
+    ) async {
+      await openProductionSheet(tester);
+      expect(find.byType(QuickAddExpenseSheet), findsOneWidget);
+
+      await tester.drag(
+        find.byType(QuickAddExpenseSheet),
+        const Offset(0, 400),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(QuickAddExpenseSheet), findsOneWidget);
+    });
+
+    testWidgets(
+      'a clean form closes directly on back, with no discard dialog',
+      (tester) async {
+        await openProductionSheet(tester);
+
+        await pressBack(tester);
+
+        expect(find.text('¿Descartar este movimiento?'), findsNothing);
+        expect(find.byType(QuickAddExpenseSheet), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'a dirty form shows the discard dialog on back: "Seguir editando" '
+      'keeps the amount, "Descartar" closes the sheet',
+      (tester) async {
+        await openProductionSheet(tester);
+
+        await tester.tap(find.byKey(const Key('keypadDigit_5')));
+        await tester.pump();
+
+        await pressBack(tester);
+        expect(find.text('¿Descartar este movimiento?'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('discardDialogContinue')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QuickAddExpenseSheet), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.byKey(const Key('amountDisplay'))).data,
+          '0.05',
+        );
+
+        await pressBack(tester);
+        expect(find.text('¿Descartar este movimiento?'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('discardDialogDiscard')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(QuickAddExpenseSheet), findsNothing);
+      },
+    );
+  });
 }

@@ -37,6 +37,10 @@ Future<void> showQuickAddExpenseSheet(
     // Edge-to-edge (targetSdk 36): sin esto el sheet a altura completa se
     // mete bajo la barra de estado — el SafeArea interno ve inset 0.
     useSafeArea: true,
+    // A drag down/up used to close the sheet outright regardless of what
+    // was typed (device finding, #316 round 3) — the discard dialog below
+    // is the only way out of a dirty form now.
+    enableDrag: false,
     builder:
         (context) => QuickAddExpenseSheet(
           preselectedGastoAccountId: preselectedGastoAccountId,
@@ -211,7 +215,9 @@ class _CatalogPickerField extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       key: fieldKey,
-      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      dense: true,
+      visualDensity: VisualDensity.compact,
+      contentPadding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       title: Text(selectedLabel ?? 'Toca para elegir'),
       subtitle: selectedSubtitle == null ? null : Text(selectedSubtitle!),
       trailing: const Icon(Icons.unfold_more),
@@ -465,6 +471,8 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   // Gasto
   final _amount = AmountInputController();
   final _noteController = TextEditingController();
+  final _noteFocusNode = FocusNode();
+  final _noteFieldKey = GlobalKey();
   bool _noteExpanded = false;
   AccountId? _selectedAccountId;
   EnvelopeId? _selectedEnvelopeId;
@@ -484,6 +492,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   EnvelopeId? _distributionSourceEnvelopeId;
   EnvelopeId? _distributionDestinationEnvelopeId;
 
+  // Snapshot of what `_applyDefaults` preselected (#316 round 3) — dismissal
+  // compares the live selection against these, not against null, so a
+  // Condonar-style preselection doesn't itself read as "dirty".
+  AccountId? _initialAccountId;
+  EnvelopeId? _initialEnvelopeId;
+  AccountId? _initialIncomeAccountId;
+  AccountId? _initialMoverSourceAccountId;
+  AccountId? _initialMoverDestinationAccountId;
+
   @override
   void initState() {
     super.initState();
@@ -497,6 +514,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   void dispose() {
     _amount.dispose();
     _noteController.dispose();
+    _noteFocusNode.dispose();
     _sourceController.dispose();
     _moverGivenAmount.dispose();
     _rateFieldController.dispose();
@@ -529,6 +547,64 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
         _moverSourceAccountId = moverPair.sourceAccountId;
         _moverDestinationAccountId = moverPair.destinationAccountId;
       }
+    }
+
+    _initialAccountId = _selectedAccountId;
+    _initialEnvelopeId = _selectedEnvelopeId;
+    _initialIncomeAccountId = _selectedIncomeAccountId;
+    _initialMoverSourceAccountId = _moverSourceAccountId;
+    _initialMoverDestinationAccountId = _moverDestinationAccountId;
+  }
+
+  /// Whether closing the sheet now would silently drop something the user
+  /// typed or picked (#316 round 3) — a swipe or back tap used to close it
+  /// outright, so a half-finished Gasto/Mover vanished with no warning.
+  bool get _isDirty {
+    if (!_amount.isEmpty || !_moverGivenAmount.isEmpty) return true;
+    if (_noteController.text.trim().isNotEmpty) return true;
+    if (_sourceController.text.trim().isNotEmpty) return true;
+    switch (_mode) {
+      case _CaptureMode.gasto:
+        return _selectedAccountId != _initialAccountId ||
+            _selectedEnvelopeId != _initialEnvelopeId;
+      case _CaptureMode.ingreso:
+        return _selectedIncomeAccountId != _initialIncomeAccountId;
+      case _CaptureMode.mover:
+        if (_moverMode == _MoverMode.envelopes) {
+          return _distributionSourceEnvelopeId != null ||
+              _distributionDestinationEnvelopeId != null;
+        }
+        return _moverSourceAccountId != _initialMoverSourceAccountId ||
+            _moverDestinationAccountId != _initialMoverDestinationAccountId;
+    }
+  }
+
+  Future<bool> _confirmDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('¿Descartar este movimiento?'),
+            actions: [
+              TextButton(
+                key: const Key('discardDialogContinue'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Seguir editando'),
+              ),
+              TextButton(
+                key: const Key('discardDialogDiscard'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Descartar'),
+              ),
+            ],
+          ),
+    );
+    return discard ?? false;
+  }
+
+  Future<void> _handlePopAttempt() async {
+    if (await _confirmDiscard() && mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -609,6 +685,25 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       lastDate: DateTime(2100),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  /// The note field renders below the fold as often as not — on a short
+  /// screen it's the first thing pushed out of view, and without this it
+  /// looked like the button did nothing (device finding, #316 round 3):
+  /// scroll it in once its frame lands, then hand it the keyboard.
+  void _expandNote() {
+    setState(() => _noteExpanded = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final noteContext = _noteFieldKey.currentContext;
+      if (noteContext != null) {
+        Scrollable.ensureVisible(
+          noteContext,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+      _noteFocusNode.requestFocus();
+    });
   }
 
   Future<void> _saveGasto(Account account) async {
@@ -1001,7 +1096,19 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
   Widget _buildBody(QuickAddCaptureContext captureContext) {
     return AnimatedBuilder(
       animation: Listenable.merge([_amount, _moverGivenAmount]),
-      builder: (context, _) => _buildReactiveBody(captureContext),
+      // `PopScope.canPop` is only re-read when this subtree rebuilds — a
+      // digit typed on the keypad notifies `_amount`/`_moverGivenAmount`
+      // directly, without the `setState` every other field goes through, so
+      // `_isDirty` has to be recomputed inside this listener, not in the
+      // outer `build()` (#316 round 3).
+      builder:
+          (context, _) => PopScope(
+            canPop: !_isDirty,
+            onPopInvokedWithResult: (didPop, result) {
+              if (!didPop) _handlePopAttempt();
+            },
+            child: _buildReactiveBody(captureContext),
+          ),
     );
   }
 
@@ -1064,7 +1171,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1114,7 +1221,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 if (_mode == _CaptureMode.gasto &&
                     selectedAccount != null &&
                     selectedAccount.nativeCurrency != CurrencyCode('USD'))
@@ -1129,7 +1236,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                     currency: selectedIncomeAccount.nativeCurrency,
                     onRegisterRate: _openRecordRatesDialog,
                   ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 switch (_mode) {
                   _CaptureMode.gasto => _buildGastoBody(captureContext),
                   _CaptureMode.ingreso => _buildIngresoBody(captureContext),
@@ -1139,7 +1246,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                     moverDestinationAccount,
                   ),
                 },
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     Expanded(
@@ -1156,7 +1263,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                       Expanded(
                         child: OutlinedButton(
                           key: const Key('quickAddNoteToggle'),
-                          onPressed: () => setState(() => _noteExpanded = true),
+                          onPressed: _expandNote,
                           child: const Text('Agregar nota'),
                         ),
                       ),
@@ -1165,11 +1272,15 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
                 if (_showsNoteToggle && _noteExpanded) ...[
                   const SizedBox(height: 8),
-                  TextField(
-                    key: const Key('quickAddNoteField'),
-                    controller: _noteController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nota (opcional)',
+                  KeyedSubtree(
+                    key: _noteFieldKey,
+                    child: TextField(
+                      key: const Key('quickAddNoteField'),
+                      focusNode: _noteFocusNode,
+                      controller: _noteController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nota (opcional)',
+                      ),
                     ),
                   ),
                 ],
@@ -1322,7 +1433,6 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
         SectionCard(
           header: '¿DE QUÉ SOBRE SALE?',
           children: [
@@ -1421,7 +1531,6 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
         SectionCard(
           header: '¿A QUÉ CUENTA?',
           children: [
@@ -1506,7 +1615,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         if (_moverMode == _MoverMode.accounts)
           _buildMoverAccountsBody(
             captureContext,
@@ -1606,7 +1715,6 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
         SectionCard(
           header: 'HACIA',
           children: [
@@ -1836,7 +1944,6 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
                 ),
           ],
         ),
-        const SizedBox(height: 16),
         SectionCard(
           header: '¿A QUÉ SOBRE ENTRA?',
           children: [
