@@ -2153,6 +2153,69 @@ void main() {
     });
 
     testWidgets(
+      'a received amount typed in a cross-currency Mover counts as dirty '
+      '(reviewer finding, #316 round 3)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        await tester.binding.setSurfaceSize(const Size(800, 1600));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        for (final (id, currency) in [('binance', 'USD'), ('bdv', 'VES')]) {
+          await catalog.saveAccount(
+            Account(
+              id: AccountId(id),
+              name: id,
+              nativeCurrency: CurrencyCode(currency),
+              isArchived: false,
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              home: Builder(
+                builder:
+                    (context) => Scaffold(
+                      floatingActionButton: FloatingActionButton(
+                        key: const Key('openSheetButton'),
+                        onPressed:
+                            () => showQuickAddExpenseSheet(
+                              context,
+                              preselectedMoverSourceAccountId: AccountId(
+                                'binance',
+                              ),
+                              preselectedMoverDestinationAccountId: AccountId(
+                                'bdv',
+                              ),
+                            ),
+                        child: const Icon(Icons.add),
+                      ),
+                    ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byKey(const Key('openSheetButton')));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const Key('moverRateInputField')),
+          '4000',
+        );
+        await tester.pump();
+
+        await pressBack(tester);
+
+        expect(find.text('¿Descartar este movimiento?'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
       'a clean form closes directly on back, with no discard dialog',
       (tester) async {
         await openProductionSheet(tester);

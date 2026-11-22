@@ -563,6 +563,7 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
     if (!_amount.isEmpty || !_moverGivenAmount.isEmpty) return true;
     if (_noteController.text.trim().isNotEmpty) return true;
     if (_sourceController.text.trim().isNotEmpty) return true;
+    if (_rateFieldController.text.trim().isNotEmpty) return true;
     switch (_mode) {
       case _CaptureMode.gasto:
         return _selectedAccountId != _initialAccountId ||
@@ -1095,7 +1096,11 @@ class _QuickAddExpenseSheetState extends ConsumerState<QuickAddExpenseSheet> {
 
   Widget _buildBody(QuickAddCaptureContext captureContext) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_amount, _moverGivenAmount]),
+      animation: Listenable.merge([
+        _amount,
+        _moverGivenAmount,
+        _rateFieldController,
+      ]),
       // `PopScope.canPop` is only re-read when this subtree rebuilds — a
       // digit typed on the keypad notifies `_amount`/`_moverGivenAmount`
       // directly, without the `setState` every other field goes through, so
