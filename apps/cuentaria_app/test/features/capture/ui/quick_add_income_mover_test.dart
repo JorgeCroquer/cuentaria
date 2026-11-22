@@ -16,6 +16,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_kernel/shared_kernel.dart';
 
+import 'catalog_picker_test_helpers.dart';
+
 Future<ProviderContainer> _openSheet(
   WidgetTester tester, {
   ProviderContainer? existing,
@@ -257,7 +259,7 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeIngreso')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('incomeAccountChip_acc-usd')));
+        await pickCatalogItem(tester, 'incomeAccountChip_acc-usd');
         await tester.enterText(
           find.byKey(const Key('incomeSourceField')),
           'Cliente X',
@@ -318,9 +320,23 @@ void main() {
         await _openSheet(tester, existing: container);
         await tester.tap(find.byKey(const Key('captureModeIngreso')));
         await tester.pump();
+        await tester.tap(find.byKey(const Key('incomeAccountField')));
+        await tester.pumpAndSettle();
 
-        expect(find.text('Bancamiga · USD'), findsOneWidget);
-        expect(find.text('Bancamiga · VES'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('incomeAccountChip_acc-usd')),
+            matching: find.text('Bancamiga · USD'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('incomeAccountChip_acc-ves')),
+            matching: find.text('Bancamiga · VES'),
+          ),
+          findsOneWidget,
+        );
       },
     );
 
@@ -349,7 +365,11 @@ void main() {
         // Sanity check: Gasto mode does show an envelope chip for this
         // envelope, proving the finder below would catch one if Ingreso had
         // it too.
+        await tester.tap(find.byKey(const Key('envelopeField')));
+        await tester.pumpAndSettle();
         expect(find.byKey(const Key('envelopeChip_env-food')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('catalogPickerClose')));
+        await tester.pumpAndSettle();
 
         await tester.tap(find.byKey(const Key('captureModeIngreso')));
         await tester.pump();
@@ -392,11 +412,21 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        expect(find.text('binance · USD'), findsNWidgets(2));
-        expect(find.text('bdv · VES'), findsNWidgets(2));
+        await tester.tap(find.byKey(const Key('moverSourceField')));
+        await tester.pumpAndSettle();
+        expect(find.text('binance · USD'), findsOneWidget);
+        expect(find.text('bdv · VES'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('catalogPickerClose')));
+        await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
-        await tester.pump();
+        await tester.tap(find.byKey(const Key('moverDestinationField')));
+        await tester.pumpAndSettle();
+        expect(find.text('binance · USD'), findsOneWidget);
+        expect(find.text('bdv · VES'), findsOneWidget);
+        await tester.tap(find.byKey(const Key('catalogPickerClose')));
+        await tester.pumpAndSettle();
+
+        await pickCatalogItem(tester, 'moverSourceChip_binance');
 
         expect(
           tester.widget<Text>(find.byKey(const Key('amountCurrency'))).data,
@@ -420,10 +450,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_facebank')));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('moverDestinationChip_zinli')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_facebank');
+        await pickCatalogItem(tester, 'moverDestinationChip_zinli');
 
         expect(find.byKey(const Key('moverToggleReceived')), findsNothing);
 
@@ -459,10 +487,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('moverDestinationChip_bdv')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_binance');
+        await pickCatalogItem(tester, 'moverDestinationChip_bdv');
 
         await _enterAmount(tester, '10000'); // $100.00 given
 
@@ -512,10 +538,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('moverDestinationChip_binance')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_bdv');
+        await pickCatalogItem(tester, 'moverDestinationChip_binance');
 
         await _enterAmount(tester, '400000'); // 4000.00 Bs given
 
@@ -566,10 +590,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('moverDestinationChip_binance')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_bdv');
+        await pickCatalogItem(tester, 'moverDestinationChip_binance');
 
         await _enterAmount(tester, '400000'); // 4000.00 Bs given
 
@@ -615,8 +637,13 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_bdv');
+
+        await tester.ensureVisible(
+          find.byKey(const Key('moverDestinationField')),
+        );
+        await tester.tap(find.byKey(const Key('moverDestinationField')));
+        await tester.pumpAndSettle();
 
         final eurChip = tester.widget<ChoiceChip>(
           find.byKey(const Key('moverDestinationChip_binance-eur')),
@@ -643,12 +670,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_facebank')));
-        await tester.pump();
-        await tester.tap(
-          find.byKey(const Key('moverDestinationChip_facebank')),
-        );
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_facebank');
+        await pickCatalogItem(tester, 'moverDestinationChip_facebank');
 
         await _enterAmount(tester, '2000');
 
@@ -672,10 +695,8 @@ void main() {
       await _openSheet(tester, existing: container);
       await tester.tap(find.byKey(const Key('captureModeMover')));
       await tester.pump();
-      await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('moverDestinationChip_bdv')));
-      await tester.pump();
+      await pickCatalogItem(tester, 'moverSourceChip_binance');
+      await pickCatalogItem(tester, 'moverDestinationChip_bdv');
       await _enterAmount(tester, '10000'); // $100.00 given
 
       await tester.enterText(
@@ -718,12 +739,8 @@ void main() {
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
 
-        await tester.tap(find.byKey(const Key('moverSourceChip_bdv')));
-        await tester.pump();
-        await tester.tap(
-          find.byKey(const Key('moverDestinationChip_bancamiga')),
-        );
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_bdv');
+        await pickCatalogItem(tester, 'moverDestinationChip_bancamiga');
 
         // Same-currency non-USD Mover: no two-sided rate toggle at all.
         expect(find.byKey(const Key('moverToggleReceived')), findsNothing);
@@ -783,10 +800,8 @@ void main() {
         await _openSheet(tester, existing: container);
         await tester.tap(find.byKey(const Key('captureModeMover')));
         await tester.pump();
-        await tester.tap(find.byKey(const Key('moverSourceChip_binance')));
-        await tester.pump();
-        await tester.tap(find.byKey(const Key('moverDestinationChip_bdv')));
-        await tester.pump();
+        await pickCatalogItem(tester, 'moverSourceChip_binance');
+        await pickCatalogItem(tester, 'moverDestinationChip_bdv');
 
         // Jorge's repro: 12000 Bs received, hero amount never typed.
         await tester.enterText(
@@ -870,10 +885,18 @@ void main() {
         await tester.pump();
 
         expect(find.byKey(const Key('moverStep1')), findsNothing);
+
+        await tester.tap(find.byKey(const Key('distributionSourceField')));
+        await tester.pumpAndSettle();
         expect(
           find.byKey(const Key('distributionSourceChip_env-inversion')),
           findsOneWidget,
         );
+        await tester.tap(find.byKey(const Key('catalogPickerClose')));
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byKey(const Key('distributionDestinationField')));
+        await tester.pumpAndSettle();
         expect(
           find.byKey(const Key('distributionDestinationChip_env-portafolio')),
           findsOneWidget,
@@ -898,14 +921,11 @@ void main() {
         await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
         await tester.pump();
 
-        await tester.tap(
-          find.byKey(const Key('distributionSourceChip_env-inversion')),
+        await pickCatalogItem(tester, 'distributionSourceChip_env-inversion');
+        await pickCatalogItem(
+          tester,
+          'distributionDestinationChip_env-portafolio',
         );
-        await tester.pump();
-        await tester.tap(
-          find.byKey(const Key('distributionDestinationChip_env-portafolio')),
-        );
-        await tester.pump();
 
         await _enterAmount(tester, '20000'); // $200.00
 
@@ -951,14 +971,11 @@ void main() {
         await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
         await tester.pump();
 
-        await tester.tap(
-          find.byKey(const Key('distributionSourceChip_env-comida')),
+        await pickCatalogItem(tester, 'distributionSourceChip_env-comida');
+        await pickCatalogItem(
+          tester,
+          'distributionDestinationChip_env-ahorros',
         );
-        await tester.pump();
-        await tester.tap(
-          find.byKey(const Key('distributionDestinationChip_env-ahorros')),
-        );
-        await tester.pump();
 
         await _enterAmount(tester, '50000'); // $500.00
 
@@ -995,6 +1012,8 @@ void main() {
         await tester.pump();
         await tester.tap(find.byKey(const Key('moverModeEnvelopes')));
         await tester.pump();
+        await tester.tap(find.byKey(const Key('distributionSourceField')));
+        await tester.pumpAndSettle();
 
         expect(
           find.byKey(const Key('distributionSourceChip_sys-stage')),
