@@ -10,6 +10,7 @@ import 'package:tasas/domain/rate_resolver.dart';
 import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
 import '../../../../providers/tasas_providers.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../../capture/application/capture_providers.dart';
 import '../../../capture/ui/amount_input_controller.dart';
 import '../../../capture/ui/widgets/numeric_keypad.dart';
@@ -50,6 +51,12 @@ String _formatDecimalAbs(BigInt minorUnits) {
 }
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
+
+/// Masks a formatted amount that's embedded inside a larger composed
+/// string (#333) — the real-balance input itself stays unmasked always,
+/// since you must see what you're typing.
+String _maybeHide(bool hidden, String formatted) =>
+    hidden ? maskAmount(formatted) : formatted;
 
 String _formatDate(DateTime date) {
   final year = date.year.toString().padLeft(4, '0');
@@ -367,7 +374,8 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Proyectado: ${_formatMoney(projectedBalance.native)}',
+              'Proyectado: '
+              '${_maybeHide(ref.watch(balancesHiddenProvider), _formatMoney(projectedBalance.native))}',
               key: const Key('projectedBalanceText'),
             ),
             const SizedBox(height: 16),
@@ -403,8 +411,14 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
+                        // The placeholder is the system-known balance, not
+                        // what the user typed — mask it like every other
+                        // read-only amount (#333).
                         isPlaceholder
-                            ? _formatDecimalAbs(projectedBalance.native.amount)
+                            ? _maybeHide(
+                              ref.watch(balancesHiddenProvider),
+                              _formatDecimalAbs(projectedBalance.native.amount),
+                            )
                             : _realBalance.displayText,
                         key: const Key('realBalanceDisplay'),
                         style: Theme.of(
@@ -585,7 +599,7 @@ class _DebtDirectionSelector extends StatelessWidget {
 /// Describes the previewed [outcome] in Spanish before the user confirms —
 /// the "absorbed against what" and "this is large" copy the acceptance
 /// criteria require.
-class _OutcomeMessage extends StatelessWidget {
+class _OutcomeMessage extends ConsumerWidget {
   const _OutcomeMessage({
     required this.outcome,
     required this.currency,
@@ -600,21 +614,24 @@ class _OutcomeMessage extends StatelessWidget {
 
   /// Explains a routed delta in plain numbers (fix directive gap 2): the
   /// owner previously saw the Income/Expense flow open with no idea why.
-  Widget _contextLine(BigInt deltaNative, String verb) {
+  Widget _contextLine(bool hidden, BigInt deltaNative, String verb) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(
-        'El libro decía ${_formatMoney(projectedNative)} y declaraste '
-        '${_formatNative(declaredNative, currency)}: la diferencia de '
-        '${_formatNative(deltaNative.abs(), currency)} tiene que $verb un '
-        'sobre.',
+        'El libro decía ${_maybeHide(hidden, _formatMoney(projectedNative))} '
+        'y declaraste '
+        '${_maybeHide(hidden, _formatNative(declaredNative, currency))}: '
+        'la diferencia de '
+        '${_maybeHide(hidden, _formatNative(deltaNative.abs(), currency))} '
+        'tiene que $verb un sobre.',
         key: const Key('reconciliationContextLine'),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
     return switch (outcome) {
       NothingToReconcile() => const Padding(
         padding: EdgeInsets.only(bottom: 8),
@@ -626,22 +643,24 @@ class _OutcomeMessage extends StatelessWidget {
       Absorb(:final deltaNative, :final deltaUsd) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Text(
-          'Diferencia: ${_formatNative(deltaNative, currency)} '
-          '(${_formatUsdCents(deltaUsd)}). Se absorbe contra Ajustes.',
+          'Diferencia: ${_maybeHide(hidden, _formatNative(deltaNative, currency))} '
+          '(${_maybeHide(hidden, _formatUsdCents(deltaUsd))}). Se absorbe '
+          'contra Ajustes.',
           key: const Key('reconciliationAbsorbMessage'),
         ),
       ),
       RouteToIncome(:final deltaNative, :final suggestedUsd) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _contextLine(deltaNative, 'entrar a'),
+          _contextLine(hidden, deltaNative, 'entrar a'),
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-              '(${_formatUsdCents(suggestedUsd)}). Parece un cobro sin '
-              'registrar — regístralo como Ingreso, o absorbe de todos '
-              'modos.',
+              'Diferencia grande: '
+              '${_maybeHide(hidden, _formatNative(deltaNative, currency))} '
+              '(${_maybeHide(hidden, _formatUsdCents(suggestedUsd))}). Parece '
+              'un cobro sin registrar — regístralo como Ingreso, o absorbe '
+              'de todos modos.',
               key: const Key('reconciliationRouteWarning'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
@@ -651,13 +670,15 @@ class _OutcomeMessage extends StatelessWidget {
       RouteToExpense(:final deltaNative, :final suggestedUsd) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _contextLine(deltaNative, 'salir de'),
+          _contextLine(hidden, deltaNative, 'salir de'),
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'Diferencia grande: ${_formatNative(deltaNative, currency)} '
-              '(${_formatUsdCents(suggestedUsd)}). Parece un gasto sin '
-              'registrar — regístralo como Gasto, o absorbe de todos modos.',
+              'Diferencia grande: '
+              '${_maybeHide(hidden, _formatNative(deltaNative, currency))} '
+              '(${_maybeHide(hidden, _formatUsdCents(suggestedUsd))}). Parece '
+              'un gasto sin registrar — regístralo como Gasto, o absorbe de '
+              'todos modos.',
               key: const Key('reconciliationRouteWarning'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),

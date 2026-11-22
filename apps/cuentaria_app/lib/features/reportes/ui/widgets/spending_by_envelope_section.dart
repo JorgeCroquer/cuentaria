@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
 
+import '../../../../design/widgets.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../application/spending_by_envelope_providers.dart';
 import 'month_selector.dart';
 
@@ -74,9 +76,9 @@ class _SpendingBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
+        AmountText(
           _formatUsdCents(result.totalUsdCents),
-          key: const Key('spendingByEnvelopeTotal'),
+          amountKey: const Key('spendingByEnvelopeTotal'),
           style: Theme.of(context).textTheme.headlineSmall,
         ),
         const SizedBox(height: 12),
@@ -148,19 +150,22 @@ class _SpendingBarChart extends StatelessWidget {
   }
 }
 
-class _SpendingRowTile extends StatelessWidget {
+class _SpendingRowTile extends ConsumerWidget {
   const _SpendingRowTile({required this.row, required this.previousMonth});
 
   final SpendingRow row;
   final ReportMonth previousMonth;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
     final change = row.changePercent;
     final comparison =
         change == null
             ? null
             : '${change >= 0 ? '+' : ''}${change.round()}% vs ${monthName(previousMonth.month)}';
+    final formatted = _formatUsdCents(row.amountUsdCents);
+    final amount = hidden ? maskAmount(formatted) : formatted;
 
     return Padding(
       key: Key('spendingRow_${row.envelopeId.value}'),
@@ -169,11 +174,7 @@ class _SpendingRowTile extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(row.label),
-          Text(
-            comparison == null
-                ? _formatUsdCents(row.amountUsdCents)
-                : '${_formatUsdCents(row.amountUsdCents)} · $comparison',
-          ),
+          Text(comparison == null ? amount : '$amount · $comparison'),
         ],
       ),
     );

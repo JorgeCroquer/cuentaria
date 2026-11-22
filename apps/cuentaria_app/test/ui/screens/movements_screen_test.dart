@@ -14,6 +14,7 @@ import 'package:cuentaria_app/design/widgets.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/ui/screens/movements/movement_detail_screen.dart';
 import 'package:cuentaria_app/ui/screens/movements/movements_screen.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:cuentaria_app/ui/theme/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,6 +42,11 @@ Future<void> _pumpWithRouter(
       ),
     ],
   );
+
+  // These tests exercise Movimientos listing/grouping concerns of their
+  // own, not the #333 hide-balances toggle — keep balances visible so
+  // their pre-existing literal-amount assertions aren't masked.
+  container.read(balancesHiddenProvider.notifier).show();
 
   await tester.pumpWidget(
     UncontrolledProviderScope(

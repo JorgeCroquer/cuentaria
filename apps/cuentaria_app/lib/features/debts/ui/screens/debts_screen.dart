@@ -6,6 +6,7 @@ import 'package:shared_kernel/shared_kernel.dart';
 
 import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../../accounts/application/account_providers.dart';
 import '../../../accounts/ui/account_form_validators.dart';
@@ -88,9 +89,9 @@ class _DebtsScreenState extends ConsumerState<DebtsScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Text(
+                  child: AmountText(
                     _formatUsdCents(snapshot.globalNetoUsdCents),
-                    key: const Key('debtsGlobalAmount'),
+                    amountKey: const Key('debtsGlobalAmount'),
                     style: Theme.of(context).textTheme.headlineMedium,
                   ),
                 ),
@@ -240,11 +241,17 @@ class _PersonTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
+    String amount(int cents) {
+      final formatted = _formatUsdCents(cents);
+      return hidden ? maskAmount(formatted) : formatted;
+    }
+
     final headline =
         persona.netoUsdCents >= 0
             ? '${persona.personName} te debe '
-                '${_formatUsdCents(persona.netoUsdCents)}'
-            : 'le debés ${_formatUsdCents(-persona.netoUsdCents)} a '
+                '${amount(persona.netoUsdCents)}'
+            : 'le debés ${amount(-persona.netoUsdCents)} a '
                 '${persona.personName}';
     final primaryLeg = _primaryLeg;
     final isZero =
@@ -327,7 +334,7 @@ class _PersonTile extends ConsumerWidget {
 
 /// One currency leg's display line — the rate it valued at is announced
 /// inline for non-USD legs (or "sin tasa" when no observation exists).
-class _CurrencyLegLine extends StatelessWidget {
+class _CurrencyLegLine extends ConsumerWidget {
   const _CurrencyLegLine({required this.leg});
 
   final PersonCurrencyDebt leg;
@@ -335,9 +342,12 @@ class _CurrencyLegLine extends StatelessWidget {
   static final _usd = CurrencyCode('USD');
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
+    final formatted = _formatUsdCents(leg.todayValueUsdCents);
     final valueText =
-        '${leg.currency.value}: ${_formatUsdCents(leg.todayValueUsdCents)}';
+        '${leg.currency.value}: '
+        '${hidden ? maskAmount(formatted) : formatted}';
     return Text(
       leg.currency == _usd
           ? valueText

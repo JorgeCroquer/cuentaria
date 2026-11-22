@@ -1,10 +1,18 @@
 import 'package:cuentaria_app/features/reportes/application/income_by_source_providers.dart';
 import 'package:cuentaria_app/features/reportes/ui/widgets/income_by_source_section.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reportes/reportes.dart';
+
+/// This section's tests assert on pre-#333 literal amount text, not on the
+/// hide-balances toggle — start visible so they aren't masked.
+class _VisibleBalances extends BalancesHiddenNotifier {
+  @override
+  bool build() => false;
+}
 
 void main() {
   final august = ReportMonth(2026, 8);
@@ -14,6 +22,7 @@ void main() {
       ProviderScope(
         overrides: [
           incomeBySourceProvider(august).overrideWith((ref) async => result),
+          balancesHiddenProvider.overrideWith(_VisibleBalances.new),
         ],
         child: MaterialApp(
           home: Scaffold(body: IncomeBySourceSection(month: august)),

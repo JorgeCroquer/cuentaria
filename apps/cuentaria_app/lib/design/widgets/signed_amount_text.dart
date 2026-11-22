@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'amount_text.dart';
+
 /// The sign of a formatted amount, driving [SignedAmountText]'s color.
 enum AmountSign { negative, positive, neutral }
 
@@ -28,9 +30,9 @@ class SignedAmountText extends StatelessWidget {
       AmountSign.positive => colorScheme.primary,
       AmountSign.neutral => colorScheme.onSurface,
     };
-    return Text(
+    return AmountText(
       amount,
-      key: textKey,
+      amountKey: textKey,
       style: TextStyle(color: color, fontWeight: FontWeight.w500),
     );
   }

@@ -7,6 +7,7 @@ import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/reconciliation/ui/screens/reconciliation_sheet.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,11 +19,16 @@ Future<ProviderContainer> _openSheet(
   WidgetTester tester,
   Account account, {
   ProviderContainer? existing,
+  bool hideBalances = false,
 }) async {
   final container =
       existing ??
       ProviderContainer(overrides: [isWebProvider.overrideWithValue(true)]);
   addTearDown(container.dispose);
+  // These tests exercise Conciliación concerns of their own, not the #333
+  // hide-balances toggle — keep balances visible so their pre-existing
+  // literal-amount assertions aren't masked.
+  if (!hideBalances) container.read(balancesHiddenProvider.notifier).show();
 
   // The taller card keypad (#281) overflows the default 800x600 test
   // viewport inside the bottom sheet — same scaffolding as the capture
@@ -75,6 +81,45 @@ Future<void> _clearDigits(WidgetTester tester, int count) async {
 
 void main() {
   group('ReconciliationSheet', () {
+    testWidgets(
+      'with balances hidden, the real-balance placeholder does not leak the '
+      'projected balance before typing (#333 reviewer finding)',
+      (tester) async {
+        final container = ProviderContainer(
+          overrides: [isWebProvider.overrideWithValue(true)],
+        );
+        addTearDown(container.dispose);
+        final catalog = await container.read(catalogRepositoryProvider.future);
+        final account = Account(
+          id: AccountId('acc-usd'),
+          name: 'USD wallet',
+          nativeCurrency: CurrencyCode('USD'),
+          isArchived: false,
+          updatedAt: DateTime.now(),
+        );
+        await catalog.saveAccount(account);
+
+        await _openSheet(
+          tester,
+          account,
+          existing: container,
+          hideBalances: true,
+        );
+
+        final placeholder =
+            tester
+                .widget<Text>(find.byKey(const Key('realBalanceDisplay')))
+                .data!;
+        expect(placeholder, isNot(matches(RegExp(r'\d'))));
+
+        await _typeDigits(tester, '12');
+        expect(
+          tester.widget<Text>(find.byKey(const Key('realBalanceDisplay'))).data,
+          '0.12',
+        );
+      },
+    );
+
     testWidgets('shows the projected balance before asking for the real one', (
       tester,
     ) async {

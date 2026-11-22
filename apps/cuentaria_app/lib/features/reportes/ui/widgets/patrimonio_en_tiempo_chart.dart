@@ -8,9 +8,17 @@ import 'package:reportes/reportes.dart';
 /// [PatrimonioPoint.marketValueUsdCents] is null, rendering an honest gap
 /// instead of a fabricated zero.
 class PatrimonioEnTiempoChart extends StatelessWidget {
-  const PatrimonioEnTiempoChart({super.key, required this.points});
+  const PatrimonioEnTiempoChart({
+    super.key,
+    required this.points,
+    this.balancesHidden = false,
+  });
 
   final List<PatrimonioPoint> points;
+
+  /// Hides the left axis' USD-value labels while balances are hidden
+  /// (#333) — the lines themselves still render; only the figures go.
+  final bool balancesHidden;
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +43,11 @@ class PatrimonioEnTiempoChart extends StatelessWidget {
       height: 240,
       child: LineChart(
         LineChartData(
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: !balancesHidden),
+            ),
+          ),
           lineBarsData: [
             LineChartBarData(
               color: Colors.blue,

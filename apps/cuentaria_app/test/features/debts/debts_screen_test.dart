@@ -9,6 +9,7 @@ import 'package:cuentaria_app/features/debts/ui/screens/debts_screen.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +26,10 @@ Future<void> pumpWithContainer(
   // the capture sheet tests.
   await tester.binding.setSurfaceSize(const Size(800, 1600));
   addTearDown(() => tester.binding.setSurfaceSize(null));
+  // These tests exercise Deudas CRUD/balance concerns of their own, not
+  // the #333 hide-balances toggle — keep balances visible so their
+  // pre-existing literal-amount assertions aren't masked.
+  container.read(balancesHiddenProvider.notifier).show();
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,

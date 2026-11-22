@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
 
+import '../../../../design/widgets.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../application/funding_pace_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
@@ -69,23 +71,30 @@ class FundingPaceSection extends ConsumerWidget {
   }
 }
 
-class _FundingPaceEnvelopeTile extends StatelessWidget {
+class _FundingPaceEnvelopeTile extends ConsumerWidget {
   const _FundingPaceEnvelopeTile({required this.result});
 
   final FundingPaceEnvelopeResult result;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
+    String amount(int cents) {
+      final formatted = _formatUsdCents(cents);
+      return hidden ? maskAmount(formatted) : formatted;
+    }
+
     final row = result.row;
     final requiredPerMonth = row.requiredPerMonthUsdCents;
     final status = row.status;
 
     final summary = StringBuffer(
-      '${row.name} · aportado ${_formatUsdCents(row.contributedThisMonthUsdCents)}',
+      '${row.name} · aportado '
+      '${amount(row.contributedThisMonthUsdCents)}',
     );
     if (requiredPerMonth != null && status != null) {
       summary.write(
-        ' · necesitás ${_formatUsdCents(requiredPerMonth)}/mes · '
+        ' · necesitás ${amount(requiredPerMonth)}/mes · '
         '${_statusLabel(status)}',
       );
     }

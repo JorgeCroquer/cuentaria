@@ -1,9 +1,17 @@
 import 'package:cuentaria_app/features/reportes/application/patrimonio_en_tiempo_providers.dart';
 import 'package:cuentaria_app/features/reportes/ui/screens/patrimonio_en_tiempo_screen.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:reportes/reportes.dart';
+
+/// This screen's tests assert on pre-#333 literal amount text, not on the
+/// hide-balances toggle — start visible so they aren't masked.
+class _VisibleBalances extends BalancesHiddenNotifier {
+  @override
+  bool build() => false;
+}
 
 final _points = [
   PatrimonioPoint(
@@ -35,6 +43,7 @@ Future<void> _pumpScreen(
     ProviderScope(
       overrides: [
         patrimonioEnTiempoPointsProvider.overrideWith((ref) async => points),
+        balancesHiddenProvider.overrideWith(_VisibleBalances.new),
       ],
       child: const MaterialApp(home: PatrimonioEnTiempoScreen()),
     ),

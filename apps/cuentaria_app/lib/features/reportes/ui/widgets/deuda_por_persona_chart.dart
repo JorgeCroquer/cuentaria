@@ -16,9 +16,17 @@ const _lineColors = [
 /// least one of [points], using [FlSpot.nullSpot] for the months they had
 /// no balance — an honest gap, never a fabricated zero.
 class DeudaPorPersonaChart extends StatelessWidget {
-  const DeudaPorPersonaChart({super.key, required this.points});
+  const DeudaPorPersonaChart({
+    super.key,
+    required this.points,
+    this.balancesHidden = false,
+  });
 
   final List<DebtPoint> points;
+
+  /// Hides the left axis' USD-value labels while balances are hidden
+  /// (#333) — the lines themselves still render; only the figures go.
+  final bool balancesHidden;
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +52,11 @@ class DeudaPorPersonaChart extends StatelessWidget {
       height: 240,
       child: LineChart(
         LineChartData(
+          titlesData: FlTitlesData(
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(showTitles: !balancesHidden),
+            ),
+          ),
           lineBarsData: [
             for (var i = 0; i < personNames.length; i++)
               LineChartBarData(

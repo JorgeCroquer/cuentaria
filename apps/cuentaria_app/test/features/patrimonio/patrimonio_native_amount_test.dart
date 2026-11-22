@@ -1,6 +1,7 @@
 import 'package:cuentaria_app/features/patrimonio/application/patrimonio_providers.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +39,7 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       await tester.pumpWidget(
         UncontrolledProviderScope(

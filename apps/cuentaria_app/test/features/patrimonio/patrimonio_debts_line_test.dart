@@ -7,6 +7,7 @@ import 'package:contabilidad/domain/transaction_metadata.dart';
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -23,6 +24,7 @@ void main() {
         overrides: [isWebProvider.overrideWithValue(true)],
       );
       addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).show();
 
       final catalog = await container.read(catalogRepositoryProvider.future);
       final deviceId = await container.read(deviceIdProvider.future);

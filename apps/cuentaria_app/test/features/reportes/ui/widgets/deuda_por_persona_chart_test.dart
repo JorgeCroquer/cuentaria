@@ -68,4 +68,31 @@ void main() {
     expect(find.byType(LineChart), findsNothing);
     expect(find.text('Sin datos de deudas'), findsOneWidget);
   });
+
+  testWidgets(
+    'hides the left axis value labels while balancesHidden is true (#333) '
+    '— the lines still render',
+    (tester) async {
+      final points = [
+        DebtPoint(
+          month: ReportMonth(2026, 9),
+          personas: const [
+            PersonDebtPoint(personName: 'Pedro', netoUsdCents: 20000),
+          ],
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DeudaPorPersonaChart(points: points, balancesHidden: true),
+          ),
+        ),
+      );
+
+      final chart = tester.widget<LineChart>(find.byType(LineChart));
+      expect(chart.data.titlesData.leftTitles.sideTitles.showTitles, isFalse);
+      expect(chart.data.lineBarsData, hasLength(1));
+    },
+  );
 }

@@ -4,22 +4,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../design/widgets.dart';
 import '../../../../providers/composition_root.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../../../ui/theme/app_icons.dart';
 import '../../../../ui/theme/app_theme.dart';
 import '../../application/envelopes_providers.dart';
 
 String _formatUsdCents(int cents) => '\$${(cents / 100).toStringAsFixed(2)}';
 
-String? _targetSummary(FundingTarget target) => switch (target) {
-  NoTarget() => null,
-  Cap(:final amountUsd) => 'Tope: ${_formatUsdCents(amountUsd)}',
-  GoalLine(:final amountUsd, :final dueDate) =>
-    dueDate == null
-        ? 'Meta: ${_formatUsdCents(amountUsd)}'
-        : 'Meta: ${_formatUsdCents(amountUsd)} para '
-            '${dueDate.toLocal().toString().split(' ').first}',
-};
+String? _targetSummary(FundingTarget target, bool hidden) {
+  String amount(int amountUsd) {
+    final formatted = _formatUsdCents(amountUsd);
+    return hidden ? maskAmount(formatted) : formatted;
+  }
+
+  return switch (target) {
+    NoTarget() => null,
+    Cap(:final amountUsd) => 'Tope: ${amount(amountUsd)}',
+    GoalLine(:final amountUsd, :final dueDate) =>
+      dueDate == null
+          ? 'Meta: ${amount(amountUsd)}'
+          : 'Meta: ${amount(amountUsd)} para '
+              '${dueDate.toLocal().toString().split(' ').first}',
+  };
+}
 
 /// Management screen for user Envelopes (U1 slice 2, #95): create, edit and
 /// archive name/icon/color/target. System Envelopes (Stage, Diferencial,
@@ -97,7 +106,8 @@ class _EnvelopeListTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final appearance = envelope.appearance;
-    final summary = _targetSummary(envelope.target);
+    final hidden = ref.watch(balancesHiddenProvider);
+    final summary = _targetSummary(envelope.target, hidden);
     final color =
         appearance.colorIndex == null
             ? null

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:reportes/reportes.dart';
 
+import '../../../../design/widgets.dart';
+import '../../../../providers/visibility_providers.dart';
 import '../../application/deudas_en_tiempo_providers.dart';
 import '../widgets/deuda_por_persona_chart.dart';
 
@@ -45,12 +47,16 @@ String _sourceLabel(String source) => switch (source) {
 
 /// Sign spoken in the user's language, same wording as the Deudas screen's
 /// `_PersonTile` headline (#207/#265).
-String _headline(PersonDebtPoint persona) =>
-    persona.netoUsdCents >= 0
-        ? '${persona.personName} te debe '
-            '${_formatUsdCents(persona.netoUsdCents)}'
-        : 'le debés ${_formatUsdCents(-persona.netoUsdCents)} a '
-            '${persona.personName}';
+String _headline(PersonDebtPoint persona, bool hidden) {
+  String amount(int cents) {
+    final formatted = _formatUsdCents(cents);
+    return hidden ? maskAmount(formatted) : formatted;
+  }
+
+  return persona.netoUsdCents >= 0
+      ? '${persona.personName} te debe ${amount(persona.netoUsdCents)}'
+      : 'le debés ${amount(-persona.netoUsdCents)} a ${persona.personName}';
+}
 
 /// Deuda por persona en el tiempo (#265): twelve Debt Points, one per
 /// month-end, plotted as one line per counterparty. The month navigator
@@ -109,7 +115,7 @@ class _DeudaPorPersonaScreenState extends ConsumerState<DeudaPorPersonaScreen> {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({
     required this.points,
     required this.selectedIndex,
@@ -123,14 +129,16 @@ class _Body extends StatelessWidget {
   final VoidCallback? onNext;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hidden = ref.watch(balancesHiddenProvider);
     final selected = points[selectedIndex];
     final hasAnyDebt = points.any((point) => point.personas.isNotEmpty);
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (hasAnyDebt) DeudaPorPersonaChart(points: points),
+        if (hasAnyDebt)
+          DeudaPorPersonaChart(points: points, balancesHidden: hidden),
         if (hasAnyDebt) const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -165,7 +173,7 @@ class _Body extends StatelessWidget {
             Padding(
               key: Key('deudaPorPersonaRow_${persona.personName}'),
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Text(_headline(persona)),
+              child: Text(_headline(persona, hidden)),
             ),
         if (selected.rateSource != null && selected.rateObservedAt != null)
           Padding(

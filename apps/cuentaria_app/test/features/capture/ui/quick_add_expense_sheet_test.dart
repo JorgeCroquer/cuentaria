@@ -10,6 +10,7 @@ import 'package:cuentaria_app/features/capture/ui/screens/quick_add_expense_shee
 import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
 import 'package:cuentaria_app/providers/tasas_providers.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -2258,4 +2259,34 @@ void main() {
       },
     );
   });
+
+  testWidgets(
+    'the typed amount stays unmasked even while balances are hidden (#333)',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: [isWebProvider.overrideWithValue(true)],
+      );
+      addTearDown(container.dispose);
+      container.read(balancesHiddenProvider.notifier).hide();
+
+      await _openSheet(tester, existing: container);
+
+      await tester.tap(find.byKey(const Key('keypadDigit_1')));
+      await tester.tap(find.byKey(const Key('keypadDigit_2')));
+      await tester.tap(find.byKey(const Key('keypadDigit_3')));
+      await tester.tap(find.byKey(const Key('keypadDigit_4')));
+      await tester.pump();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('amountDisplay'))).data,
+        '12.34',
+      );
+      expect(
+        RegExp(r'•').hasMatch(
+          tester.widget<Text>(find.byKey(const Key('amountDisplay'))).data!,
+        ),
+        isFalse,
+      );
+    },
+  );
 }

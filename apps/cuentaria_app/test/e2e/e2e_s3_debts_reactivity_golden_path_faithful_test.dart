@@ -25,11 +25,19 @@ import 'package:cuentaria_app/features/patrimonio/ui/screens/patrimonio_screen.d
 import 'package:cuentaria_app/features/reconciliation/application/reconciliation_providers.dart';
 import 'package:cuentaria_app/main.dart';
 import 'package:cuentaria_app/providers/composition_root.dart';
+import 'package:cuentaria_app/providers/visibility_providers.dart';
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_kernel/shared_kernel.dart';
+
+/// This e2e asserts on pre-#333 literal amount text, not on the
+/// hide-balances toggle — start visible so they aren't masked.
+class _VisibleBalances extends BalancesHiddenNotifier {
+  @override
+  bool build() => false;
+}
 
 /// Patrimonio renders an empty-state guidance screen instead of its body
 /// (and never mounts the "Deudas" line) when the catalog has no regular
@@ -65,6 +73,7 @@ void main() {
           overrides: [
             isWebProvider.overrideWithValue(true),
             _seededCatalogOverride,
+            balancesHiddenProvider.overrideWith(_VisibleBalances.new),
           ],
           child: const MyApp(),
         ),
