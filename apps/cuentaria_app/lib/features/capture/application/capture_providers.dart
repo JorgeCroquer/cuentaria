@@ -137,6 +137,11 @@ class QuickAddCaptureContext {
   final List<String> previousIncomeSources;
   final MoverPair? lastUsedMoverPair;
 
+  /// Envelopes that have received at least one expense, ordered by
+  /// descending frequency — feeds the "Frecuentes" section of the catalog
+  /// picker sheet (#316), the same ranking that already orders [envelopes].
+  final List<EnvelopeId> frequentEnvelopeIds;
+
   QuickAddCaptureContext({
     required this.accounts,
     required this.regularAccounts,
@@ -146,6 +151,7 @@ class QuickAddCaptureContext {
     required this.lastUsedAccountId,
     required this.previousIncomeSources,
     required this.lastUsedMoverPair,
+    required this.frequentEnvelopeIds,
   });
 }
 
@@ -191,6 +197,7 @@ final quickAddCaptureContextProvider = FutureProvider<QuickAddCaptureContext>((
     lastUsedAccountId: await defaults.lastUsedAccount(),
     previousIncomeSources: await defaults.previousIncomeSources(),
     lastUsedMoverPair: await defaults.lastUsedMoverPair(),
+    frequentEnvelopeIds: frequencyOrder,
   );
 });
 
