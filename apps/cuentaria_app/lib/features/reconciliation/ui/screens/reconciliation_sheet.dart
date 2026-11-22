@@ -411,8 +411,14 @@ class _ReconciliationSheetState extends ConsumerState<ReconciliationSheet> {
                     textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text(
+                        // The placeholder is the system-known balance, not
+                        // what the user typed — mask it like every other
+                        // read-only amount (#333).
                         isPlaceholder
-                            ? _formatDecimalAbs(projectedBalance.native.amount)
+                            ? _maybeHide(
+                              ref.watch(balancesHiddenProvider),
+                              _formatDecimalAbs(projectedBalance.native.amount),
+                            )
                             : _realBalance.displayText,
                         key: const Key('realBalanceDisplay'),
                         style: Theme.of(
